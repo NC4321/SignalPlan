@@ -37,7 +37,34 @@ export function FileMenu() {
     issues: PlanIssue[]
   }>()
 
-  const closeMenu = () => menu.current?.removeAttribute('open')
+  const summary = useRef<HTMLElement>(null)
+  const [menuOpen, setMenuOpen] = useState(false)
+
+  /** Closes the menu, returning focus to "File" if it was inside it. */
+  const closeMenu = () => {
+    const element = menu.current
+    if (!element?.open) return
+    const hadFocus = element.contains(document.activeElement)
+    element.removeAttribute('open')
+    if (hadFocus) summary.current?.focus()
+  }
+  const items = () => [
+    ...(menu.current?.querySelectorAll<HTMLButtonElement>(
+      '.menu-items button:not(:disabled)',
+    ) ?? []),
+  ]
+
+  // A click anywhere else closes the menu.
+  useEffect(() => {
+    if (!menuOpen) return
+    const onPointerDown = (event: PointerEvent) => {
+      if (!menu.current?.contains(event.target as Node)) {
+        menu.current?.removeAttribute('open')
+      }
+    }
+    document.addEventListener('pointerdown', onPointerDown)
+    return () => document.removeEventListener('pointerdown', onPointerDown)
+  }, [menuOpen])
 
   /** Opens a new or sample plan; it joins the list on its first edit. */
   const startFresh = async (plan: Plan) => {
@@ -81,8 +108,51 @@ export function FileMenu() {
 
   return (
     <>
-      <details className="menu" ref={menu}>
-        <summary>File</summary>
+      <details
+        className="menu"
+        ref={menu}
+        onToggle={(event) => {
+          const open = event.currentTarget.open
+          setMenuOpen(open)
+          // Opened from the keyboard, focus moves to the first item.
+          if (open && summary.current?.matches(':focus-visible')) {
+            items()[0]?.focus()
+          }
+        }}
+        onKeyDown={(event) => {
+          const list = items()
+          const at = list.indexOf(document.activeElement as HTMLButtonElement)
+          if (event.key === 'Escape' && menu.current?.open) {
+            // Handled here so the editor's Esc (back to Select) doesn't fire.
+            event.preventDefault()
+            event.stopPropagation()
+            closeMenu()
+            summary.current?.focus()
+          } else if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+            event.preventDefault()
+            if (!menu.current?.open) {
+              menu.current?.setAttribute('open', '')
+              ;(event.key === 'ArrowDown' ? list[0] : list.at(-1))?.focus()
+              return
+            }
+            const step = event.key === 'ArrowDown' ? 1 : -1
+            const next = at === -1 ? (step === 1 ? 0 : -1) : at + step
+            list.at(next % list.length)?.focus()
+          } else if (event.key === 'Home' || event.key === 'End') {
+            if (at === -1) return
+            event.preventDefault()
+            ;(event.key === 'Home' ? list[0] : list.at(-1))?.focus()
+          }
+        }}
+        onBlur={(event) => {
+          // Tabbing out of the menu closes it.
+          const to = event.relatedTarget
+          if (to instanceof Node && !event.currentTarget.contains(to)) {
+            event.currentTarget.removeAttribute('open')
+          }
+        }}
+      >
+        <summary ref={summary}>File</summary>
         <div className="menu-items">
           <button type="button" onClick={() => void startFresh(blankPlan())}>
             New plan

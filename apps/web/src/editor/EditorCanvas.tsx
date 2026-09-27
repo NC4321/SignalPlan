@@ -7,7 +7,12 @@ import {
   type Floor,
   type Point,
 } from '@signalplan/floorplan'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useId, useMemo, useRef, useState } from 'react'
+import {
+  describeForScreenReader,
+  keyboardOrder,
+  nextKeyboardItem,
+} from './a11y.ts'
 import { fitCamera, panBy, toPlan, zoomAt, type Camera } from './camera.ts'
 import { useEditor, useEditorStore } from './context.ts'
 import { useBackgroundImage } from './images.ts'
@@ -113,6 +118,11 @@ export function EditorCanvas({ coverage }: { coverage: Coverage | undefined }) {
     [plan.accessPoints, floorId],
   )
   const segments = useMemo(() => materialSegments(floor), [floor])
+  const order = useMemo(
+    () => keyboardOrder(floor, accessPoints),
+    [floor, accessPoints],
+  )
+  const hintId = useId()
   const openings = useMemo(() => openingSpans(floor), [floor])
   const wallLines = useMemo(() => {
     const nodes = new Map(floor.nodes.map((n) => [n.id, n]))
@@ -159,10 +169,13 @@ export function EditorCanvas({ coverage }: { coverage: Coverage | undefined }) {
     store.getState().setCamera(fitCamera(bounds, size.width, size.height))
   }, [camera, size, floor, store])
 
-  // Space + drag pans, as in design tools.
+  // Space + drag pans, as in design tools. Only from the canvas (or with
+  // nothing focused), so Space still presses buttons and ticks checkboxes.
   useEffect(() => {
     const down = (event: KeyboardEvent) => {
-      if (event.code === 'Space' && !isTyping(event)) {
+      const onCanvas =
+        event.target === canvas.current || event.target === document.body
+      if (event.code === 'Space' && onCanvas && !isTyping(event)) {
         event.preventDefault()
         setSpaceDown(true)
       }
@@ -423,11 +436,14 @@ export function EditorCanvas({ coverage }: { coverage: Coverage | undefined }) {
         aria-roledescription="floor plan editor"
         aria-label={
           openingTool
-            ? `Floor plan. Click a wall to add a ${openingTool}.`
+            ? `Floor plan, ${openingTool} tool`
             : tool === 'wall'
-              ? 'Floor plan. Click to place wall corners, double-click or press Enter to finish; type a number to enter an exact length.'
-              : 'Floor plan with predicted Wi-Fi coverage. Arrow keys move the selection; Delete removes selected walls and corners.'
+              ? 'Floor plan, wall tool'
+              : tool === 'calibrate'
+                ? 'Floor plan, calibrating: click two points on the image'
+                : 'Floor plan'
         }
+        aria-describedby={hintId}
         onDoubleClick={(event) => {
           const state = store.getState()
           if (tool === 'wall') {
@@ -652,6 +668,26 @@ export function EditorCanvas({ coverage }: { coverage: Coverage | undefined }) {
         }}
         onKeyDown={(event) => {
           const state = store.getState()
+          // Tab steps through walls, openings, corners and access points,
+          // then on to the next control (D23).
+          if (
+            event.key === 'Tab' &&
+            tool === 'select' &&
+            !event.altKey &&
+            !event.ctrlKey &&
+            !event.metaKey
+          ) {
+            const next = nextKeyboardItem(
+              order,
+              state.selection,
+              event.shiftKey ? -1 : 1,
+            )
+            if (next) {
+              event.preventDefault()
+              state.select([next])
+            }
+            return
+          }
           if (state.selection.length === 0) return
           const step = event.shiftKey ? NUDGE_M * 5 : NUDGE_M
           const deltas: Record<string, Point> = {
@@ -675,6 +711,16 @@ export function EditorCanvas({ coverage }: { coverage: Coverage | undefined }) {
           )
         }}
       />
+      <p id={hintId} className="visually-hidden">
+        {tool === 'wall'
+          ? 'Click to place wall corners; double-click or press Enter to finish. Type a number for an exact length.'
+          : openingTool
+            ? `Click a wall to add a ${openingTool}. Esc returns to Select.`
+            : 'Tab and Shift+Tab select walls, doors, windows, corners and access points. Arrow keys move the selection, Delete removes it. Shortcuts: V select, W wall, D door, N window.'}
+      </p>
+      <p className="visually-hidden" aria-live="polite">
+        {describeForScreenReader(selection, floor, accessPoints, units, order)}
+      </p>
       {tool === 'wall' && anchor && camera && (
         <LengthInput
           anchor={anchor}

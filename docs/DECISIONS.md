@@ -155,3 +155,16 @@ A running log of project decisions, newest last. Each entry records what was dec
 - **Storage:** in the browser, images live in their own IndexedDB store (D21) and floors refer to them by `imageId`. Saved `.signalplan.json` files embed them as a `dataUrl`, so one file restores everything; opening a file moves embedded images back into the store. Images no longer used by any plan are removed at startup, so a removed image can still be brought back with undo during the session. Adding the optional `background` field needed no `schemaVersion` bump.
 - **Why:** tracing over an existing plan is much faster and more accurate than measuring each room by hand (OUTLINE.md open question). Two-point calibration is the simplest method that works with any scanned plan, even one without a printed scale bar.
 - **Revisit if** people often trace from PDFs or rotated scans (read PDFs with pdf.js, add rotation), or if embedded images make files too big to share (downscale on import).
+
+### D23. Keyboard access and screen-reader labels — 2026-09-27
+
+- **Decision:** everything around the canvas works from the keyboard with accessible names, and the canvas gets basic keyboard selection. Keyboard drawing (placing wall corners with a keyboard cursor) is left out.
+- **Why:** the toolbar, menus, panels and dialogs are ordinary controls and should all work without a mouse; drawing walls by keyboard would need its own cursor and snapping model, far more work than it's worth for a drawing tool at this stage.
+- **Tools:** an ARIA toolbar. Tab reaches the current tool, the arrow keys (and Home/End) move between tools, Enter or Space picks one; V, W, D and N still work anywhere, and are exposed through `aria-keyshortcuts`.
+- **File menu:** Enter, Space or ↓ opens it on the first item; ↑/↓ move, Esc closes it and returns to File, and tabbing away or clicking elsewhere closes it.
+- **Dialogs:** native modal dialogs trap focus; on closing, focus returns to whatever opened them (File, when opened from the menu).
+- **Canvas:** focusable, with a short label and a described-by hint listing the keys. With Select active, Tab and Shift+Tab step through walls, doors and windows, corners, then access points, each in reading order (top to bottom, then left to right), and move on to the next control after the last one. Arrow keys move the selection and Delete removes it, as before. A polite live region announces the selection in the display units, e.g. "Wall, drywall, 3.20 m, 2 of 14".
+- **Space to pan** now only applies when the canvas (or nothing) has focus. Before, it swallowed Space everywhere, so Space couldn't press buttons, tick Heatmap or open the File menu.
+- **Quiet readout:** the pointer position in the status bar is no longer a live region, since it changed on every mouse move.
+- **Checks:** `@axe-core/playwright` scans the editor, the properties panel, the File menu and every dialog in the browser tests, failing on serious or critical findings; keyboard-only flows are tested too.
+- **Revisit if** people ask to draw by keyboard, or a screen-reader user reports that the canvas announcements are too chatty or too sparse.

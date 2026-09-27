@@ -164,48 +164,73 @@ function Segmented<T extends string>({
   )
 }
 
+const TOOLS = [
+  {
+    tool: 'select',
+    name: 'Select',
+    icon: '↖',
+    key: 'V',
+    title: 'Select and move',
+  },
+  { tool: 'wall', name: 'Wall', icon: '▭', key: 'W', title: 'Draw walls' },
+  { tool: 'door', name: 'Door', icon: '⌷', key: 'D', title: 'Add doors' },
+  { tool: 'window', name: 'Window', icon: '▤', key: 'N', title: 'Add windows' },
+] as const
+
+/**
+ * The tools, as an ARIA toolbar: Tab reaches the current tool, arrow keys
+ * move between tools, Enter or Space picks one (D23).
+ */
 export function Toolbar() {
   const store = useEditorStore()
   const tool = useEditor((s) => s.tool)
+  const buttons = useRef<(HTMLButtonElement | null)[]>([])
+  const current = Math.max(
+    0,
+    TOOLS.findIndex((t) => t.tool === tool),
+  )
   return (
-    <nav className="toolbar" aria-label="Tools">
-      <button
-        type="button"
-        aria-pressed={tool === 'select'}
-        onClick={() => store.getState().setTool('select')}
-        title="Select and move (V)"
-      >
-        <span aria-hidden="true">↖</span>
-        <span className="tool-name">Select</span>
-      </button>
-      <button
-        type="button"
-        aria-pressed={tool === 'wall'}
-        onClick={() => store.getState().setTool('wall')}
-        title="Draw walls (W)"
-      >
-        <span aria-hidden="true">▭</span>
-        <span className="tool-name">Wall</span>
-      </button>
-      <button
-        type="button"
-        aria-pressed={tool === 'door'}
-        onClick={() => store.getState().setTool('door')}
-        title="Add doors (D)"
-      >
-        <span aria-hidden="true">⌷</span>
-        <span className="tool-name">Door</span>
-      </button>
-      <button
-        type="button"
-        aria-pressed={tool === 'window'}
-        onClick={() => store.getState().setTool('window')}
-        title="Add windows (N)"
-      >
-        <span aria-hidden="true">▤</span>
-        <span className="tool-name">Window</span>
-      </button>
-    </nav>
+    <div
+      className="toolbar"
+      role="toolbar"
+      aria-label="Tools"
+      onKeyDown={(event) => {
+        const focused = buttons.current.indexOf(
+          document.activeElement as HTMLButtonElement,
+        )
+        if (focused === -1) return
+        const last = TOOLS.length - 1
+        const target = {
+          ArrowDown: focused === last ? 0 : focused + 1,
+          ArrowRight: focused === last ? 0 : focused + 1,
+          ArrowUp: focused === 0 ? last : focused - 1,
+          ArrowLeft: focused === 0 ? last : focused - 1,
+          Home: 0,
+          End: last,
+        }[event.key]
+        if (target === undefined) return
+        event.preventDefault()
+        buttons.current[target]?.focus()
+      }}
+    >
+      {TOOLS.map((t, i) => (
+        <button
+          key={t.tool}
+          ref={(element) => {
+            buttons.current[i] = element
+          }}
+          type="button"
+          tabIndex={i === current ? 0 : -1}
+          aria-pressed={tool === t.tool}
+          aria-keyshortcuts={t.key}
+          onClick={() => store.getState().setTool(t.tool)}
+          title={`${t.title} (${t.key})`}
+        >
+          <span aria-hidden="true">{t.icon}</span>
+          <span className="tool-name">{t.name}</span>
+        </button>
+      ))}
+    </div>
   )
 }
 
@@ -349,7 +374,8 @@ export function StatusBar({
 
   return (
     <footer className="status-bar">
-      <p className="readout" aria-live="polite">
+      {/* Not a live region: it changes with every pointer move. */}
+      <p className="readout">
         {pointer
           ? `${formatLength(pointer.x, units)}, ${formatLength(pointer.y, units)}`
           : 'Point at the plan'}

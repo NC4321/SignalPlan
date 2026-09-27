@@ -18,7 +18,10 @@ export function PlanIssues({ issues }: { issues: readonly PlanIssue[] }) {
   )
 }
 
-/** A modal dialog on the native <dialog> element: focus-trapped, Esc closes. */
+/**
+ * A modal dialog on the native <dialog> element: focus-trapped, Esc closes,
+ * and focus returns to where it was when it opened (D23).
+ */
 export function Dialog({
   open,
   title,
@@ -34,10 +37,18 @@ export function Dialog({
 }) {
   const dialog = useRef<HTMLDialogElement>(null)
   const titleId = useId()
+  // Where focus was before opening, to return it there on closing.
+  const opener = useRef<HTMLElement | null>(null)
   useEffect(() => {
     const element = dialog.current
     if (!element) return
-    if (open && !element.open) element.showModal()
+    if (open && !element.open) {
+      opener.current =
+        document.activeElement instanceof HTMLElement
+          ? document.activeElement
+          : null
+      element.showModal()
+    }
     if (!open && element.open) element.close()
   }, [open])
   return (
@@ -45,7 +56,16 @@ export function Dialog({
       ref={dialog}
       className="dialog"
       aria-labelledby={titleId}
-      onClose={onClose}
+      onClose={() => {
+        const target = opener.current
+        opener.current = null
+        // Unless something else has taken focus since, such as another dialog.
+        const inside =
+          document.activeElement === document.body ||
+          dialog.current?.contains(document.activeElement)
+        if (target?.isConnected && inside) target.focus()
+        onClose()
+      }}
     >
       <h2 id={titleId}>{title}</h2>
       {children}
