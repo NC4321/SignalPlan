@@ -193,6 +193,9 @@ importers:
       '@signalplan/engine':
         specifier: workspace:*
         version: link:../../packages/engine
+      '@signalplan/floorplan':
+        specifier: workspace:*
+        version: link:../../packages/floorplan
       react:
         specifier: ^19.2.8
         version: 19.3.0
