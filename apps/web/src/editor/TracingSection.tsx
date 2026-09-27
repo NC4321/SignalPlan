@@ -16,7 +16,7 @@ import { formatLength } from './units.ts'
 export function TracingSection({ background }: { background: Background }) {
   const store = useEditorStore()
   const units = useEditor((s) => s.units)
-  const { replaceImage, notice } = useTracing()
+  const { chooseImage, notice } = useTracing()
   const opacityId = useId()
   /** True while the opacity slider's gesture is open. */
   const sliding = useRef(false)
@@ -112,7 +112,7 @@ export function TracingSection({ background }: { background: Background }) {
         >
           Recalibrate
         </button>
-        <button type="button" onClick={replaceImage}>
+        <button type="button" onClick={chooseImage}>
           Replace image…
         </button>
         <button

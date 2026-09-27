@@ -1,43 +1,8 @@
-import { deflateSync, crc32 } from 'node:zlib'
 import { expect, test, type Page } from '@playwright/test'
-import { openEditor } from './helpers.ts'
+import { openEditor, planImage } from './helpers.ts'
 
 const panel = (page: Page) =>
   page.getByRole('complementary', { name: 'Properties' })
-
-/** A 200 × 100 PNG: grey with a dark frame, like a scanned plan. */
-function planImage(): Buffer {
-  const width = 200
-  const height = 100
-  const rows = []
-  for (let y = 0; y < height; y++) {
-    const row = Buffer.alloc(1 + width * 3)
-    for (let x = 0; x < width; x++) {
-      const edge = x < 4 || y < 4 || x >= width - 4 || y >= height - 4
-      row.fill(edge ? 40 : 220, 1 + x * 3, 4 + x * 3)
-    }
-    rows.push(row)
-  }
-  const chunk = (type: string, data: Buffer) => {
-    const length = Buffer.alloc(4)
-    length.writeUInt32BE(data.length)
-    const body = Buffer.concat([Buffer.from(type, 'ascii'), data])
-    const crc = Buffer.alloc(4)
-    crc.writeUInt32BE(crc32(body))
-    return Buffer.concat([length, body, crc])
-  }
-  const header = Buffer.alloc(13)
-  header.writeUInt32BE(width, 0)
-  header.writeUInt32BE(height, 4)
-  header[8] = 8 // bit depth
-  header[9] = 2 // RGB
-  return Buffer.concat([
-    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
-    chunk('IHDR', header),
-    chunk('IDAT', deflateSync(Buffer.concat(rows))),
-    chunk('IEND', Buffer.alloc(0)),
-  ])
-}
 
 /** Starts a blank plan and adds the test image, which starts calibration. */
 async function addImage(page: Page) {
@@ -257,4 +222,51 @@ test('saves the image inside the file and opens it again', async ({ page }) => {
     panel(page).getByRole('region', { name: 'Tracing image' }),
   ).toBeVisible()
   expect(await imageSize(page)).toEqual(size)
+})
+
+test('hides the heatmap while tracing, and brings it back on selection', async ({
+  page,
+}) => {
+  await addImage(page)
+  const readout = page.locator('.readout')
+  const { x, y } = await view(page)
+  await page.mouse.move(x + 60, y + 60)
+  await expect(readout).toContainText('Heatmap hidden while tracing')
+  await expect(readout).not.toContainText('dBm')
+
+  // Still hidden on Select with nothing selected, as the image section shows.
+  await page.getByRole('button', { name: 'Skip' }).click()
+  await page.mouse.move(x + 61, y + 61)
+  await expect(readout).toContainText('Heatmap hidden while tracing')
+
+  await panel(page).getByRole('button', { name: 'Router' }).click()
+  await page.mouse.move(x + 60, y + 60)
+  await expect(readout).toContainText('dBm')
+  await expect(readout).not.toContainText('hidden')
+  // The Heatmap setting was never changed.
+  await expect(page.getByRole('checkbox', { name: 'Heatmap' })).toBeChecked()
+})
+
+test('File › Trace a floor plan image replaces an existing image', async ({
+  page,
+}) => {
+  await addImage(page)
+  await calibrateDouble(page)
+  const size = await imageSize(page)
+  await page.getByText('File', { exact: true }).click()
+  const chooser = page.waitForEvent('filechooser')
+  await page.getByRole('button', { name: /Trace a floor plan image/ }).click()
+  await (
+    await chooser
+  ).setFiles({ name: 'again.png', mimeType: 'image/png', buffer: planImage() })
+  await expect(undoButton(page)).toHaveAttribute(
+    'title',
+    /Undo Replace tracing image/,
+  )
+  expect(await imageSize(page)).toEqual(size)
+  await undoButton(page).click()
+  await expect(undoButton(page)).toHaveAttribute(
+    'title',
+    /Undo Calibrate tracing image/,
+  )
 })

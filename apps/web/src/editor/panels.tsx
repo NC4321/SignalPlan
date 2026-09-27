@@ -22,7 +22,11 @@ import { useEditor, useEditorStore } from './context.ts'
 import { deleteRecipe, describeSelection } from './selectTool.ts'
 import { bearingDeg } from './snap.ts'
 import { formatLength, parseLength, type Units } from './units.ts'
-import { DEFAULT_OPENING_WIDTH_M } from './store.ts'
+import {
+  DEFAULT_OPENING_WIDTH_M,
+  heatmapShown,
+  tracingHidesHeatmap,
+} from './store.ts'
 import { FileMenu } from './FileMenu.tsx'
 import { TracingSection } from './TracingSection.tsx'
 import type { SaveStatus } from './autosave.ts'
@@ -321,7 +325,8 @@ export function StatusBar({
   const store = useEditorStore()
   const pointer = useEditor((s) => s.pointer)
   const units = useEditor((s) => s.units)
-  const showHeatmap = useEditor((s) => s.showHeatmap)
+  const showHeatmap = useEditor(heatmapShown)
+  const tracing = useEditor((s) => s.showHeatmap && tracingHidesHeatmap(s))
   const signal =
     pointer && coverage && showHeatmap ? signalAt(coverage, pointer) : undefined
   const quality = signal === undefined ? undefined : qualityOf(signal)
@@ -350,6 +355,9 @@ export function StatusBar({
           : 'Point at the plan'}
         {signal !== undefined &&
           ` · ${signal.toFixed(0)} dBm · ${quality?.label ?? 'No signal'}`}
+        {tracing && (
+          <span className="tracing-note"> · Heatmap hidden while tracing</span>
+        )}
       </p>
       <p
         className="save-status"

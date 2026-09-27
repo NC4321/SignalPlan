@@ -14,8 +14,9 @@ import {
 
 /**
  * Adding a tracing image (D22): check it, store it, place it to fill the
- * view, then start calibration so its scale can be set. Replacing one keeps
- * its place and scale when the new picture has the same proportions.
+ * view, then start calibration so its scale can be set. A floor that already
+ * has an image gets it replaced, keeping its place and scale when the new
+ * picture has the same proportions.
  */
 export function TracingProvider({ children }: { children: ReactNode }) {
   const store = useEditorStore()
@@ -23,10 +24,7 @@ export function TracingProvider({ children }: { children: ReactNode }) {
   const input = useRef<HTMLInputElement>(null)
   const [notice, setNotice] = useState<string>()
   const [error, setError] = useState<string>()
-  /** Whether the picker is choosing a replacement for the current image. */
-  const replacing = useRef(false)
-
-  const addImage = async (file: File, replace: boolean) => {
+  const addImage = async (file: File) => {
     const check = checkImageFile(file)
     if (!check.ok) {
       setError(check.reason)
@@ -56,7 +54,7 @@ export function TracingProvider({ children }: { children: ReactNode }) {
     const floorId = state.floorId
     const current = state.plan.floors.find((f) => f.id === floorId)?.background
     let calibrateNext = true
-    if (replace && current) {
+    if (current) {
       const replaced = replaceBackground(current, source, size, placement)
       calibrateNext = replaced.needsCalibration
       state.edit('Replace tracing image', (plan) => {
@@ -88,17 +86,7 @@ export function TracingProvider({ children }: { children: ReactNode }) {
 
   return (
     <TracingContext
-      value={{
-        chooseImage: () => {
-          replacing.current = false
-          input.current?.click()
-        },
-        replaceImage: () => {
-          replacing.current = true
-          input.current?.click()
-        },
-        notice,
-      }}
+      value={{ chooseImage: () => input.current?.click(), notice }}
     >
       {children}
       <input
@@ -110,7 +98,7 @@ export function TracingProvider({ children }: { children: ReactNode }) {
         onChange={(event) => {
           const file = event.target.files?.[0]
           event.target.value = ''
-          if (file) void addImage(file, replacing.current)
+          if (file) void addImage(file)
         }}
       />
       <Dialog

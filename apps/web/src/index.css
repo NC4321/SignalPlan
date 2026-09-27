@@ -93,7 +93,7 @@ input:focus-visible + *,
   grid-template:
     'top top top' auto
     'tools stage props' 1fr
-    'status status status' auto / auto 1fr 18rem;
+    'status status status' auto / auto minmax(0, 1fr) 18rem;
   height: 100dvh;
   overflow: hidden;
 }
@@ -356,6 +356,7 @@ dd {
 }
 
 .readout {
+  min-width: 0;
   margin: 0;
   font-variant-numeric: tabular-nums;
   color: var(--muted);
@@ -699,6 +700,7 @@ button.danger-fill {
 }
 
 .save-status {
+  min-width: 0;
   margin: 0 0 0 auto;
   color: var(--muted);
   white-space: nowrap;
@@ -781,7 +783,7 @@ button.danger-fill {
       'top' auto
       'stage' 1fr
       'tools' auto
-      'status' auto / 1fr;
+      'status' auto / minmax(0, 1fr);
   }
 
   .toolbar {
@@ -818,5 +820,15 @@ button.danger-fill {
     inset: auto 0.5rem 0.5rem;
     max-width: none;
     width: auto;
+  }
+
+  .calibration-bar form {
+    flex: 1 1 100%;
+    min-width: 0;
+  }
+
+  .calibration-bar input {
+    flex: 1 1 5rem;
+    min-width: 0;
   }
 }

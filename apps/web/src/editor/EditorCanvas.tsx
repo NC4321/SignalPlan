@@ -29,6 +29,7 @@ import {
 import { snapPoint, type SnapKind } from './snap.ts'
 import {
   DEFAULT_OPENING_WIDTH_M,
+  heatmapShown,
   sameItem,
   type SelectionItem,
 } from './store.ts'
@@ -77,7 +78,7 @@ export function EditorCanvas({ coverage }: { coverage: Coverage | undefined }) {
   const camera = useEditor((s) => s.camera)
   const units = useEditor((s) => s.units)
   const selection = useEditor((s) => s.selection)
-  const showHeatmap = useEditor((s) => s.showHeatmap)
+  const showHeatmap = useEditor(heatmapShown)
   const tool = useEditor((s) => s.tool)
   const chain = useEditor((s) => s.chain)
   const wallMaterial = useEditor((s) => s.wallMaterial)

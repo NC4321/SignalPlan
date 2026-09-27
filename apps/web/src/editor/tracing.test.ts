@@ -3,7 +3,11 @@ import type { Background } from '@signalplan/floorplan'
 import { describe, expect, it } from 'vitest'
 import { PlanLibrary } from './library.ts'
 import { blankPlan } from './persistence.ts'
-import { createEditorStore } from './store.ts'
+import {
+  createEditorStore,
+  heatmapShown,
+  tracingHidesHeatmap,
+} from './store.ts'
 import {
   backgroundRecipe,
   blobToDataUrl,
@@ -258,5 +262,43 @@ describe('replaceBackground', () => {
       locked: false,
     })
     expect(result.background.dataUrl).toBeUndefined()
+  })
+})
+
+describe('heatmap while tracing', () => {
+  it('hides it while calibrating, even with something selected', () => {
+    const { store } = tracedStore()
+    store.getState().select([{ kind: 'accessPoint', id: 'x' }])
+    store.getState().setTool('calibrate')
+    expect(tracingHidesHeatmap(store.getState())).toBe(true)
+  })
+
+  it('hides it on Select with nothing selected while the image shows', () => {
+    const { store, floorId } = tracedStore()
+    expect(tracingHidesHeatmap(store.getState())).toBe(true)
+    expect(heatmapShown(store.getState())).toBe(false)
+    // The setting itself is untouched, so the heatmap returns afterwards.
+    expect(store.getState().showHeatmap).toBe(true)
+
+    store.getState().edit('Hide', backgroundRecipe(floorId, { visible: false }))
+    expect(heatmapShown(store.getState())).toBe(true)
+  })
+
+  it('shows it again once something is selected or another tool is picked', () => {
+    const { store } = tracedStore()
+    const apId = store.getState().plan.accessPoints[0]!.id
+    store.getState().select([{ kind: 'accessPoint', id: apId }])
+    expect(heatmapShown(store.getState())).toBe(true)
+    store.getState().select([])
+    store.getState().setTool('wall')
+    expect(heatmapShown(store.getState())).toBe(true)
+  })
+
+  it('leaves floors without an image, and a switched-off heatmap, alone', () => {
+    const plain = createEditorStore(blankPlan())
+    expect(tracingHidesHeatmap(plain.getState())).toBe(false)
+    expect(heatmapShown(plain.getState())).toBe(true)
+    plain.getState().setShowHeatmap(false)
+    expect(heatmapShown(plain.getState())).toBe(false)
   })
 })

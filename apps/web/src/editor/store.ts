@@ -332,3 +332,30 @@ export function createEditorStore(
     endChain: () => set({ chain: undefined }),
   }))
 }
+
+/**
+ * While tracing, the heatmap would cover the image (D22), so it's hidden when
+ * calibrating, and on the Select tool with nothing selected while the floor's
+ * image shows. The Heatmap setting itself is left alone.
+ */
+export function tracingHidesHeatmap(
+  state: Pick<EditorState, 'plan' | 'floorId' | 'tool' | 'selection'>,
+): boolean {
+  if (state.tool === 'calibrate') return true
+  const background = state.plan.floors.find(
+    (f) => f.id === state.floorId,
+  )?.background
+  return (
+    state.tool === 'select' &&
+    state.selection.length === 0 &&
+    background?.visible === true
+  )
+}
+
+/** Whether the heatmap is drawn: the setting, unless tracing hides it. */
+export const heatmapShown = (
+  state: Pick<
+    EditorState,
+    'plan' | 'floorId' | 'tool' | 'selection' | 'showHeatmap'
+  >,
+) => state.showHeatmap && !tracingHidesHeatmap(state)
