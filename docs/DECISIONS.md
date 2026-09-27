@@ -128,9 +128,19 @@ A running log of project decisions, newest last. Each entry records what was dec
 
 ### D20. Saving and opening plans — 2026-09-27
 
+> **Storage superseded by D21:** plans now live in a list in IndexedDB. The file format, reopening behaviour and New plan contents below still apply.
+
 - **In the browser:** one current plan, autosaved to localStorage shortly after each change (and when the page is hidden). The units preference is kept too. The status bar says whether the plan is saved, and warns when storage is full or blocked.
 - **On reopening:** the last plan edited; the sample home appears only on a first visit. A saved plan that no longer loads falls back to the sample, with an offer to download the stored text first.
 - **Files:** plain JSON named after the plan, `<name>.signalplan.json`. File menu: New plan, Open file (Ctrl/⌘+O), Save to file (Ctrl/⌘+S), Open the sample home. Files that fail validation are refused with their first problems listed.
 - **Replacing:** since only one plan is kept, replacing an edited plan asks first and offers to download a copy; an untouched sample or blank plan is replaced without asking.
 - **New plan:** one empty floor and one dual-band router in the middle of a 10 m × 8 m starting view. The coverage grid now always covers access points (5 m around them on a floor with no walls), so a blank plan shows coverage straight away.
 - **Revisit when** traced floor-plan images (#19) arrive: localStorage's ~5 MB limit is too small to keep images, so they need their own storage decision.
+
+### D21. A list of plans in IndexedDB — 2026-09-27
+
+- **Decision:** plans (and, with tracing, their background images) are kept in IndexedDB as a list, replacing D20's single plan in localStorage. The units preference stays in localStorage, since it's needed before the first render.
+- **Why:** traced floor-plan images can be several megabytes, far more than localStorage's ~5 MB; and with room to spare, keeping every plan means New and Open never replace anything.
+- **My plans:** File › My plans… lists plans by name and last edit, with Open, Rename, Duplicate and Delete. Deleting asks first and offers a download; deleting the open plan opens the next most recent one (or the sample).
+- **Joining the list:** a New plan or the sample joins on its first edit, so looking around creates no clutter; an opened file joins straight away. Switching plans saves the open one first, so no confirmation is needed.
+- **Migration:** a plan saved by the single-plan version is moved into the list on first load and opens as before.

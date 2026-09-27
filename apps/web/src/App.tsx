@@ -2,9 +2,10 @@ import type { PlanIssue } from '@signalplan/floorplan'
 import { useEffect, useState } from 'react'
 import { useEditor, useEditorStore } from './editor/context.ts'
 import { EditorCanvas } from './editor/EditorCanvas.tsx'
-import { Dialog, PlanIssues } from './editor/FileMenu.tsx'
-import { rescueSavedPlan } from './editor/persistence.ts'
-import { useAutosave } from './editor/useAutosave.ts'
+import { useSaveStatus } from './editor/autosave.ts'
+import { Dialog, PlanIssues } from './editor/Dialog.tsx'
+import { rescuePlan } from './editor/persistence.ts'
+import { useServices } from './editor/services.ts'
 import {
   PropertiesPanel,
   StatusBar,
@@ -18,11 +19,12 @@ import { useCoverage } from './useCoverage.ts'
 function App({
   savedPlanProblem,
 }: {
-  /** Set when the plan saved in this browser could not be opened. */
-  savedPlanProblem?: readonly PlanIssue[] | undefined
+  /** Set when the last plan in this browser could not be opened. */
+  savedPlanProblem?: { issues: readonly PlanIssue[]; raw: unknown } | undefined
 }) {
   const store = useEditorStore()
-  const saveStatus = useAutosave(store)
+  const { autosaver } = useServices()
+  const saveStatus = useSaveStatus(autosaver)
   const [problemOpen, setProblemOpen] = useState(savedPlanProblem !== undefined)
   const plan = useEditor((s) => s.plan)
   const floorId = useEditor((s) => s.floorId)
@@ -108,7 +110,10 @@ function App({
         onClose={() => setProblemOpen(false)}
         actions={
           <>
-            <button type="button" onClick={() => rescueSavedPlan()}>
+            <button
+              type="button"
+              onClick={() => rescuePlan(savedPlanProblem?.raw)}
+            >
               Download it
             </button>
             <button
@@ -122,10 +127,10 @@ function App({
         }
       >
         <p>
-          The sample home is open instead. Your next change will replace the
-          saved plan, so download it first if you want to keep it.
+          The sample home is open instead. The plan is still in My plans;
+          download it to keep a copy of what was stored.
         </p>
-        <PlanIssues issues={savedPlanProblem ?? []} />
+        <PlanIssues issues={savedPlanProblem?.issues ?? []} />
       </Dialog>
     </div>
   )

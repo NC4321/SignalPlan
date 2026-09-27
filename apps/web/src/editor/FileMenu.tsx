@@ -1,41 +1,41 @@
 import { loadPlan, type Plan, type PlanIssue } from '@signalplan/floorplan'
-import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
-import { useEditor, useEditorStore } from './context.ts'
+import { useEffect, useRef, useState } from 'react'
+import { useEditorStore } from './context.ts'
+import { Dialog, PlanIssues } from './Dialog.tsx'
+import { newPlanId } from './library.ts'
 import {
   blankPlan,
   downloadPlan,
   FILE_EXTENSION,
   samplePlan,
 } from './persistence.ts'
+import { PlansDialog } from './PlansDialog.tsx'
+import { useServices } from './services.ts'
 import { isTyping, MOD_KEY } from './util.ts'
 
-type Pending = { label: string; plan: Plan; pristine: boolean }
-
 /**
- * New, Open, Save and the sample home. Replacing a plan that has been edited
- * asks first, offering to download a copy, since only one plan is kept in the
- * browser (D20).
+ * New, Open, Save, My plans and the sample home (D21). Every edited plan is
+ * kept in the list, so switching plans never loses work and needs no
+ * confirmation: the open plan is saved first.
  */
 export function FileMenu() {
   const store = useEditorStore()
+  const { library, autosaver } = useServices()
   const menu = useRef<HTMLDetailsElement>(null)
   const fileInput = useRef<HTMLInputElement>(null)
-  const [pending, setPending] = useState<Pending>()
+  const [plansOpen, setPlansOpen] = useState(false)
   const [problem, setProblem] = useState<{
     file: string
     issues: PlanIssue[]
   }>()
-  const planName = useEditor((s) => s.plan.name)
 
   const closeMenu = () => menu.current?.removeAttribute('open')
 
-  const replaceWith = (next: Pending) => {
+  /** Opens a new or sample plan; it joins the list on its first edit. */
+  const startFresh = async (plan: Plan) => {
     closeMenu()
-    if (store.getState().pristine) {
-      store.getState().loadPlan(next.plan, next.pristine)
-    } else {
-      setPending(next)
-    }
+    await autosaver.flush()
+    store.getState().loadPlan(plan, { pristine: true })
   }
 
   const openFile = async (file: File) => {
@@ -44,19 +44,19 @@ export function FileMenu() {
       setProblem({ file: file.name, issues: result.issues })
       return
     }
-    replaceWith({
-      label: `Open “${file.name}”`,
-      plan: result.plan,
-      pristine: false,
-    })
+    await autosaver.flush()
+    // Opened files are your work: they join the list straight away.
+    const id = newPlanId()
+    await library?.save(id, result.plan)
+    store.getState().loadPlan(result.plan, { id })
   }
 
   // Ctrl/⌘+S saves to a file, Ctrl/⌘+O opens one.
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (!(event.ctrlKey || event.metaKey) || event.altKey) return
-      if (isTyping(event) && event.key.toLowerCase() !== 's') return
       const key = event.key.toLowerCase()
+      if (isTyping(event) && key !== 's') return
       if (key === 's') {
         event.preventDefault()
         downloadPlan(store.getState().plan)
@@ -74,17 +74,19 @@ export function FileMenu() {
       <details className="menu" ref={menu}>
         <summary>File</summary>
         <div className="menu-items">
+          <button type="button" onClick={() => void startFresh(blankPlan())}>
+            New plan
+          </button>
           <button
             type="button"
-            onClick={() =>
-              replaceWith({
-                label: 'Start a new plan',
-                plan: blankPlan(),
-                pristine: true,
-              })
-            }
+            disabled={!library}
+            title={library ? undefined : 'This browser blocks storage'}
+            onClick={() => {
+              closeMenu()
+              setPlansOpen(true)
+            }}
           >
-            New plan
+            My plans…
           </button>
           <button
             type="button"
@@ -104,16 +106,7 @@ export function FileMenu() {
           >
             Save to file <kbd>{MOD_KEY}S</kbd>
           </button>
-          <button
-            type="button"
-            onClick={() =>
-              replaceWith({
-                label: 'Open the sample home',
-                plan: samplePlan(),
-                pristine: true,
-              })
-            }
-          >
+          <button type="button" onClick={() => void startFresh(samplePlan())}>
             Open the sample home
           </button>
         </div>
@@ -132,40 +125,13 @@ export function FileMenu() {
         }}
       />
 
-      <Dialog
-        open={pending !== undefined}
-        title="Replace your current plan?"
-        onClose={() => setPending(undefined)}
-        actions={
-          <>
-            <button type="button" onClick={() => setPending(undefined)}>
-              Cancel
-            </button>
-            <button
-              type="button"
-              onClick={() => downloadPlan(store.getState().plan)}
-            >
-              Download a copy first
-            </button>
-            <button
-              type="button"
-              className="primary"
-              onClick={() => {
-                if (pending)
-                  store.getState().loadPlan(pending.plan, pending.pristine)
-                setPending(undefined)
-              }}
-            >
-              {pending?.label ?? 'Replace'}
-            </button>
-          </>
-        }
-      >
-        <p>
-          Only one plan is kept in this browser. “{planName}” will be replaced;
-          download a copy first if you want to keep it.
-        </p>
-      </Dialog>
+      {library && (
+        <PlansDialog
+          open={plansOpen}
+          library={library}
+          onClose={() => setPlansOpen(false)}
+        />
+      )}
 
       <Dialog
         open={problem !== undefined}
@@ -185,58 +151,5 @@ export function FileMenu() {
         <PlanIssues issues={problem?.issues ?? []} />
       </Dialog>
     </>
-  )
-}
-
-/** The first few problems with a plan, with where they are. */
-export function PlanIssues({ issues }: { issues: readonly PlanIssue[] }) {
-  const shown = issues.slice(0, 5)
-  return (
-    <ul className="issues">
-      {shown.map((issue, i) => (
-        <li key={i}>
-          {issue.path && <code>{issue.path}</code>} {issue.message}
-        </li>
-      ))}
-      {issues.length > shown.length && (
-        <li>…and {issues.length - shown.length} more.</li>
-      )}
-    </ul>
-  )
-}
-
-/** A modal dialog on the native <dialog> element: focus-trapped, Esc closes. */
-export function Dialog({
-  open,
-  title,
-  onClose,
-  actions,
-  children,
-}: {
-  open: boolean
-  title: string
-  onClose: () => void
-  actions: ReactNode
-  children: ReactNode
-}) {
-  const dialog = useRef<HTMLDialogElement>(null)
-  const titleId = useId()
-  useEffect(() => {
-    const element = dialog.current
-    if (!element) return
-    if (open && !element.open) element.showModal()
-    if (!open && element.open) element.close()
-  }, [open])
-  return (
-    <dialog
-      ref={dialog}
-      className="dialog"
-      aria-labelledby={titleId}
-      onClose={onClose}
-    >
-      <h2 id={titleId}>{title}</h2>
-      {children}
-      <div className="dialog-actions">{actions}</div>
-    </dialog>
   )
 }

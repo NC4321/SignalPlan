@@ -43,3 +43,21 @@ export function signalAt(coverage: Coverage, p: Point): number | undefined {
   const value = coverage.dbm[row * grid.cols + col]
   return value === undefined || value === -Infinity ? undefined : value
 }
+
+const relative = new Intl.RelativeTimeFormat(undefined, { numeric: 'auto' })
+
+/** How long ago something was edited: "just now", "5 minutes ago", "yesterday"… */
+export function editedAgo(time: number, now = Date.now()): string {
+  const seconds = Math.round((time - now) / 1000)
+  const units: [Intl.RelativeTimeFormatUnit, number][] = [
+    ['day', 86_400],
+    ['hour', 3_600],
+    ['minute', 60],
+  ]
+  for (const [unit, size] of units) {
+    if (Math.abs(seconds) >= size) {
+      return relative.format(Math.round(seconds / size), unit)
+    }
+  }
+  return 'just now'
+}

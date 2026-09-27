@@ -24,7 +24,7 @@ import { bearingDeg } from './snap.ts'
 import { formatLength, parseLength, type Units } from './units.ts'
 import { DEFAULT_OPENING_WIDTH_M } from './store.ts'
 import { FileMenu } from './FileMenu.tsx'
-import type { SaveStatus } from './useAutosave.ts'
+import type { SaveStatus } from './autosave.ts'
 import { MOD_KEY, signalAt } from './util.ts'
 import { drawWall, WALL_STYLES } from './wallStyles.ts'
 
