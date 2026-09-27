@@ -1,5 +1,12 @@
 import { gridForFloor, type Coverage } from '@signalplan/engine'
-import { materialSegments, type Point } from '@signalplan/floorplan'
+import {
+  addOpening,
+  fitOpeningAt,
+  materialSegments,
+  openingSpans,
+  type Floor,
+  type Point,
+} from '@signalplan/floorplan'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { fitCamera, panBy, toPlan, zoomAt, type Camera } from './camera.ts'
 import { useEditor, useEditorStore } from './context.ts'
@@ -9,14 +16,20 @@ import {
   describeSelection,
   hitTest,
   moveNodeRecipe,
+  moveOpeningRecipe,
   moveWallRecipe,
   nudgeRecipe,
   snapDraggedNode,
   splitRecipe,
+  wallAt,
   wallDragDelta,
 } from './selectTool.ts'
 import { snapPoint, type SnapKind } from './snap.ts'
-import { sameItem, type SelectionItem } from './store.ts'
+import {
+  DEFAULT_OPENING_WIDTH_M,
+  sameItem,
+  type SelectionItem,
+} from './store.ts'
 import { isTyping } from './util.ts'
 
 /** Arrow keys move the selection this far; with Shift, 5×. */
@@ -37,7 +50,19 @@ type Drag =
       moved: boolean
     }
 
-type Cursor = 'default' | 'grab' | 'grabbing' | 'move'
+type Cursor = 'default' | 'grab' | 'grabbing' | 'move' | 'not-allowed'
+
+/** The point `d` metres along a wall from its start corner. */
+function pointAlong(floor: Floor, wallId: string, d: number): Point {
+  const wall = floor.walls.find((w) => w.id === wallId)!
+  const a = floor.nodes.find((n) => n.id === wall.from)!
+  const b = floor.nodes.find((n) => n.id === wall.to)!
+  const length = Math.hypot(b.x - a.x, b.y - a.y)
+  return {
+    x: a.x + ((b.x - a.x) * d) / length,
+    y: a.y + ((b.y - a.y) * d) / length,
+  }
+}
 
 /** The plan, its heatmap and access points, with pan, zoom and editing. */
 export function EditorCanvas({ coverage }: { coverage: Coverage | undefined }) {
@@ -51,6 +76,15 @@ export function EditorCanvas({ coverage }: { coverage: Coverage | undefined }) {
   const tool = useEditor((s) => s.tool)
   const chain = useEditor((s) => s.chain)
   const wallMaterial = useEditor((s) => s.wallMaterial)
+  const openingMaterial = useEditor((s) => s.openingMaterial)
+  const openingTool = tool === 'door' || tool === 'window' ? tool : undefined
+  /** Door and window tools: where a click would place one. */
+  const [placement, setPlacement] = useState<{
+    wallId: string
+    centre: number
+    a: Point
+    b: Point
+  }>()
   const anchor = chain?.at(-1)?.point
   /** Wall tool: where the next click would land. */
   const [preview, setPreview] = useState<{ cursor: Point; snap: SnapKind }>()
@@ -68,6 +102,7 @@ export function EditorCanvas({ coverage }: { coverage: Coverage | undefined }) {
     [plan.accessPoints, floorId],
   )
   const segments = useMemo(() => materialSegments(floor), [floor])
+  const openings = useMemo(() => openingSpans(floor), [floor])
   const wallLines = useMemo(() => {
     const nodes = new Map(floor.nodes.map((n) => [n.id, n]))
     return floor.walls.flatMap((w) => {
@@ -184,6 +219,15 @@ export function EditorCanvas({ coverage }: { coverage: Coverage | undefined }) {
       accessPoints,
       selection,
       wallLines,
+      openings,
+      openingPreview:
+        openingTool && placement
+          ? {
+              a: placement.a,
+              b: placement.b,
+              material: openingMaterial[openingTool],
+            }
+          : undefined,
       corners: floor.nodes,
       drawing:
         tool === 'wall' && preview
@@ -201,6 +245,10 @@ export function EditorCanvas({ coverage }: { coverage: Coverage | undefined }) {
     accessPoints,
     selection,
     wallLines,
+    openings,
+    openingTool,
+    placement,
+    openingMaterial,
     floor.nodes,
     tool,
     preview,
@@ -223,9 +271,30 @@ export function EditorCanvas({ coverage }: { coverage: Coverage | undefined }) {
     return { x: event.clientX - rect.left, y: event.clientY - rect.top }
   }
 
+  /** Door and window tools: the placement a click at `screen` would make. */
+  const placementAt = (screen: Point) => {
+    if (!camera || !openingTool) return undefined
+    const onWall = wallAt(camera, floor, screen)
+    if (!onWall) return undefined
+    const width = DEFAULT_OPENING_WIDTH_M[openingTool]
+    const offset = fitOpeningAt(floor, onWall.wallId, onWall.along, width)
+    if (offset === undefined) return undefined
+    return {
+      wallId: onWall.wallId,
+      centre: onWall.along,
+      a: pointAlong(floor, onWall.wallId, offset),
+      b: pointAlong(floor, onWall.wallId, offset + width),
+    }
+  }
+
   const hoverCursor = (screen: Point): Cursor => {
-    if (!camera || tool !== 'select') return 'default'
-    const hit = hitTest(camera, floor, accessPoints, screen)
+    if (!camera) return 'default'
+    if (openingTool) {
+      if (placementAt(screen)) return 'default'
+      return wallAt(camera, floor, screen) ? 'not-allowed' : 'default'
+    }
+    if (tool !== 'select') return 'default'
+    const hit = hitTest(camera, floor, accessPoints, openings, screen)
     if (!hit) return 'default'
     return hit.kind === 'wall' ? 'move' : 'grab'
   }
@@ -236,6 +305,11 @@ export function EditorCanvas({ coverage }: { coverage: Coverage | undefined }) {
       return accessPoints.find((a) => a.id === item.id)
     }
     if (item.kind === 'node') return floor.nodes.find((n) => n.id === item.id)
+    if (item.kind === 'opening') {
+      // For an opening, x holds its centre's distance along its wall.
+      const opening = floor.openings.find((o) => o.id === item.id)
+      return opening && { x: opening.offsetM + opening.widthM / 2, y: 0 }
+    }
     return { x: 0, y: 0 }
   }
 
@@ -262,6 +336,13 @@ export function EditorCanvas({ coverage }: { coverage: Coverage | undefined }) {
           ap.y = origin.y + delta.y
         }
       })
+    } else if (item.kind === 'opening') {
+      const opening = floor.openings.find((o) => o.id === item.id)
+      if (!opening) return
+      const start = pointAlong(floor, opening.wallId, 0)
+      const end = pointAlong(floor, opening.wallId, 1)
+      const along = delta.x * (end.x - start.x) + delta.y * (end.y - start.y)
+      state.updateGesture(moveOpeningRecipe(floorId, item.id, origin.x + along))
     } else if (item.kind === 'node') {
       const base = state.gesture?.base ?? state.plan
       const baseFloor = base.floors.find((f) => f.id === floorId)!
@@ -287,7 +368,7 @@ export function EditorCanvas({ coverage }: { coverage: Coverage | undefined }) {
   const cursorStyle =
     spaceDown && cursor === 'default'
       ? 'grab'
-      : tool === 'wall' && cursor === 'default'
+      : (tool === 'wall' || openingTool) && cursor === 'default'
         ? 'crosshair'
         : cursor
 
@@ -304,9 +385,11 @@ export function EditorCanvas({ coverage }: { coverage: Coverage | undefined }) {
         role="application"
         aria-roledescription="floor plan editor"
         aria-label={
-          tool === 'wall'
-            ? 'Floor plan. Click to place wall corners, double-click or press Enter to finish; type a number to enter an exact length.'
-            : 'Floor plan with predicted Wi-Fi coverage. Arrow keys move the selection; Delete removes selected walls and corners.'
+          openingTool
+            ? `Floor plan. Click a wall to add a ${openingTool}.`
+            : tool === 'wall'
+              ? 'Floor plan. Click to place wall corners, double-click or press Enter to finish; type a number to enter an exact length.'
+              : 'Floor plan with predicted Wi-Fi coverage. Arrow keys move the selection; Delete removes selected walls and corners.'
         }
         onDoubleClick={(event) => {
           const state = store.getState()
@@ -316,7 +399,7 @@ export function EditorCanvas({ coverage }: { coverage: Coverage | undefined }) {
           }
           if (!camera) return
           const at = local(event)
-          const hit = hitTest(camera, floor, accessPoints, at)
+          const hit = hitTest(camera, floor, accessPoints, openings, at)
           if (hit?.kind !== 'wall') return
           let created: string | undefined
           state.edit(
@@ -360,7 +443,26 @@ export function EditorCanvas({ coverage }: { coverage: Coverage | undefined }) {
             return
           }
 
-          const hit = hitTest(camera, floor, accessPoints, at)
+          if (openingTool) {
+            const place = placementAt(at)
+            if (!place) return
+            let created: string | undefined
+            state.edit(
+              openingTool === 'door' ? 'Add door' : 'Add window',
+              (draft) => {
+                const target = draft.floors.find((f) => f.id === floorId)!
+                created = addOpening(target, place.wallId, place.centre, {
+                  kind: openingTool,
+                  widthM: DEFAULT_OPENING_WIDTH_M[openingTool],
+                  material: openingMaterial[openingTool],
+                })
+              },
+            )
+            if (created) state.select([{ kind: 'opening', id: created }])
+            return
+          }
+
+          const hit = hitTest(camera, floor, accessPoints, openings, at)
           // On touch, editing is desktop-first: only access points drag (D16).
           const draggable =
             hit && (event.pointerType !== 'touch' || hit.kind === 'accessPoint')
@@ -413,6 +515,7 @@ export function EditorCanvas({ coverage }: { coverage: Coverage | undefined }) {
             const snap = snapForWallTool(at, event.altKey)
             setPreview({ cursor: snap.point, snap: snap.kind })
           }
+          if (openingTool && !drag.current) setPlacement(placementAt(at))
           const active = drag.current
           if (active?.kind === 'pan') {
             store
@@ -465,6 +568,7 @@ export function EditorCanvas({ coverage }: { coverage: Coverage | undefined }) {
           store.getState().setPointer(undefined)
           // Mid-chain, keep the preview: it sets the direction of a typed length.
           if (!store.getState().chain) setPreview(undefined)
+          setPlacement(undefined)
         }}
         onKeyDown={(event) => {
           const state = store.getState()

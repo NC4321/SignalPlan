@@ -2,6 +2,8 @@ import type { Coverage } from '@signalplan/engine'
 import type {
   AccessPoint,
   MaterialSegment,
+  OpeningMaterial,
+  OpeningSpan,
   Point,
   WallMaterial,
 } from '@signalplan/floorplan'
@@ -36,6 +38,10 @@ export interface Scene {
   selection: Selection
   /** Walls as lines between their corners, for selection highlights. */
   wallLines: readonly { id: string; a: Point; b: Point }[]
+  /** Doors and windows, for their end marks and selection highlights. */
+  openings: readonly OpeningSpan[]
+  /** The door or window tool's preview of where a click would place one. */
+  openingPreview?: { a: Point; b: Point; material: OpeningMaterial } | undefined
   /** Corners, drawn as small dots so they can be grabbed. */
   corners: readonly (Point & { id: string })[]
   /** The wall tool's preview of the wall being drawn. */
@@ -96,8 +102,11 @@ export function draw(
   context.lineCap = 'round'
   context.strokeStyle = colour('--accent')
   context.lineWidth = wallWidth * 1.8 + 8
-  for (const line of scene.wallLines) {
-    if (!isSelected('wall', line.id)) continue
+  const halo = [
+    ...scene.wallLines.filter((l) => isSelected('wall', l.id)),
+    ...scene.openings.filter((o) => isSelected('opening', o.id)),
+  ]
+  for (const line of halo) {
     const a = toScreen(camera, line.a)
     const b = toScreen(camera, line.b)
     context.beginPath()
@@ -118,6 +127,28 @@ export function draw(
         casing,
       )
     }
+  }
+
+  for (const span of scene.openings) {
+    drawJambs(
+      context,
+      toScreen(camera, span.a),
+      toScreen(camera, span.b),
+      wallWidth,
+      casing,
+    )
+  }
+
+  if (scene.openingPreview) {
+    const { a, b, material } = scene.openingPreview
+    const sa = toScreen(camera, a)
+    const sb = toScreen(camera, b)
+    context.globalAlpha = 0.8
+    if (material !== 'open') {
+      drawWall(context, sa, sb, WALL_STYLES[material], wallWidth * 0.6, casing)
+    }
+    drawJambs(context, sa, sb, wallWidth, colour('--accent'))
+    context.globalAlpha = 1
   }
 
   for (const corner of scene.corners) {
@@ -168,6 +199,31 @@ export function draw(
     context.fillStyle = colour('--text')
     context.fillText(ap.name, x, at.y)
   }
+}
+
+/** Short marks across the wall at both ends of a door or window. */
+function drawJambs(
+  context: CanvasRenderingContext2D,
+  a: Point,
+  b: Point,
+  wallWidth: number,
+  colour: string,
+) {
+  const length = Math.hypot(b.x - a.x, b.y - a.y)
+  if (length === 0) return
+  const nx = -(b.y - a.y) / length
+  const ny = (b.x - a.x) / length
+  const half = wallWidth * 0.9 + 2
+  context.setLineDash([])
+  context.lineCap = 'butt'
+  context.lineWidth = 2
+  context.strokeStyle = colour
+  context.beginPath()
+  for (const end of [a, b]) {
+    context.moveTo(end.x - nx * half, end.y - ny * half)
+    context.lineTo(end.x + nx * half, end.y + ny * half)
+  }
+  context.stroke()
 }
 
 /** Wall width on screen: 12 cm at the current zoom, kept between 2 and 10 px. */

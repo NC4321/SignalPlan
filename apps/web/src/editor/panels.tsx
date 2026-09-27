@@ -7,10 +7,13 @@ import {
   WALL_MATERIALS,
   type AccessPoint,
   type Band,
+  OPENING_MATERIALS,
+  setOpeningWidth,
   type Floor,
+  type Opening,
+  type OpeningMaterial,
   type PlanNode,
   type Wall,
-  type WallMaterial,
 } from '@signalplan/floorplan'
 import { useEffect, useId, useRef, useState } from 'react'
 import { cssColour, QUALITY_BANDS, qualityOf } from '../quality.ts'
@@ -19,6 +22,7 @@ import { useEditor, useEditorStore } from './context.ts'
 import { deleteRecipe, describeSelection } from './selectTool.ts'
 import { bearingDeg } from './snap.ts'
 import { formatLength, parseLength, type Units } from './units.ts'
+import { DEFAULT_OPENING_WIDTH_M } from './store.ts'
 import { MOD_KEY, signalAt } from './util.ts'
 import { drawWall, WALL_STYLES } from './wallStyles.ts'
 
@@ -175,6 +179,24 @@ export function Toolbar() {
         <span aria-hidden="true">▭</span>
         <span className="tool-name">Wall</span>
       </button>
+      <button
+        type="button"
+        aria-pressed={tool === 'door'}
+        onClick={() => store.getState().setTool('door')}
+        title="Add doors (D)"
+      >
+        <span aria-hidden="true">⌷</span>
+        <span className="tool-name">Door</span>
+      </button>
+      <button
+        type="button"
+        aria-pressed={tool === 'window'}
+        onClick={() => store.getState().setTool('window')}
+        title="Add windows (N)"
+      >
+        <span aria-hidden="true">▤</span>
+        <span className="tool-name">Window</span>
+      </button>
     </nav>
   )
 }
@@ -199,9 +221,17 @@ export function PropertiesPanel({ open }: { open: boolean }) {
     only?.kind === 'node'
       ? floor.nodes.find((n) => n.id === only.id)
       : undefined
+  const opening =
+    only?.kind === 'opening'
+      ? floor.openings.find((o) => o.id === only.id)
+      : undefined
 
   let details
   if (tool === 'wall' && selection.length === 0) details = <WallToolSection />
+  else if ((tool === 'door' || tool === 'window') && selection.length === 0) {
+    details = <OpeningToolSection kind={tool} />
+  } else if (opening)
+    details = <OpeningSection opening={opening} floor={floor} />
   else if (ap) details = <AccessPointSection ap={ap} />
   else if (wall) details = <WallSection wall={wall} floor={floor} />
   else if (node) details = <CornerSection node={node} floor={floor} />
@@ -323,7 +353,10 @@ export function StatusBar({ coverage }: { coverage: Coverage | undefined }) {
 }
 
 /** A short sample of a wall material, drawn exactly as on the plan. */
-function WallSwatch({ material }: { material: WallMaterial }) {
+const materialLabel = (material: OpeningMaterial) =>
+  material === 'open' ? 'Open (no door)' : WALL_STYLES[material].label
+
+function WallSwatch({ material }: { material: OpeningMaterial }) {
   const canvas = useRef<HTMLCanvasElement>(null)
   useEffect(() => {
     const element = canvas.current
@@ -336,6 +369,18 @@ function WallSwatch({ material }: { material: WallMaterial }) {
     const casing = getComputedStyle(element)
       .getPropertyValue('--wall-casing')
       .trim()
+    if (material === 'open') {
+      // An open doorway: just the two end marks.
+      context.strokeStyle = casing
+      context.lineWidth = 2
+      context.beginPath()
+      context.moveTo(8, 2)
+      context.lineTo(8, 14)
+      context.moveTo(32, 2)
+      context.lineTo(32, 14)
+      context.stroke()
+      return
+    }
     drawWall(
       context,
       { x: 5, y: 8 },
@@ -377,21 +422,23 @@ function WallToolSection() {
   )
 }
 
-function MaterialPicker({
+function MaterialPicker<M extends OpeningMaterial>({
   legend,
   name,
   value,
   onChange,
+  materials = WALL_MATERIALS as readonly OpeningMaterial[] as readonly M[],
 }: {
   legend: string
   name: string
-  value: WallMaterial
-  onChange: (material: WallMaterial) => void
+  value: M
+  onChange: (material: M) => void
+  materials?: readonly M[]
 }) {
   return (
     <fieldset className="material-picker">
       <legend>{legend}</legend>
-      {WALL_MATERIALS.map((material) => (
+      {materials.map((material) => (
         <label key={material}>
           <input
             type="radio"
@@ -401,7 +448,7 @@ function MaterialPicker({
             onChange={() => onChange(material)}
           />
           <WallSwatch material={material} />
-          {WALL_STYLES[material].label}
+          {materialLabel(material)}
         </label>
       ))}
     </fieldset>
@@ -674,5 +721,106 @@ function LengthField({
         </p>
       )}
     </div>
+  )
+}
+
+function OpeningToolSection({ kind }: { kind: 'door' | 'window' }) {
+  const store = useEditorStore()
+  const units = useEditor((s) => s.units)
+  const material = useEditor((s) => s.openingMaterial[kind])
+  const noun = kind === 'door' ? 'door' : 'window'
+  return (
+    <section>
+      <h2>{kind === 'door' ? 'Door tool' : 'Window tool'}</h2>
+      <p className="kind">Click a wall to add a {noun}</p>
+      <MaterialPicker
+        legend={`Material for new ${noun}s`}
+        name={`${kind}-material`}
+        value={material}
+        materials={OPENING_MATERIALS}
+        onChange={(m) => store.getState().setOpeningMaterial(kind, m)}
+      />
+      <ul className="hint tips">
+        <li>
+          New {noun}s are {formatLength(DEFAULT_OPENING_WIDTH_M[kind], units)}{' '}
+          wide; change the width after placing.
+        </li>
+        <li>Near a corner or another opening, it slides to fit.</li>
+        <li>Esc returns to Select.</li>
+      </ul>
+    </section>
+  )
+}
+
+function OpeningSection({
+  opening,
+  floor,
+}: {
+  opening: Opening
+  floor: Floor
+}) {
+  const store = useEditorStore()
+  const units = useEditor((s) => s.units)
+  const floorId = floor.id
+  const edit = (label: string, change: (target: Floor) => void) =>
+    store.getState().edit(label, (plan) => {
+      change(plan.floors.find((f) => f.id === floorId)!)
+    })
+  const noun = opening.kind === 'door' ? 'Door' : 'Window'
+
+  return (
+    <section>
+      <h2>{noun}</h2>
+      <p className="kind">{materialLabel(opening.material)}</p>
+      <fieldset className="segmented opening-kind">
+        <legend className="visually-hidden">Kind</legend>
+        {(['door', 'window'] as const).map((kind) => (
+          <label key={kind}>
+            <input
+              type="radio"
+              name="opening-kind"
+              value={kind}
+              checked={opening.kind === kind}
+              onChange={() =>
+                edit(`Make it a ${kind}`, (target) => {
+                  const o = target.openings.find((x) => x.id === opening.id)
+                  if (o) o.kind = kind
+                })
+              }
+            />
+            {kind === 'door' ? 'Door' : 'Window'}
+          </label>
+        ))}
+      </fieldset>
+      <LengthField
+        label="Width"
+        metres={opening.widthM}
+        units={units}
+        onCommit={(metres) =>
+          edit(`Change ${noun.toLowerCase()} width`, (target) => {
+            setOpeningWidth(target, opening.id, metres)
+          })
+        }
+      />
+      <p className="hint">
+        Grows about its centre, up to the next corner or opening. Drag it along
+        its wall to move it.
+      </p>
+      <MaterialPicker
+        legend="Material"
+        name="selected-opening-material"
+        value={opening.material}
+        materials={OPENING_MATERIALS}
+        onChange={(material) =>
+          edit(`Change ${noun.toLowerCase()} material`, (target) => {
+            const o = target.openings.find((x) => x.id === opening.id)
+            if (o) o.material = material
+          })
+        }
+      />
+      <div className="actions">
+        <DeleteButton />
+      </div>
+    </section>
   )
 }

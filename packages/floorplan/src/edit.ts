@@ -1,5 +1,5 @@
 import type { Point } from './geometry.ts'
-import type { Floor, Wall, WallMaterial } from './schema.ts'
+import type { Floor, Opening, Wall, WallMaterial } from './schema.ts'
 import { MIN_WALL_LENGTH_M } from './validate.ts'
 
 /**
@@ -540,4 +540,119 @@ export function setWallLength(floor: Floor, wallId: string, length: number) {
   end.x = a.x + ((b.x - a.x) / current) * length
   end.y = a.y + ((b.y - a.y) / current) * length
   fitOpeningsAround(floor, [wall.to])
+}
+
+// ---------------------------------------------------------------------------
+// Doors and windows (D19)
+
+/** Free stretches of a wall between its openings, as [start, end] offsets. */
+function freeGaps(floor: Floor, wallId: string, ignoreId?: string) {
+  const wall = floor.walls.find((w) => w.id === wallId)
+  if (!wall) return []
+  const length = wallLength(floor, wall)
+  const taken = floor.openings
+    .filter((o) => o.wallId === wallId && o.id !== ignoreId)
+    .sort((p, q) => p.offsetM - q.offsetM)
+  const gaps: [number, number][] = []
+  let cursor = 0
+  for (const o of taken) {
+    if (o.offsetM > cursor) gaps.push([cursor, o.offsetM])
+    cursor = Math.max(cursor, o.offsetM + o.widthM)
+  }
+  if (length > cursor) gaps.push([cursor, length])
+  return gaps
+}
+
+/**
+ * Where an opening of `width` centred at `centre` along a wall fits: its
+ * offset, slid as little as possible to stay inside the wall and clear of
+ * other openings, or undefined if no free stretch is wide enough.
+ */
+export function fitOpeningAt(
+  floor: Floor,
+  wallId: string,
+  centre: number,
+  width: number,
+  ignoreId?: string,
+): number | undefined {
+  let best: { offset: number; shift: number } | undefined
+  for (const [start, end] of freeGaps(floor, wallId, ignoreId)) {
+    if (end - start < width - 1e-9) continue
+    const wanted = centre - width / 2
+    const offset = Math.min(Math.max(wanted, start), end - width)
+    const shift = Math.abs(offset - wanted)
+    if (!best || shift < best.shift) best = { offset, shift }
+  }
+  return best?.offset
+}
+
+/** Distance along a wall from its start corner to the point nearest `p`. */
+export function alongWall(floor: Floor, wallId: string, p: Point): number {
+  const wall = floor.walls.find((w) => w.id === wallId)
+  if (!wall) return 0
+  const [a, b] = wallEnds(floor, wall)
+  return project(a, b, p).along
+}
+
+/**
+ * Adds a door or window centred at `centre` metres along a wall, slid to fit
+ * (D19). Returns its id, or undefined if the wall has no room for it.
+ */
+export function addOpening(
+  floor: Floor,
+  wallId: string,
+  centre: number,
+  opening: Pick<Opening, 'kind' | 'widthM' | 'material'>,
+): string | undefined {
+  const offset = fitOpeningAt(floor, wallId, centre, opening.widthM)
+  if (offset === undefined) return undefined
+  const id = nextId(floor, opening.kind === 'door' ? 'd' : 'win')
+  floor.openings.push({ id, wallId, offsetM: offset, ...opening })
+  return id
+}
+
+/** Slides an opening along its wall, stopping at corners and other openings. */
+export function moveOpening(floor: Floor, openingId: string, centre: number) {
+  const opening = floor.openings.find((o) => o.id === openingId)
+  if (!opening) return
+  const current = opening.offsetM
+  // Only the free stretch the opening is in: it can't jump past a neighbour.
+  const gap = freeGaps(floor, opening.wallId, openingId).find(
+    ([start, end]) =>
+      current >= start - 1e-9 && current + opening.widthM <= end + 1e-9,
+  )
+  if (!gap) return
+  const wanted = centre - opening.widthM / 2
+  opening.offsetM = Math.min(Math.max(wanted, gap[0]), gap[1] - opening.widthM)
+}
+
+/**
+ * Changes an opening's width, growing or shrinking about its centre, limited
+ * to the free stretch it sits in. Returns the width it ended up with.
+ */
+export function setOpeningWidth(
+  floor: Floor,
+  openingId: string,
+  width: number,
+): number | undefined {
+  const opening = floor.openings.find((o) => o.id === openingId)
+  if (!opening || width < MIN_WALL_LENGTH_M) return undefined
+  const gap = freeGaps(floor, opening.wallId, openingId).find(
+    ([start, end]) =>
+      opening.offsetM >= start - 1e-9 &&
+      opening.offsetM + opening.widthM <= end + 1e-9,
+  )
+  if (!gap) return undefined
+  const fitted = Math.min(width, gap[1] - gap[0])
+  const centre = opening.offsetM + opening.widthM / 2
+  opening.widthM = fitted
+  opening.offsetM = Math.min(
+    Math.max(centre - fitted / 2, gap[0]),
+    gap[1] - fitted,
+  )
+  return fitted
+}
+
+export function deleteOpening(floor: Floor, openingId: string) {
+  floor.openings = floor.openings.filter((o) => o.id !== openingId)
 }

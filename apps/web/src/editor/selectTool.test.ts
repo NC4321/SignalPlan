@@ -32,19 +32,19 @@ const ap = {
 
 describe('hitTest', () => {
   it('prefers access points, then corners, then walls', () => {
-    expect(hitTest(camera, floor, [ap], { x: 203, y: 198 })).toEqual({
+    expect(hitTest(camera, floor, [ap], [], { x: 203, y: 198 })).toEqual({
       kind: 'accessPoint',
       id: 'ap',
     })
-    expect(hitTest(camera, floor, [ap], { x: 396, y: 4 })).toEqual({
+    expect(hitTest(camera, floor, [ap], [], { x: 396, y: 4 })).toEqual({
       kind: 'node',
       id: 'b',
     })
-    expect(hitTest(camera, floor, [ap], { x: 150, y: 5 })).toEqual({
+    expect(hitTest(camera, floor, [ap], [], { x: 150, y: 5 })).toEqual({
       kind: 'wall',
       id: 'ab',
     })
-    expect(hitTest(camera, floor, [ap], { x: 150, y: 60 })).toBeUndefined()
+    expect(hitTest(camera, floor, [ap], [], { x: 150, y: 60 })).toBeUndefined()
   })
 })
 
