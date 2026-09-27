@@ -1,0 +1,48 @@
+# Floor plan format
+
+A SignalPlan floor plan is a JSON document. The editor writes it, the engine reads it, and users save and load it as a file. The schema lives in [`packages/floorplan`](../packages/floorplan/src/schema.ts); this page explains its shape and rules.
+
+## Conventions
+
+- **Units:** every length is in metres. Display units (metric or imperial) are a user setting and are never stored in the plan.
+- **Axes:** x increases to the right and y increases downward, matching the canvas.
+- **Walls** are thin segments between two shared nodes, plus a material. Moving a node moves every wall attached to it.
+- **Openings** (doors and windows) sit inside one wall, placed by their distance from the wall's `from` node.
+
+## Shape (version 1)
+
+```text
+Plan
+├─ schemaVersion: 1
+├─ name
+├─ floors[]            at least one
+│  ├─ id, name
+│  ├─ elevationM       height of this floor above the lowest one
+│  ├─ heightM          floor-to-ceiling height
+│  ├─ nodes[]          { id, x, y }
+│  ├─ walls[]          { id, from, to, material }
+│  └─ openings[]       { id, wallId, kind: door | window, offsetM, widthM, material }
+└─ accessPoints[]
+   └─ { id, name, floorId, x, y, heightM, radios[]: { band, txPowerDbm? } }
+```
+
+Wall materials are `drywall`, `brick`, `concrete`, `glass`, `wood` and `metal`. Openings can use any of these, or `open` for a doorway with no door. Bands are `2.4GHz`, `5GHz` and `6GHz`. A radio with no `txPowerDbm` uses the engine's default for its band.
+
+## Validation
+
+`parsePlan` and `loadPlan` return either the plan or a list of issues, each with a path such as `floors[0].walls[3].to` and a readable message. They check:
+
+- **Shape:** required fields, types, known materials and bands, finite numbers.
+- **References:** walls point at nodes on the same floor, openings at walls on the same floor, access points at existing floors.
+- **Geometry:** walls are at least 1 cm long, openings fit inside their wall and don't overlap.
+- **Uniqueness:** ids are unique within each list, and each access point has at most one radio per band.
+
+## Versions and migrations
+
+Every plan carries `schemaVersion`. When the format changes, the version goes up by one and a migration from the previous version is added to [`migrate.ts`](../packages/floorplan/src/migrate.ts). Older files are upgraded step by step when loaded; files from a newer version are rejected with a message asking the user to update.
+
+Adding an optional field does not need a new version. Renaming, removing or changing the meaning of a field does.
+
+## Example
+
+[`fixtures/sample-home.json`](../packages/floorplan/fixtures/sample-home.json) is a 10 m × 8 m flat with a living area, two bedrooms, a bathroom, doors, windows and one dual-band router. Tests and the thin-slice heatmap use it.

@@ -1,0 +1,10 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    // No DOM: plans are parsed in Web Workers and Node as well as the page.
+    "lib": ["ES2023"],
+    "types": [],
+    "resolveJsonModule": true
+  },
+  "include": ["src", "fixtures"]
+}
