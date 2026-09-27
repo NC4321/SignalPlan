@@ -15,9 +15,19 @@ export {
 } from './geometry.ts'
 export {
   addWall,
+  collapseShortWalls,
+  deleteNode,
+  deleteWall,
+  fitOpenings,
+  fitOpeningsAround,
   JOIN_TOLERANCE_M,
+  joinNode,
+  mergeCollinearAt,
+  mergeNodes,
+  moveNodes,
   nextId,
   nodeAt,
   removeOrphanNodes,
+  setWallLength,
   splitWall,
 } from './edit.ts'

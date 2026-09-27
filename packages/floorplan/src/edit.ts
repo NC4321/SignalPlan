@@ -257,3 +257,287 @@ export function removeOrphanNodes(floor: Floor) {
   const used = new Set(floor.walls.flatMap((w) => [w.from, w.to]))
   floor.nodes = floor.nodes.filter((n) => used.has(n.id))
 }
+
+// ---------------------------------------------------------------------------
+// Moving, joining, deleting and resizing (D18)
+
+function wallLength(floor: Floor, wall: Wall): number {
+  const [a, b] = wallEnds(floor, wall)
+  return distance(a, b)
+}
+
+/** Walls that start or end at any of the given nodes. */
+function wallsAt(floor: Floor, nodeIds: Iterable<string>): Wall[] {
+  const ids = new Set(nodeIds)
+  return floor.walls.filter((w) => ids.has(w.from) || ids.has(w.to))
+}
+
+/**
+ * Keeps a wall's doors and windows inside it and apart: each slides along the
+ * wall as needed, and if together they are wider than the wall they shrink in
+ * proportion (D18). Nothing is removed.
+ */
+export function fitOpenings(floor: Floor, wallId: string) {
+  const wall = floor.walls.find((w) => w.id === wallId)
+  if (!wall) return
+  const length = wallLength(floor, wall)
+  const openings = floor.openings
+    .filter((o) => o.wallId === wallId)
+    .sort((p, q) => p.offsetM - q.offsetM)
+  if (openings.length === 0 || length <= 0) return
+
+  const total = openings.reduce((sum, o) => sum + o.widthM, 0)
+  if (total > length) {
+    const factor = length / total
+    let cursor = 0
+    for (const opening of openings) {
+      opening.widthM *= factor
+      opening.offsetM = cursor
+      cursor += opening.widthM
+    }
+    return
+  }
+  // Forward: no opening starts before the previous one ends.
+  let end = 0
+  for (const opening of openings) {
+    opening.offsetM = Math.max(opening.offsetM, end)
+    end = opening.offsetM + opening.widthM
+  }
+  // Backward: no opening ends past the next one's start or the wall's end.
+  let limit = length
+  for (const opening of openings.toReversed()) {
+    opening.offsetM = Math.min(opening.offsetM, limit - opening.widthM)
+    limit = opening.offsetM
+  }
+}
+
+/** Fits the openings of every wall attached to the given nodes. */
+export function fitOpeningsAround(floor: Floor, nodeIds: Iterable<string>) {
+  for (const wall of wallsAt(floor, nodeIds)) fitOpenings(floor, wall.id)
+}
+
+/** Moves an opening onto another wall, keeping it where it was on the plan. */
+function reattachOpening(
+  floor: Floor,
+  openingId: string,
+  from: Wall,
+  to: Wall,
+) {
+  const opening = floor.openings.find((o) => o.id === openingId)
+  if (!opening) return
+  const [fa, fb] = wallEnds(floor, from)
+  const [ta, tb] = wallEnds(floor, to)
+  const fromLength = distance(fa, fb)
+  const at = (d: number) => ({
+    x: fa.x + ((fb.x - fa.x) * d) / fromLength,
+    y: fa.y + ((fb.y - fa.y) * d) / fromLength,
+  })
+  const start = project(ta, tb, at(opening.offsetM)).along
+  const end = project(ta, tb, at(opening.offsetM + opening.widthM)).along
+  opening.wallId = to.id
+  opening.offsetM = Math.min(start, end)
+  opening.widthM = Math.max(Math.abs(end - start), MIN_WALL_LENGTH_M)
+}
+
+function removeWalls(floor: Floor, wallIds: Set<string>) {
+  floor.walls = floor.walls.filter((w) => !wallIds.has(w.id))
+  floor.openings = floor.openings.filter((o) => !wallIds.has(o.wallId))
+}
+
+/** Moves nodes by a vector, keeping openings on their walls fitted. */
+export function moveNodes(
+  floor: Floor,
+  nodeIds: Iterable<string>,
+  delta: Point,
+) {
+  const ids = new Set(nodeIds)
+  for (const node of floor.nodes) {
+    if (ids.has(node.id)) {
+      node.x += delta.x
+      node.y += delta.y
+    }
+  }
+  fitOpeningsAround(floor, ids)
+}
+
+/**
+ * Joins node `dropId` into node `keepId`: walls that used it now use `keepId`.
+ * Walls that collapse to a point are removed; walls that now duplicate another
+ * are removed with their openings moved onto the survivor.
+ */
+export function mergeNodes(floor: Floor, keepId: string, dropId: string) {
+  if (keepId === dropId) return
+  for (const wall of floor.walls) {
+    if (wall.from === dropId) wall.from = keepId
+    if (wall.to === dropId) wall.to = keepId
+  }
+  floor.nodes = floor.nodes.filter((n) => n.id !== dropId)
+  removeWalls(
+    floor,
+    new Set(floor.walls.filter((w) => w.from === w.to).map((w) => w.id)),
+  )
+
+  const byPair = new Map<string, Wall>()
+  const duplicates = new Set<string>()
+  for (const wall of floor.walls) {
+    const key = [wall.from, wall.to].sort().join('|')
+    const survivor = byPair.get(key)
+    if (!survivor) {
+      byPair.set(key, wall)
+      continue
+    }
+    for (const opening of floor.openings.filter((o) => o.wallId === wall.id)) {
+      reattachOpening(floor, opening.id, wall, survivor)
+    }
+    duplicates.add(wall.id)
+  }
+  removeWalls(floor, duplicates)
+  fitOpeningsAround(floor, [keepId])
+}
+
+/**
+ * After a corner is dropped: joins it to another corner at the same spot, or
+ * splits a wall passing through it and joins there. Returns the node it
+ * ended up as.
+ */
+export function joinNode(
+  floor: Floor,
+  nodeId: string,
+  tolerance = JOIN_TOLERANCE_M,
+): string {
+  const node = floor.nodes.find((n) => n.id === nodeId)
+  if (!node) return nodeId
+  const other = floor.nodes.find(
+    (n) => n.id !== nodeId && distance(n, node) <= tolerance,
+  )
+  if (other) {
+    mergeNodes(floor, other.id, nodeId)
+    return other.id
+  }
+  for (const wall of floor.walls) {
+    if (wall.from === nodeId || wall.to === nodeId) continue
+    const [a, b] = wallEnds(floor, wall)
+    const { along, off, length } = project(a, b, node)
+    if (off <= tolerance && along > tolerance && along < length - tolerance) {
+      const junction = splitWall(floor, wall.id, node, tolerance)
+      mergeNodes(floor, junction, nodeId)
+      return junction
+    }
+  }
+  return nodeId
+}
+
+/** Joins the two ends of any wall shorter than 1 cm, removing the wall. */
+export function collapseShortWalls(floor: Floor) {
+  for (;;) {
+    const short = floor.walls.find(
+      (w) => wallLength(floor, w) < MIN_WALL_LENGTH_M,
+    )
+    if (!short) return
+    mergeNodes(floor, short.from, short.to)
+  }
+}
+
+/**
+ * If exactly two walls of the same material meet in a straight line at a
+ * node, replaces them with one wall and removes the node (D18).
+ */
+export function mergeCollinearAt(floor: Floor, nodeId: string): boolean {
+  const walls = wallsAt(floor, [nodeId])
+  if (walls.length !== 2) return false
+  const [first, second] = walls as [Wall, Wall]
+  if (first.material !== second.material) return false
+  const far = (w: Wall) => (w.from === nodeId ? w.to : w.from)
+  const a = nodePoint(floor, far(first))
+  const b = nodePoint(floor, far(second))
+  const n = nodePoint(floor, nodeId)
+  const cross = (n.x - a.x) * (b.y - n.y) - (n.y - a.y) * (b.x - n.x)
+  const dot = (n.x - a.x) * (b.x - n.x) + (n.y - a.y) * (b.y - n.y)
+  const scale = distance(a, n) * distance(n, b)
+  if (dot <= 0 || Math.abs(cross) > 1e-3 * scale) return false
+  joinThrough(floor, nodeId, first, second, first.material)
+  return true
+}
+
+/** Replaces two walls meeting at a node with one wall between their far ends. */
+function joinThrough(
+  floor: Floor,
+  nodeId: string,
+  first: Wall,
+  second: Wall,
+  material: WallMaterial,
+) {
+  const farFirst = first.from === nodeId ? first.to : first.from
+  const farSecond = second.from === nodeId ? second.to : second.from
+  const before = { first: { ...first }, second: { ...second } }
+  const merged: Wall = { id: first.id, from: farFirst, to: farSecond, material }
+  // Reattach openings using the walls' old geometry, then swap in the new wall.
+  const moved = floor.openings.filter(
+    (o) => o.wallId === first.id || o.wallId === second.id,
+  )
+  const index = floor.walls.findIndex((w) => w.id === first.id)
+  floor.walls[index] = merged
+  for (const opening of moved) {
+    const source = opening.wallId === first.id ? before.first : before.second
+    reattachOpening(floor, opening.id, source, merged)
+  }
+  floor.walls = floor.walls.filter((w) => w.id !== second.id)
+  floor.nodes = floor.nodes.filter((n) => n.id !== nodeId)
+  if (farFirst === farSecond || wallLength(floor, merged) < MIN_WALL_LENGTH_M) {
+    removeWalls(floor, new Set([merged.id]))
+  } else {
+    fitOpenings(floor, merged.id)
+  }
+}
+
+/**
+ * Deletes a wall and its openings. Corners left unused are removed, and a
+ * corner left joining two straight walls of one material merges them.
+ */
+export function deleteWall(floor: Floor, wallId: string) {
+  const wall = floor.walls.find((w) => w.id === wallId)
+  if (!wall) return
+  removeWalls(floor, new Set([wallId]))
+  for (const end of [wall.from, wall.to]) {
+    if (wallsAt(floor, [end]).length === 0) {
+      floor.nodes = floor.nodes.filter((n) => n.id !== end)
+    } else {
+      mergeCollinearAt(floor, end)
+    }
+  }
+}
+
+/**
+ * Deletes a corner. If exactly two walls meet there, they become one straight
+ * wall between their far ends, taking the longer wall's material. Otherwise
+ * the corner and every wall attached to it are deleted.
+ */
+export function deleteNode(floor: Floor, nodeId: string) {
+  const walls = wallsAt(floor, [nodeId])
+  if (walls.length === 2) {
+    const [first, second] = walls as [Wall, Wall]
+    const material =
+      wallLength(floor, first) >= wallLength(floor, second)
+        ? first.material
+        : second.material
+    joinThrough(floor, nodeId, first, second, material)
+    return
+  }
+  for (const wall of walls) deleteWall(floor, wall.id)
+  floor.nodes = floor.nodes.filter((n) => n.id !== nodeId)
+}
+
+/**
+ * Sets a wall's length, keeping its direction and its start corner; the end
+ * corner moves and walls attached to it stretch.
+ */
+export function setWallLength(floor: Floor, wallId: string, length: number) {
+  const wall = floor.walls.find((w) => w.id === wallId)
+  if (!wall || length < MIN_WALL_LENGTH_M) return
+  const [a, b] = wallEnds(floor, wall)
+  const current = distance(a, b)
+  const end = floor.nodes.find((n) => n.id === wall.to)!
+  end.x = a.x + ((b.x - a.x) / current) * length
+  end.y = a.y + ((b.y - a.y) / current) * length
+  fitOpeningsAround(floor, [wall.to])
+}

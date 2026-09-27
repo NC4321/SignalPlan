@@ -109,3 +109,12 @@ A running log of project decisions, newest last. Each entry records what was dec
 - **Exact lengths:** while a wall follows the cursor, typing a number opens a length box (Tab for an angle, measured counter-clockwise from east); Enter places the wall.
 - **After a chain:** the wall tool stays active; Esc again (or V) returns to Select.
 - **Wall styles:** each material has an Okabe–Ito colour plus its own width and pattern (drywall plain, brick ticked, concrete thick, wood dashed, glass double line, low-E glass double line with dots, metal hatched), outlined in dark so walls stay readable over any heatmap colour.
+
+### D18. Selecting and editing walls — 2026-09-27
+
+- **Selection:** click selects one wall, corner or access point; Shift-click adds or removes; no box selection yet. Arrow keys move everything selected; Delete removes selected walls and corners (access points are kept until the access point tool exists).
+- **Dragging a corner** snaps like drawing (not to itself or its own walls); dropping it on a corner merges them, and on a wall splits the wall and joins. Walls that merely cross after a move stay independent.
+- **Dragging a wall** slides it at right angles to itself in grid steps, stretching connected walls; Alt moves it freely.
+- **Deleting a corner** joins its two walls into one straight wall (taking the longer wall's material), or, with more or fewer than two walls, removes the walls attached to it. **Deleting a wall** merges any straight, same-material halves it leaves at an otherwise unused corner.
+- **Doors and windows on a changed wall** slide to stay inside it and apart, and shrink in proportion if the wall gets too short; nothing is deleted.
+- **Wall properties:** material and length (the start corner stays, the end corner moves); Split in half and Delete buttons; double-click splits a wall anywhere.

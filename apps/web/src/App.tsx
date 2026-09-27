@@ -7,6 +7,7 @@ import {
   TopBar,
   Toolbar,
 } from './editor/panels.tsx'
+import { deleteRecipe, describeSelection } from './editor/selectTool.ts'
 import { isTyping } from './editor/util.ts'
 import { useCoverage } from './useCoverage.ts'
 
@@ -43,11 +44,21 @@ function App() {
         state.setTool('wall')
       } else if (key === 'enter' && state.chain) {
         state.endChain()
+      } else if (key === 'delete' || key === 'backspace') {
+        const removable = state.selection.filter(
+          (i) => i.kind !== 'accessPoint',
+        )
+        if (removable.length === 0) return
+        event.preventDefault()
+        state.edit(
+          `Delete ${describeSelection(removable)}`,
+          deleteRecipe(state.floorId, removable),
+        )
       } else if (key === 'escape') {
         // Esc finishes the chain; pressed again, it returns to Select (D16).
         if (state.chain) state.endChain()
         else if (state.tool === 'wall') state.setTool('select')
-        else state.select(undefined)
+        else state.select([])
       }
     }
     window.addEventListener('keydown', onKey)

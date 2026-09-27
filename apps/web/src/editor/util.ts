@@ -7,14 +7,29 @@ const isMac =
 /** The modifier shown in shortcut hints: ⌘ on Apple devices, Ctrl+ elsewhere. */
 export const MOD_KEY = isMac ? '⌘' : 'Ctrl+'
 
-/** True when a key event comes from a text field, where shortcuts don't apply. */
+/** Input types that accept typed text, where shortcuts must not fire. */
+const TEXT_INPUTS = new Set([
+  'text',
+  'search',
+  'number',
+  'email',
+  'url',
+  'tel',
+  'password',
+])
+
+/**
+ * True when a key event comes from somewhere text is typed, where shortcuts
+ * don't apply. Radio buttons and checkboxes don't count, so undo still works
+ * right after picking an option.
+ */
 export function isTyping(event: KeyboardEvent): boolean {
   const target = event.target as HTMLElement | null
-  return (
-    !!target &&
-    (target.isContentEditable ||
-      ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName))
-  )
+  if (!target) return false
+  if (target.isContentEditable) return true
+  if (target instanceof HTMLTextAreaElement) return true
+  if (target instanceof HTMLSelectElement) return true
+  return target instanceof HTMLInputElement && TEXT_INPUTS.has(target.type)
 }
 
 /** Predicted signal in the coverage cell under a point, if any. */

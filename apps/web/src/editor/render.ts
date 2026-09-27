@@ -34,8 +34,11 @@ export interface Scene {
   segments: readonly MaterialSegment[]
   accessPoints: readonly AccessPoint[]
   selection: Selection
-  /** Wall tool: corners to highlight, and the wall being drawn. */
-  corners?: readonly Point[] | undefined
+  /** Walls as lines between their corners, for selection highlights. */
+  wallLines: readonly { id: string; a: Point; b: Point }[]
+  /** Corners, drawn as small dots so they can be grabbed. */
+  corners: readonly (Point & { id: string })[]
+  /** The wall tool's preview of the wall being drawn. */
   drawing?:
     | {
         anchor: Point | undefined
@@ -86,6 +89,22 @@ export function draw(
 
   const wallWidth = baseWallWidth(camera)
   const casing = colour('--wall-casing')
+  const isSelected = (kind: string, id: string) =>
+    scene.selection.some((s) => s.kind === kind && s.id === id)
+
+  // Selected walls get a halo underneath.
+  context.lineCap = 'round'
+  context.strokeStyle = colour('--accent')
+  context.lineWidth = wallWidth * 1.8 + 8
+  for (const line of scene.wallLines) {
+    if (!isSelected('wall', line.id)) continue
+    const a = toScreen(camera, line.a)
+    const b = toScreen(camera, line.b)
+    context.beginPath()
+    context.moveTo(a.x, a.y)
+    context.lineTo(b.x, b.y)
+    context.stroke()
+  }
   // Solid walls first, then doors and windows on top, thinner.
   for (const opening of [false, true]) {
     for (const segment of scene.segments) {
@@ -101,17 +120,21 @@ export function draw(
     }
   }
 
-  if (scene.corners) {
-    context.fillStyle = colour('--canvas')
-    context.strokeStyle = colour('--wall-casing')
-    context.lineWidth = 1.5
-    for (const corner of scene.corners) {
-      const at = toScreen(camera, corner)
-      context.beginPath()
+  for (const corner of scene.corners) {
+    const at = toScreen(camera, corner)
+    const selected = isSelected('node', corner.id)
+    context.beginPath()
+    if (selected) {
+      context.rect(at.x - 5, at.y - 5, 10, 10)
+      context.fillStyle = colour('--accent')
+    } else {
       context.arc(at.x, at.y, 3, 0, Math.PI * 2)
-      context.fill()
-      context.stroke()
+      context.fillStyle = colour('--canvas')
     }
+    context.fill()
+    context.strokeStyle = colour(selected ? '--canvas' : '--wall-casing')
+    context.lineWidth = 1.5
+    context.stroke()
   }
 
   if (scene.drawing) drawPreview(context, colour, scene, wallWidth)
@@ -120,8 +143,9 @@ export function draw(
   context.textBaseline = 'middle'
   for (const ap of scene.accessPoints) {
     const at = toScreen(camera, ap)
-    const selected =
-      scene.selection?.kind === 'accessPoint' && scene.selection.id === ap.id
+    const selected = scene.selection.some(
+      (s) => s.kind === 'accessPoint' && s.id === ap.id,
+    )
     if (selected) {
       context.beginPath()
       context.arc(at.x, at.y, AP_RADIUS_PX + 5, 0, Math.PI * 2)
