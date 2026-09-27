@@ -13,6 +13,7 @@ All notable changes to this project are documented here. The format follows [Kee
 - Engine: North American band profiles and wall-material losses computed from ITU-R P.2040-4 layered constructions, including low-E glass fitted to published measurements; `docs/MODEL.md`.
 - Floor plan: `low-e-glass` material; radio power is EIRP.
 - Engine: coverage grid for a floor and band (10 cm cells, strongest access point per cell) and a typed Web Worker message API.
+- Tracing: add a PNG, JPEG or WebP floor plan image to a floor, set its scale by clicking two points and typing the distance, drag it into place, and adjust opacity, visibility and lock (or recalibrate, replace or remove it) from the properties panel. All of it can be undone, and saved files embed the image.
 - My plans: every edited plan is kept in a list in the browser (IndexedDB), with open, rename, duplicate and delete; plans saved by the previous version move over automatically.
 - Save and open: autosave in the browser with a status indicator, reopening the last plan, New plan, Open and Save to `.signalplan.json` files, confirmation before replacing an edited plan, and an editable plan name.
 - Doors and windows: Door and Window tools with slide-to-fit placement, dragging along walls, and a panel for kind, width and material (including open doorways).
