@@ -216,7 +216,11 @@ importers:
         specifier: ^8.3.0
         version: 8.3.1(@types/node@24.19.0)(jiti@2.6.1)
 
-  packages/engine: {}
+  packages/engine:
+    dependencies:
+      '@signalplan/floorplan':
+        specifier: workspace:*
+        version: link:../floorplan
 
   packages/floorplan:
     dependencies:
