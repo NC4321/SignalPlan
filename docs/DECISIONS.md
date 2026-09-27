@@ -80,3 +80,23 @@ A running log of project decisions, newest last. Each entry records what was dec
 
 - **Decision:** the demo and tests use a 150 m² bungalow with a concrete utility room, a steel door and low-E windows, instead of the original 80 m² flat.
 - **Why:** one router covered the flat almost entirely, so the demo showed little contrast.
+
+## Phase 1: editor
+
+### D14. Canvas 2D for the editor — 2026-09-27
+
+- **Decision:** the editor draws with plain Canvas 2D, the same renderer as the heatmap.
+- **Why:** a prototype with 200 walls, length labels, a grid and a full-house heatmap held 60 fps while panning and zooming in both Canvas 2D (about 0.2 ms of script per frame) and SVG, so speed didn't decide. Canvas keeps one drawing path, and hit-testing is point-to-segment maths that snapping needs anyway.
+
+### D15. Zustand store with Immer patches — 2026-09-27
+
+- **Decision:** one Zustand store holds the plan and editor state. Every edit runs through Immer, which records a patch and its inverse for undo and redo. A drag is a "gesture" whose previews commit as one undo step.
+
+### D16. Editor behaviour — 2026-09-27
+
+- **Layout:** full-screen app with a tool bar, a properties panel and a status bar; the panel becomes a drawer on narrow screens.
+- **First view:** the sample home, ready to edit, with a live heatmap that updates while editing (it can be hidden).
+- **Navigation:** Figma-style: wheel or two-finger scroll pans; Ctrl/⌘ + wheel or pinch zooms at the cursor; Space + drag or middle-drag pans.
+- **Touch:** view, pan, zoom and move access points on touch; drawing and editing walls are desktop-first.
+- **Walls:** click-to-chain drawing; snapping to a 10 cm (1″) grid, 15° angles, and existing walls, with Alt to bypass; new walls split existing ones at T and X junctions; dragging a wall stretches connected walls; double-click splits a wall; new walls use the last material picked (drywall at first).
+- **Imperial display:** feet and inches to the nearest half inch (12′ 6½″); typing accepts common forms.

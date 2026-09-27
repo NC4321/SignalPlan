@@ -2,10 +2,10 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.node.tsbuildinfo",
-    "lib": ["ES2023"],
+    "lib": ["ES2023", "DOM"], // DOM: code inside page.evaluate() in e2e tests
     "types": ["node"],
     "module": "nodenext",
     "moduleResolution": "nodenext"
   },
-  "include": ["vite.config.ts"]
+  "include": ["vite.config.ts", "playwright.config.ts", "e2e"]
 }
