@@ -39,8 +39,15 @@ function App() {
         state.redo()
       } else if (!mod && !event.altKey && key === 'v') {
         state.setTool('select')
+      } else if (!mod && !event.altKey && key === 'w') {
+        state.setTool('wall')
+      } else if (key === 'enter' && state.chain) {
+        state.endChain()
       } else if (key === 'escape') {
-        state.select(undefined)
+        // Esc finishes the chain; pressed again, it returns to Select (D16).
+        if (state.chain) state.endChain()
+        else if (state.tool === 'wall') state.setTool('select')
+        else state.select(undefined)
       }
     }
     window.addEventListener('keydown', onKey)

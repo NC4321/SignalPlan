@@ -100,3 +100,12 @@ A running log of project decisions, newest last. Each entry records what was dec
 - **Touch:** view, pan, zoom and move access points on touch; drawing and editing walls are desktop-first.
 - **Walls:** click-to-chain drawing; snapping to a 10 cm (1″) grid, 15° angles, and existing walls, with Alt to bypass; new walls split existing ones at T and X junctions; dragging a wall stretches connected walls; double-click splits a wall; new walls use the last material picked (drywall at first).
 - **Imperial display:** feet and inches to the nearest half inch (12′ 6½″); typing accepts common forms.
+
+### D17. Wall tool details — 2026-09-27
+
+- **Junctions inside openings:** a new junction on a wall inside a door or window moves to the opening's nearest edge. A new wall that _crosses_ a wall inside a doorway crosses it without joining, since moving the junction would bend the new wall.
+- **Overlaps:** a new wall that runs along an existing wall reuses it; only the parts beyond it are added.
+- **Undo while drawing:** each wall in a chain is its own undo step; undo mid-chain removes the last wall and keeps drawing from the corner before it.
+- **Exact lengths:** while a wall follows the cursor, typing a number opens a length box (Tab for an angle, measured counter-clockwise from east); Enter places the wall.
+- **After a chain:** the wall tool stays active; Esc again (or V) returns to Select.
+- **Wall styles:** each material has an Okabe–Ito colour plus its own width and pattern (drywall plain, brick ticked, concrete thick, wood dashed, glass double line, low-E glass double line with dots, metal hatched), outlined in dark so walls stay readable over any heatmap colour.

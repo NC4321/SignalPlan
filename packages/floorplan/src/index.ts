@@ -13,3 +13,11 @@ export {
   type MaterialSegment,
   type Point,
 } from './geometry.ts'
+export {
+  addWall,
+  JOIN_TOLERANCE_M,
+  nextId,
+  nodeAt,
+  removeOrphanNodes,
+  splitWall,
+} from './edit.ts'

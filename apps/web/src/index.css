@@ -9,6 +9,7 @@
   --grid-minor: #e9e7e4;
   --grid-major: #d6d3cf;
   --wall: #1d1b22;
+  --wall-casing: #1d1b22;
   --opening: #9a96a3;
   --ap: #ffffff;
   --ap-ring: #1d1b22;
@@ -36,6 +37,7 @@
     --grid-minor: #25242b;
     --grid-major: #33313a;
     --wall: #ecebef;
+    --wall-casing: #000000;
     --opening: #6f6b78;
     --ap: #1f1e24;
     --ap-ring: #ecebef;
@@ -370,6 +372,115 @@ dd {
 .zoom button {
   min-width: 2rem;
   padding: 0.15rem 0.5rem;
+}
+
+.material-picker {
+  display: grid;
+  gap: 0.2rem;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.material-picker legend {
+  margin-bottom: 0.4rem;
+  font-weight: 600;
+}
+
+.material-picker label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.25rem 0.4rem;
+  border: 1px solid transparent;
+  border-radius: 0.375rem;
+  cursor: pointer;
+}
+
+.material-picker label:has(input:checked) {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+.material-picker label:has(input:focus-visible) {
+  outline: 2px solid var(--accent);
+}
+
+.material-picker input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.wall-swatch {
+  width: 40px;
+  height: 16px;
+  flex: none;
+}
+
+.wall-legend {
+  display: grid;
+  gap: 0.3rem;
+  margin: 0.75rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.wall-legend li {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.tips {
+  padding-left: 1rem;
+}
+
+.tips li + li {
+  margin-top: 0.3rem;
+}
+
+.length-input {
+  position: absolute;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 0.4rem;
+  max-width: 18rem;
+  padding: 0.5rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  box-shadow: 0 6px 18px rgb(0 0 0 / 0.18);
+  z-index: 5;
+}
+
+.length-input label {
+  display: grid;
+  gap: 0.15rem;
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+
+.length-input input {
+  font: inherit;
+  font-size: 0.875rem;
+  color: var(--text);
+  padding: 0.25rem 0.4rem;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 0.25rem;
+}
+
+.length-input input[aria-invalid='true'] {
+  border-color: #d55e00;
+}
+
+.length-error {
+  flex-basis: 100%;
+  margin: 0;
+  font-size: 0.75rem;
+  color: #d55e00;
 }
 
 /* Narrow screens: tools along the bottom, properties as a drawer. */

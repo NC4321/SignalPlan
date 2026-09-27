@@ -1,12 +1,8 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test } from '@playwright/test'
+import { openEditor, planPoint, screenPoint } from './helpers.ts'
 
 test.beforeEach(async ({ page }) => {
-  await page.goto('/')
-  // The camera exists once the plan has been fitted to the canvas.
-  await expect(page.locator('.editor-canvas')).toHaveAttribute(
-    'data-scale',
-    /\d/,
-  )
+  await openEditor(page)
 })
 
 test('opens the sample home with a live heatmap', async ({ page }) => {
@@ -49,29 +45,6 @@ test('switches display units', async ({ page }) => {
   await page.getByText('Imperial', { exact: true }).click()
   await expect(properties.locator('dd').first()).toHaveText('18′ 4½″, 3′ 11″')
 })
-
-/** Where a plan point (in metres) appears on the page. */
-async function screenPoint(page: Page, x: number, y: number) {
-  const canvas = page.locator('.editor-canvas')
-  const box = (await canvas.boundingBox())!
-  const camera = await canvas.evaluate((el) => ({
-    scale: Number(el.dataset['scale']),
-    offsetX: Number(el.dataset['offsetX']),
-    offsetY: Number(el.dataset['offsetY']),
-  }))
-  return {
-    x: box.x + camera.offsetX + x * camera.scale,
-    y: box.y + camera.offsetY + y * camera.scale,
-  }
-}
-
-/** The plan point (in metres) under a page position. */
-async function planPoint(page: Page, at: { x: number; y: number }) {
-  const origin = await screenPoint(page, 0, 0)
-  const unit = await screenPoint(page, 1, 0)
-  const scale = unit.x - origin.x
-  return { x: (at.x - origin.x) / scale, y: (at.y - origin.y) / scale }
-}
 
 test('drags an access point as a single undo step', async ({ page }) => {
   const router = await screenPoint(page, 5.6, 1.2)
