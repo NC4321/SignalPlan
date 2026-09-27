@@ -1,15 +1,24 @@
 import { BAND_PROFILES, type Coverage } from '@signalplan/engine'
 import {
   BANDS,
+  MIN_WALL_LENGTH_M,
+  setWallLength,
+  splitWall,
   WALL_MATERIALS,
+  type AccessPoint,
   type Band,
+  type Floor,
+  type PlanNode,
+  type Wall,
   type WallMaterial,
 } from '@signalplan/floorplan'
-import { useEffect, useRef } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import { cssColour, QUALITY_BANDS, qualityOf } from '../quality.ts'
 import { zoomAt } from './camera.ts'
 import { useEditor, useEditorStore } from './context.ts'
-import { formatLength, type Units } from './units.ts'
+import { deleteRecipe, describeSelection } from './selectTool.ts'
+import { bearingDeg } from './snap.ts'
+import { formatLength, parseLength, type Units } from './units.ts'
 import { MOD_KEY, signalAt } from './util.ts'
 import { drawWall, WALL_STYLES } from './wallStyles.ts'
 
@@ -171,19 +180,33 @@ export function Toolbar() {
 }
 
 export function PropertiesPanel({ open }: { open: boolean }) {
-  const store = useEditorStore()
   const plan = useEditor((s) => s.plan)
   const floorId = useEditor((s) => s.floorId)
   const selection = useEditor((s) => s.selection)
-  const units = useEditor((s) => s.units)
-  const floor = plan.floors.find((f) => f.id === floorId)
-
   const tool = useEditor((s) => s.tool)
-  const wallMaterial = useEditor((s) => s.wallMaterial)
+  const floor = plan.floors.find((f) => f.id === floorId)!
+
+  const only = selection.length === 1 ? selection[0] : undefined
   const ap =
-    selection?.kind === 'accessPoint'
-      ? plan.accessPoints.find((a) => a.id === selection.id)
+    only?.kind === 'accessPoint'
+      ? plan.accessPoints.find((a) => a.id === only.id)
       : undefined
+  const wall =
+    only?.kind === 'wall'
+      ? floor.walls.find((w) => w.id === only.id)
+      : undefined
+  const node =
+    only?.kind === 'node'
+      ? floor.nodes.find((n) => n.id === only.id)
+      : undefined
+
+  let details
+  if (tool === 'wall' && selection.length === 0) details = <WallToolSection />
+  else if (ap) details = <AccessPointSection ap={ap} />
+  else if (wall) details = <WallSection wall={wall} floor={floor} />
+  else if (node) details = <CornerSection node={node} floor={floor} />
+  else if (selection.length > 1) details = <MultipleSection />
+  else details = <PlanSection />
 
   return (
     <aside
@@ -192,94 +215,7 @@ export function PropertiesPanel({ open }: { open: boolean }) {
       data-open={open || undefined}
       aria-label="Properties"
     >
-      {tool === 'wall' && !ap ? (
-        <section>
-          <h2>Wall tool</h2>
-          <p className="kind">Click to place corners</p>
-          <fieldset className="material-picker">
-            <legend>Material for new walls</legend>
-            {WALL_MATERIALS.map((material) => (
-              <label key={material}>
-                <input
-                  type="radio"
-                  name="wall-material"
-                  value={material}
-                  checked={wallMaterial === material}
-                  onChange={() => store.getState().setWallMaterial(material)}
-                />
-                <WallSwatch material={material} />
-                {WALL_STYLES[material].label}
-              </label>
-            ))}
-          </fieldset>
-          <ul className="hint tips">
-            <li>
-              Double-click, Enter or Esc finishes a chain; clicking the first
-              corner closes a room.
-            </li>
-            <li>Type a number for an exact length; Tab for an angle.</li>
-            <li>
-              Snaps to corners, walls, 15° steps and the grid. Hold Alt to place
-              freely.
-            </li>
-            <li>{MOD_KEY}Z steps back one corner.</li>
-          </ul>
-        </section>
-      ) : ap ? (
-        <section>
-          <h2>{ap.name}</h2>
-          <p className="kind">Access point</p>
-          <dl>
-            <dt>Position</dt>
-            <dd>
-              {formatLength(ap.x, units)}, {formatLength(ap.y, units)}
-            </dd>
-            <dt>Mounted at</dt>
-            <dd>{formatLength(ap.heightM, units)} above the floor</dd>
-            {ap.radios.map((radio) => (
-              <div key={radio.band} className="dl-row">
-                <dt>{BAND_LABELS[radio.band]}</dt>
-                <dd>
-                  {radio.txPowerDbm ??
-                    BAND_PROFILES[radio.band].defaultTxPowerDbm}{' '}
-                  dBm EIRP{radio.txPowerDbm === undefined ? ' (default)' : ''}
-                </dd>
-              </div>
-            ))}
-          </dl>
-          <p className="hint">
-            Drag it, or use the arrow keys (Shift for bigger steps).
-          </p>
-        </section>
-      ) : (
-        <section>
-          <h2>{plan.name}</h2>
-          <p className="kind">{floor?.name}</p>
-          <dl>
-            <dt>Walls</dt>
-            <dd>{floor?.walls.length ?? 0}</dd>
-            <dt>Doors and windows</dt>
-            <dd>{floor?.openings.length ?? 0}</dd>
-          </dl>
-          <h3>Access points</h3>
-          <ul className="object-list">
-            {plan.accessPoints
-              .filter((a) => a.floorId === floorId)
-              .map((a) => (
-                <li key={a.id}>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      store.getState().select({ kind: 'accessPoint', id: a.id })
-                    }
-                  >
-                    {a.name}
-                  </button>
-                </li>
-              ))}
-          </ul>
-        </section>
-      )}
+      {details}
 
       {tool !== 'wall' && (
         <section>
@@ -410,4 +346,333 @@ function WallSwatch({ material }: { material: WallMaterial }) {
     )
   }, [material])
   return <canvas ref={canvas} className="wall-swatch" aria-hidden="true" />
+}
+
+function WallToolSection() {
+  const store = useEditorStore()
+  const wallMaterial = useEditor((s) => s.wallMaterial)
+  return (
+    <section>
+      <h2>Wall tool</h2>
+      <p className="kind">Click to place corners</p>
+      <MaterialPicker
+        legend="Material for new walls"
+        name="wall-material"
+        value={wallMaterial}
+        onChange={(material) => store.getState().setWallMaterial(material)}
+      />
+      <ul className="hint tips">
+        <li>
+          Double-click, Enter or Esc finishes a chain; clicking the first corner
+          closes a room.
+        </li>
+        <li>Type a number for an exact length; Tab for an angle.</li>
+        <li>
+          Snaps to corners, walls, 15° steps and the grid. Hold Alt to place
+          freely.
+        </li>
+        <li>{MOD_KEY}Z steps back one corner.</li>
+      </ul>
+    </section>
+  )
+}
+
+function MaterialPicker({
+  legend,
+  name,
+  value,
+  onChange,
+}: {
+  legend: string
+  name: string
+  value: WallMaterial
+  onChange: (material: WallMaterial) => void
+}) {
+  return (
+    <fieldset className="material-picker">
+      <legend>{legend}</legend>
+      {WALL_MATERIALS.map((material) => (
+        <label key={material}>
+          <input
+            type="radio"
+            name={name}
+            value={material}
+            checked={value === material}
+            onChange={() => onChange(material)}
+          />
+          <WallSwatch material={material} />
+          {WALL_STYLES[material].label}
+        </label>
+      ))}
+    </fieldset>
+  )
+}
+
+function AccessPointSection({ ap }: { ap: AccessPoint }) {
+  const units = useEditor((s) => s.units)
+  return (
+    <section>
+      <h2>{ap.name}</h2>
+      <p className="kind">Access point</p>
+      <dl>
+        <dt>Position</dt>
+        <dd>
+          {formatLength(ap.x, units)}, {formatLength(ap.y, units)}
+        </dd>
+        <dt>Mounted at</dt>
+        <dd>{formatLength(ap.heightM, units)} above the floor</dd>
+        {ap.radios.map((radio) => (
+          <div key={radio.band} className="dl-row">
+            <dt>{BAND_LABELS[radio.band]}</dt>
+            <dd>
+              {radio.txPowerDbm ?? BAND_PROFILES[radio.band].defaultTxPowerDbm}{' '}
+              dBm EIRP{radio.txPowerDbm === undefined ? ' (default)' : ''}
+            </dd>
+          </div>
+        ))}
+      </dl>
+      <p className="hint">
+        Drag it, or use the arrow keys (Shift for bigger steps).
+      </p>
+    </section>
+  )
+}
+
+function WallSection({ wall, floor }: { wall: Wall; floor: Floor }) {
+  const store = useEditorStore()
+  const units = useEditor((s) => s.units)
+  const a = floor.nodes.find((n) => n.id === wall.from)!
+  const b = floor.nodes.find((n) => n.id === wall.to)!
+  const length = Math.hypot(b.x - a.x, b.y - a.y)
+  const openings = floor.openings.filter((o) => o.wallId === wall.id).length
+  const floorId = floor.id
+
+  const edit = (label: string, change: (target: Floor) => void) =>
+    store.getState().edit(label, (plan) => {
+      change(plan.floors.find((f) => f.id === floorId)!)
+    })
+
+  return (
+    <section>
+      <h2>Wall</h2>
+      <p className="kind">{WALL_STYLES[wall.material].label}</p>
+      <LengthField
+        label="Length"
+        metres={length}
+        units={units}
+        onCommit={(metres) =>
+          edit('Change wall length', (target) =>
+            setWallLength(target, wall.id, metres),
+          )
+        }
+      />
+      <dl>
+        <dt>Angle</dt>
+        <dd>{Math.round(bearingDeg(a, b))}°</dd>
+        <dt>Doors and windows</dt>
+        <dd>{openings}</dd>
+      </dl>
+      <p className="hint">
+        Changing the length keeps the start corner and moves the end one.
+      </p>
+      <MaterialPicker
+        legend="Material"
+        name="selected-wall-material"
+        value={wall.material}
+        onChange={(material) =>
+          edit('Change wall material', (target) => {
+            const w = target.walls.find((x) => x.id === wall.id)
+            if (w) w.material = material
+          })
+        }
+      />
+      <div className="actions">
+        <button
+          type="button"
+          onClick={() => {
+            let created: string | undefined
+            edit('Split wall', (target) => {
+              created = splitWall(target, wall.id, {
+                x: (a.x + b.x) / 2,
+                y: (a.y + b.y) / 2,
+              })
+            })
+            if (created) {
+              store.getState().select([{ kind: 'node', id: created }])
+            }
+          }}
+        >
+          Split in half
+        </button>
+        <DeleteButton />
+      </div>
+      <p className="hint">Double-click a wall to split it anywhere.</p>
+    </section>
+  )
+}
+
+function CornerSection({ node, floor }: { node: PlanNode; floor: Floor }) {
+  const units = useEditor((s) => s.units)
+  const walls = floor.walls.filter(
+    (w) => w.from === node.id || w.to === node.id,
+  ).length
+  return (
+    <section>
+      <h2>Corner</h2>
+      <p className="kind">
+        Joins {walls} wall{walls === 1 ? '' : 's'}
+      </p>
+      <dl>
+        <dt>Position</dt>
+        <dd>
+          {formatLength(node.x, units)}, {formatLength(node.y, units)}
+        </dd>
+      </dl>
+      <p className="hint">
+        {walls === 2
+          ? 'Deleting it joins its two walls into one.'
+          : 'Deleting it removes the walls attached to it.'}{' '}
+        Drop it on another corner or a wall to join them.
+      </p>
+      <div className="actions">
+        <DeleteButton />
+      </div>
+    </section>
+  )
+}
+
+function MultipleSection() {
+  const selection = useEditor((s) => s.selection)
+  return (
+    <section>
+      <h2>{selection.length} selected</h2>
+      <p className="kind">Shift-click to add or remove items</p>
+      <p className="hint">Arrow keys move them together.</p>
+      <div className="actions">
+        <DeleteButton />
+      </div>
+    </section>
+  )
+}
+
+function PlanSection() {
+  const store = useEditorStore()
+  const plan = useEditor((s) => s.plan)
+  const floorId = useEditor((s) => s.floorId)
+  const floor = plan.floors.find((f) => f.id === floorId)
+  return (
+    <section>
+      <h2>{plan.name}</h2>
+      <p className="kind">{floor?.name}</p>
+      <dl>
+        <dt>Walls</dt>
+        <dd>{floor?.walls.length ?? 0}</dd>
+        <dt>Doors and windows</dt>
+        <dd>{floor?.openings.length ?? 0}</dd>
+      </dl>
+      <h3>Access points</h3>
+      <ul className="object-list">
+        {plan.accessPoints
+          .filter((a) => a.floorId === floorId)
+          .map((a) => (
+            <li key={a.id}>
+              <button
+                type="button"
+                onClick={() =>
+                  store.getState().select([{ kind: 'accessPoint', id: a.id }])
+                }
+              >
+                {a.name}
+              </button>
+            </li>
+          ))}
+      </ul>
+    </section>
+  )
+}
+
+/** Deletes the selected walls and corners. */
+function DeleteButton() {
+  const store = useEditorStore()
+  const selection = useEditor((s) => s.selection)
+  const removable = selection.filter((i) => i.kind !== 'accessPoint')
+  return (
+    <button
+      type="button"
+      className="danger"
+      disabled={removable.length === 0}
+      title="Delete (Delete key)"
+      onClick={() => {
+        const state = store.getState()
+        state.edit(
+          `Delete ${describeSelection(removable)}`,
+          deleteRecipe(state.floorId, removable),
+        )
+      }}
+    >
+      Delete
+    </button>
+  )
+}
+
+/**
+ * A length shown in the current units and editable as text. Enter or leaving
+ * the field applies it; Esc restores the current value.
+ */
+function LengthField({
+  label,
+  metres,
+  units,
+  onCommit,
+}: {
+  label: string
+  metres: number
+  units: Units
+  onCommit: (metres: number) => void
+}) {
+  const formatted = formatLength(metres, units)
+  // What's being typed; undefined shows the current value.
+  const [draft, setDraft] = useState<string>()
+  const [invalid, setInvalid] = useState(false)
+  const id = useId()
+  const text = draft ?? formatted
+
+  const reset = () => {
+    setDraft(undefined)
+    setInvalid(false)
+  }
+  const commit = () => {
+    if (draft === undefined || draft === formatted) return reset()
+    const value = parseLength(draft, units)
+    if (value === undefined || value < MIN_WALL_LENGTH_M) {
+      setInvalid(true)
+      return
+    }
+    reset()
+    onCommit(value)
+  }
+
+  return (
+    <div className="field">
+      <label htmlFor={id}>{label}</label>
+      <input
+        id={id}
+        value={text}
+        aria-invalid={invalid}
+        onChange={(event) => setDraft(event.target.value)}
+        onBlur={commit}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter') commit()
+          if (event.key === 'Escape') reset()
+        }}
+        autoComplete="off"
+        inputMode="decimal"
+      />
+      {invalid && (
+        <p className="field-error" role="alert">
+          {units === 'metric' ? 'Try 3.5 or 350 cm' : `Try 12'6" or 12.5`}
+        </p>
+      )}
+    </div>
+  )
 }

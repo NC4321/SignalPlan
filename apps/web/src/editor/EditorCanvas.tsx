@@ -1,23 +1,45 @@
 import { gridForFloor, type Coverage } from '@signalplan/engine'
 import { materialSegments, type Point } from '@signalplan/floorplan'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { fitCamera, panBy, toPlan, toScreen, zoomAt } from './camera.ts'
+import { fitCamera, panBy, toPlan, zoomAt, type Camera } from './camera.ts'
 import { useEditor, useEditorStore } from './context.ts'
 import { LengthInput } from './LengthInput.tsx'
-import { AP_RADIUS_PX, draw, heatmapBitmap } from './render.ts'
+import { draw, heatmapBitmap } from './render.ts'
+import {
+  describeSelection,
+  hitTest,
+  moveNodeRecipe,
+  moveWallRecipe,
+  nudgeRecipe,
+  snapDraggedNode,
+  splitRecipe,
+  wallDragDelta,
+} from './selectTool.ts'
 import { snapPoint, type SnapKind } from './snap.ts'
+import { sameItem, type SelectionItem } from './store.ts'
 import { isTyping } from './util.ts'
 
-/** Pointer distance within which an access point can be grabbed. */
-const GRAB_RADIUS_PX = AP_RADIUS_PX + 8
-/** Arrow keys move the selected access point this far; with Shift, 5×. */
+/** Arrow keys move the selection this far; with Shift, 5×. */
 const NUDGE_M = 0.1
+/** A press that moves less than this is a click, not a drag. */
+const DRAG_THRESHOLD_PX = 3
 
 type Drag =
   | { kind: 'pan'; last: Point }
-  | { kind: 'accessPoint'; id: string; grabOffset: Point }
+  | {
+      kind: 'item'
+      item: SelectionItem
+      /** Where the press started, on screen and on the plan. */
+      startScreen: Point
+      startPlan: Point
+      /** The dragged thing's position when the press started. */
+      origin: Point
+      moved: boolean
+    }
 
-/** The plan, its heatmap and access points, with pan, zoom and drag. */
+type Cursor = 'default' | 'grab' | 'grabbing' | 'move'
+
+/** The plan, its heatmap and access points, with pan, zoom and editing. */
 export function EditorCanvas({ coverage }: { coverage: Coverage | undefined }) {
   const store = useEditorStore()
   const plan = useEditor((s) => s.plan)
@@ -38,9 +60,7 @@ export function EditorCanvas({ coverage }: { coverage: Coverage | undefined }) {
   const [spaceDown, setSpaceDown] = useState(false)
   const drag = useRef<Drag>(undefined)
   const touches = useRef(new Map<number, Point>())
-  const [cursor, setCursor] = useState<'default' | 'grab' | 'grabbing'>(
-    'default',
-  )
+  const [cursor, setCursor] = useState<Cursor>('default')
 
   const floor = plan.floors.find((f) => f.id === floorId)!
   const accessPoints = useMemo(
@@ -48,6 +68,14 @@ export function EditorCanvas({ coverage }: { coverage: Coverage | undefined }) {
     [plan.accessPoints, floorId],
   )
   const segments = useMemo(() => materialSegments(floor), [floor])
+  const wallLines = useMemo(() => {
+    const nodes = new Map(floor.nodes.map((n) => [n.id, n]))
+    return floor.walls.flatMap((w) => {
+      const a = nodes.get(w.from)
+      const b = nodes.get(w.to)
+      return a && b ? [{ id: w.id, a, b }] : []
+    })
+  }, [floor])
   const heatmap = useMemo(
     () => (coverage ? heatmapBitmap(coverage) : undefined),
     [coverage],
@@ -155,7 +183,8 @@ export function EditorCanvas({ coverage }: { coverage: Coverage | undefined }) {
       segments,
       accessPoints,
       selection,
-      corners: tool === 'wall' ? floor.nodes : undefined,
+      wallLines,
+      corners: floor.nodes,
       drawing:
         tool === 'wall' && preview
           ? { anchor, ...preview, material: wallMaterial }
@@ -171,14 +200,15 @@ export function EditorCanvas({ coverage }: { coverage: Coverage | undefined }) {
     segments,
     accessPoints,
     selection,
-    tool,
+    wallLines,
     floor.nodes,
+    tool,
     preview,
     anchor,
     wallMaterial,
   ])
 
-  const snapAt = (screen: Point, altKey: boolean) => {
+  const snapForWallTool = (screen: Point, altKey: boolean) => {
     const current = store.getState().camera!
     return snapPoint(floor, toPlan(current, screen), {
       scale: current.scale,
@@ -188,27 +218,70 @@ export function EditorCanvas({ coverage }: { coverage: Coverage | undefined }) {
     })
   }
 
-  const local = (event: React.PointerEvent): Point => {
-    const rect = event.currentTarget.getBoundingClientRect()
+  const local = (event: { clientX: number; clientY: number }): Point => {
+    const rect = canvas.current!.getBoundingClientRect()
     return { x: event.clientX - rect.left, y: event.clientY - rect.top }
   }
 
-  const accessPointAt = (screen: Point) => {
-    if (!camera) return undefined
-    return accessPoints.find((ap) => {
-      const s = toScreen(camera, ap)
-      return Math.hypot(s.x - screen.x, s.y - screen.y) <= GRAB_RADIUS_PX
-    })
+  const hoverCursor = (screen: Point): Cursor => {
+    if (!camera || tool !== 'select') return 'default'
+    const hit = hitTest(camera, floor, accessPoints, screen)
+    if (!hit) return 'default'
+    return hit.kind === 'wall' ? 'move' : 'grab'
   }
 
-  const moveAccessPoint = (id: string, to: Point) => {
-    store.getState().updateGesture((draft) => {
-      const ap = draft.accessPoints.find((a) => a.id === id)
-      if (ap) {
-        ap.x = to.x
-        ap.y = to.y
-      }
-    })
+  /** Where the dragged item's position starts, for computing moves. */
+  const originOf = (item: SelectionItem): Point | undefined => {
+    if (item.kind === 'accessPoint') {
+      return accessPoints.find((a) => a.id === item.id)
+    }
+    if (item.kind === 'node') return floor.nodes.find((n) => n.id === item.id)
+    return { x: 0, y: 0 }
+  }
+
+  /** Previews (or on drop, commits) the move of the dragged item. */
+  const dragTo = (
+    active: Extract<Drag, { kind: 'item' }>,
+    screen: Point,
+    altKey: boolean,
+    current: Camera,
+    drop: boolean,
+  ) => {
+    const state = store.getState()
+    const here = toPlan(current, screen)
+    const delta = {
+      x: here.x - active.startPlan.x,
+      y: here.y - active.startPlan.y,
+    }
+    const { item, origin } = active
+    if (item.kind === 'accessPoint') {
+      state.updateGesture((draft) => {
+        const ap = draft.accessPoints.find((a) => a.id === item.id)
+        if (ap) {
+          ap.x = origin.x + delta.x
+          ap.y = origin.y + delta.y
+        }
+      })
+    } else if (item.kind === 'node') {
+      const base = state.gesture?.base ?? state.plan
+      const baseFloor = base.floors.find((f) => f.id === floorId)!
+      const to = snapDraggedNode(
+        baseFloor,
+        item.id,
+        { x: origin.x + delta.x, y: origin.y + delta.y },
+        { scale: current.scale, units, disabled: altKey },
+      )
+      state.updateGesture(moveNodeRecipe(floorId, item.id, to, drop))
+    } else {
+      const base = state.gesture?.base ?? state.plan
+      const baseFloor = base.floors.find((f) => f.id === floorId)!
+      const wall = baseFloor.walls.find((w) => w.id === item.id)
+      const a = baseFloor.nodes.find((n) => n.id === wall?.from)
+      const b = baseFloor.nodes.find((n) => n.id === wall?.to)
+      if (!a || !b) return
+      const move = wallDragDelta(a, b, delta, units, altKey)
+      state.updateGesture(moveWallRecipe(floorId, item.id, move, drop))
+    }
   }
 
   const cursorStyle =
@@ -233,23 +306,43 @@ export function EditorCanvas({ coverage }: { coverage: Coverage | undefined }) {
         aria-label={
           tool === 'wall'
             ? 'Floor plan. Click to place wall corners, double-click or press Enter to finish; type a number to enter an exact length.'
-            : 'Floor plan with predicted Wi-Fi coverage. Arrow keys move the selected access point.'
+            : 'Floor plan with predicted Wi-Fi coverage. Arrow keys move the selection; Delete removes selected walls and corners.'
         }
-        onDoubleClick={() => {
-          if (tool === 'wall') store.getState().endChain()
+        onDoubleClick={(event) => {
+          const state = store.getState()
+          if (tool === 'wall') {
+            state.endChain()
+            return
+          }
+          if (!camera) return
+          const at = local(event)
+          const hit = hitTest(camera, floor, accessPoints, at)
+          if (hit?.kind !== 'wall') return
+          let created: string | undefined
+          state.edit(
+            'Split wall',
+            splitRecipe(floorId, hit.id, toPlan(camera, at), (id) => {
+              created = id
+            }),
+          )
+          if (created) state.select([{ kind: 'node', id: created }])
         }}
         onPointerDown={(event) => {
           const at = local(event)
           event.currentTarget.setPointerCapture(event.pointerId)
-          event.currentTarget.focus()
+          // Keyboard shortcuts need focus here, but a mouse click shouldn't
+          // show the keyboard focus ring.
+          event.currentTarget.focus({
+            preventScroll: true,
+            focusVisible: false,
+          } as FocusOptions)
+          const state = store.getState()
 
           if (event.pointerType === 'touch') {
             touches.current.set(event.pointerId, at)
             if (touches.current.size > 1) {
               // A second finger turns any drag into pinch-and-pan.
-              if (drag.current?.kind === 'accessPoint') {
-                store.getState().cancelGesture()
-              }
+              if (drag.current?.kind === 'item') state.cancelGesture()
               drag.current = undefined
               return
             }
@@ -260,32 +353,42 @@ export function EditorCanvas({ coverage }: { coverage: Coverage | undefined }) {
             setCursor('grabbing')
             return
           }
-          if (event.button !== 0) return
+          if (event.button !== 0 || !camera) return
 
           if (tool === 'wall') {
-            store.getState().clickWallPoint(snapAt(at, event.altKey).point)
+            state.clickWallPoint(snapForWallTool(at, event.altKey).point)
             return
           }
 
-          const hit = accessPointAt(at)
-          if (hit && camera) {
-            const s = toScreen(camera, hit)
-            drag.current = {
-              kind: 'accessPoint',
-              id: hit.id,
-              grabOffset: { x: s.x - at.x, y: s.y - at.y },
+          const hit = hitTest(camera, floor, accessPoints, at)
+          // On touch, editing is desktop-first: only access points drag (D16).
+          const draggable =
+            hit && (event.pointerType !== 'touch' || hit.kind === 'accessPoint')
+          if (!hit || !draggable) {
+            if (!event.shiftKey) state.select([])
+            if (event.pointerType === 'touch') {
+              drag.current = { kind: 'pan', last: at }
             }
-            store.getState().select({ kind: 'accessPoint', id: hit.id })
-            store.getState().beginGesture()
-            setCursor('grabbing')
             return
           }
-
-          store.getState().select(undefined)
-          // On touch, dragging empty space pans.
-          if (event.pointerType === 'touch') {
-            drag.current = { kind: 'pan', last: at }
+          if (event.shiftKey) {
+            state.toggleSelected(hit)
+            return
           }
+          if (!state.selection.some((s) => sameItem(s, hit))) {
+            state.select([hit])
+          }
+          const origin = originOf(hit)
+          if (!origin) return
+          drag.current = {
+            kind: 'item',
+            item: hit,
+            startScreen: at,
+            startPlan: toPlan(camera, at),
+            origin: { x: origin.x, y: origin.y },
+            moved: false,
+          }
+          state.beginGesture()
         }}
         onPointerMove={(event) => {
           const at = local(event)
@@ -307,7 +410,7 @@ export function EditorCanvas({ coverage }: { coverage: Coverage | undefined }) {
 
           store.getState().setPointer(toPlan(current, at))
           if (tool === 'wall' && !drag.current) {
-            const snap = snapAt(at, event.altKey)
+            const snap = snapForWallTool(at, event.altKey)
             setPreview({ cursor: snap.point, snap: snap.kind })
           }
           const active = drag.current
@@ -318,33 +421,43 @@ export function EditorCanvas({ coverage }: { coverage: Coverage | undefined }) {
                 panBy(current, at.x - active.last.x, at.y - active.last.y),
               )
             active.last = at
-          } else if (active?.kind === 'accessPoint') {
-            moveAccessPoint(
-              active.id,
-              toPlan(current, {
-                x: at.x + active.grabOffset.x,
-                y: at.y + active.grabOffset.y,
-              }),
+          } else if (active?.kind === 'item') {
+            const travelled = Math.hypot(
+              at.x - active.startScreen.x,
+              at.y - active.startScreen.y,
             )
+            if (!active.moved && travelled < DRAG_THRESHOLD_PX) return
+            active.moved = true
+            setCursor('grabbing')
+            dragTo(active, at, event.altKey, current, false)
           } else {
-            setCursor(accessPointAt(at) ? 'grab' : 'default')
+            setCursor(hoverCursor(at))
           }
         }}
         onPointerUp={(event) => {
           touches.current.delete(event.pointerId)
           const active = drag.current
-          if (active?.kind === 'accessPoint') {
-            const name = accessPoints.find((ap) => ap.id === active.id)?.name
-            store.getState().endGesture(`Move ${name ?? 'access point'}`)
+          const state = store.getState()
+          if (active?.kind === 'item') {
+            if (active.moved && state.camera) {
+              dragTo(active, local(event), event.altKey, state.camera, true)
+              const name =
+                active.item.kind === 'accessPoint'
+                  ? accessPoints.find((a) => a.id === active.item.id)?.name
+                  : undefined
+              state.endGesture(
+                `Move ${name ?? describeSelection([active.item])}`,
+              )
+            } else {
+              state.cancelGesture()
+            }
           }
           drag.current = undefined
-          setCursor(accessPointAt(local(event)) ? 'grab' : 'default')
+          setCursor(hoverCursor(local(event)))
         }}
         onPointerCancel={(event) => {
           touches.current.delete(event.pointerId)
-          if (drag.current?.kind === 'accessPoint') {
-            store.getState().cancelGesture()
-          }
+          if (drag.current?.kind === 'item') store.getState().cancelGesture()
           drag.current = undefined
           setCursor('default')
         }}
@@ -355,8 +468,7 @@ export function EditorCanvas({ coverage }: { coverage: Coverage | undefined }) {
         }}
         onKeyDown={(event) => {
           const state = store.getState()
-          const { selection: selected } = state
-          if (selected?.kind !== 'accessPoint') return
+          if (state.selection.length === 0) return
           const step = event.shiftKey ? NUDGE_M * 5 : NUDGE_M
           const deltas: Record<string, Point> = {
             ArrowLeft: { x: -step, y: 0 },
@@ -367,16 +479,16 @@ export function EditorCanvas({ coverage }: { coverage: Coverage | undefined }) {
           const delta = deltas[event.key]
           if (!delta) return
           event.preventDefault()
-          const ap = state.plan.accessPoints.find((a) => a.id === selected.id)
-          if (!ap) return
-          state.edit(`Move ${ap.name}`, (draft) => {
-            const target = draft.accessPoints.find((a) => a.id === selected.id)
-            if (target) {
-              target.x += delta.x
-              target.y += delta.y
-            }
-          })
-          state.setPointer({ x: ap.x + delta.x, y: ap.y + delta.y })
+          const only =
+            state.selection.length === 1 ? state.selection[0] : undefined
+          const name =
+            only?.kind === 'accessPoint'
+              ? state.plan.accessPoints.find((a) => a.id === only.id)?.name
+              : undefined
+          state.edit(
+            `Move ${name ?? describeSelection(state.selection)}`,
+            nudgeRecipe(floorId, state.selection, delta),
+          )
         }}
       />
       {tool === 'wall' && anchor && camera && (
@@ -393,11 +505,7 @@ export function EditorCanvas({ coverage }: { coverage: Coverage | undefined }) {
 }
 
 /** Camera after a two-finger gesture: pan by the midpoint, zoom by the spread. */
-function pinch(
-  camera: Parameters<typeof zoomAt>[0],
-  before: Point[],
-  after: Point[],
-) {
+function pinch(camera: Camera, before: Point[], after: Point[]) {
   const mid = (points: Point[]) => ({
     x: (points[0]!.x + points[1]!.x) / 2,
     y: (points[0]!.y + points[1]!.y) / 2,

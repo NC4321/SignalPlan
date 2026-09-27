@@ -34,7 +34,16 @@ export const HISTORY_LIMIT = 200
 
 export type Tool = 'select' | 'wall'
 
-export type Selection = { kind: 'accessPoint'; id: string } | undefined
+export type SelectionItem = {
+  kind: 'accessPoint' | 'wall' | 'node'
+  id: string
+}
+
+/** Everything selected; empty when nothing is. */
+export type Selection = readonly SelectionItem[]
+
+export const sameItem = (a: SelectionItem, b: SelectionItem) =>
+  a.kind === b.kind && a.id === b.id
 
 /**
  * A chain of walls being drawn. Each point after the first was a click; `drew`
@@ -83,7 +92,10 @@ export interface EditorState {
   setUnits: (units: Units) => void
   setShowHeatmap: (show: boolean) => void
   setTool: (tool: Tool) => void
+  /** Replaces the selection. */
   select: (selection: Selection) => void
+  /** Adds an item to the selection, or removes it if already selected. */
+  toggleSelected: (item: SelectionItem) => void
   setCamera: (camera: Camera | undefined) => void
   setPointer: (pointer: Point | undefined) => void
   setWallMaterial: (material: WallMaterial) => void
@@ -106,14 +118,21 @@ function wouldAddWall(
   return addWall(structuredClone(floor), a, b, material).length > 0
 }
 
-/** Clears the selection if what it points at no longer exists. */
-function validSelection(plan: Plan, selection: Selection): Selection {
-  if (selection?.kind === 'accessPoint') {
-    return plan.accessPoints.some((ap) => ap.id === selection.id)
-      ? selection
-      : undefined
+/** Drops selected items that no longer exist. */
+function validSelection(plan: Plan, floorId: string, selection: Selection) {
+  const floor = plan.floors.find((f) => f.id === floorId)
+  const exists = (item: SelectionItem) => {
+    switch (item.kind) {
+      case 'accessPoint':
+        return plan.accessPoints.some((ap) => ap.id === item.id)
+      case 'wall':
+        return floor?.walls.some((w) => w.id === item.id) ?? false
+      case 'node':
+        return floor?.nodes.some((n) => n.id === item.id) ?? false
+    }
   }
-  return selection
+  const kept = selection.filter(exists)
+  return kept.length === selection.length ? selection : kept
 }
 
 export function createEditorStore(plan: Plan): StoreApi<EditorState> {
@@ -124,7 +143,7 @@ export function createEditorStore(plan: Plan): StoreApi<EditorState> {
     units: 'metric',
     showHeatmap: true,
     tool: 'select',
-    selection: undefined,
+    selection: [],
     camera: undefined,
     pointer: undefined,
     wallMaterial: 'drywall',
@@ -142,7 +161,7 @@ export function createEditorStore(plan: Plan): StoreApi<EditorState> {
           -HISTORY_LIMIT,
         ),
         future: [],
-        selection: validSelection(next, state.selection),
+        selection: validSelection(next, state.floorId, state.selection),
       }))
     },
 
@@ -189,7 +208,7 @@ export function createEditorStore(plan: Plan): StoreApi<EditorState> {
         plan: next,
         past: state.past.slice(0, -1),
         future: [...state.future, entry],
-        selection: validSelection(next, state.selection),
+        selection: validSelection(next, state.floorId, state.selection),
       }))
     },
 
@@ -203,7 +222,7 @@ export function createEditorStore(plan: Plan): StoreApi<EditorState> {
         plan: next,
         past: [...state.past, entry],
         future: state.future.slice(0, -1),
-        selection: validSelection(next, state.selection),
+        selection: validSelection(next, state.floorId, state.selection),
       }))
     },
 
@@ -214,7 +233,7 @@ export function createEditorStore(plan: Plan): StoreApi<EditorState> {
         past: [],
         future: [],
         gesture: undefined,
-        selection: undefined,
+        selection: [],
         camera: undefined,
         chain: undefined,
       })
@@ -225,6 +244,12 @@ export function createEditorStore(plan: Plan): StoreApi<EditorState> {
     setShowHeatmap: (showHeatmap) => set({ showHeatmap }),
     setTool: (tool) => set({ tool, chain: undefined }),
     select: (selection) => set({ selection }),
+    toggleSelected: (item) =>
+      set((state) => ({
+        selection: state.selection.some((s) => sameItem(s, item))
+          ? state.selection.filter((s) => !sameItem(s, item))
+          : [...state.selection, item],
+      })),
     setCamera: (camera) => set({ camera }),
     setPointer: (pointer) => set({ pointer }),
     setWallMaterial: (wallMaterial) => set({ wallMaterial }),
@@ -232,7 +257,7 @@ export function createEditorStore(plan: Plan): StoreApi<EditorState> {
     clickWallPoint: (point) => {
       const { chain, plan, floorId, wallMaterial } = get()
       if (!chain) {
-        set({ chain: [{ point, drew: false }], selection: undefined })
+        set({ chain: [{ point, drew: false }], selection: [] })
         return
       }
       const anchor = chain.at(-1)!.point

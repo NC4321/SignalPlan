@@ -32,6 +32,8 @@ export function materialSegments(floor: Floor): MaterialSegment[] {
     if (!from || !to) continue
 
     const length = Math.hypot(to.x - from.x, to.y - from.y)
+    // A wall collapsed to a point mid-drag has no extent to draw or cross.
+    if (length === 0) continue
     const at = (distance: number): Point => {
       const t = distance / length
       return {

@@ -103,9 +103,22 @@ describe('selection', () => {
     store.getState().edit('Add AP', (plan) => {
       plan.accessPoints.push({ ...plan.accessPoints[0]!, id: 'extra' })
     })
-    store.getState().select({ kind: 'accessPoint', id: 'extra' })
+    store.getState().select([{ kind: 'accessPoint', id: 'extra' }])
     store.getState().undo()
-    expect(store.getState().selection).toBeUndefined()
+    expect(store.getState().selection).toEqual([])
+  })
+})
+
+describe('toggleSelected', () => {
+  it('adds and removes items', () => {
+    const store = createEditorStore(sample())
+    const wall = { kind: 'wall', id: 'living-bed1' } as const
+    const node = { kind: 'node', id: 'n1' } as const
+    store.getState().toggleSelected(wall)
+    store.getState().toggleSelected(node)
+    expect(store.getState().selection).toEqual([wall, node])
+    store.getState().toggleSelected(wall)
+    expect(store.getState().selection).toEqual([node])
   })
 })
 
