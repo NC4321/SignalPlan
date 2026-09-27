@@ -638,6 +638,66 @@ button.primary {
   color: var(--muted);
 }
 
+.plan-list {
+  display: grid;
+  gap: 0.25rem;
+  max-height: 55vh;
+  margin: 0.75rem 0 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.plan-list li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+}
+
+.plan-list li[aria-current] {
+  border-color: var(--accent);
+}
+
+.plan-name-cell {
+  display: grid;
+}
+
+.plan-name-cell span {
+  color: var(--muted);
+  font-size: 0.8125rem;
+}
+
+.plan-list input {
+  font: inherit;
+  color: var(--text);
+  padding: 0.3rem 0.5rem;
+  background: var(--bg);
+  border: 1px solid var(--accent);
+  border-radius: 0.375rem;
+}
+
+.plan-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+}
+
+.plan-actions button {
+  padding: 0.2rem 0.55rem;
+  font-size: 0.8125rem;
+}
+
+button.danger-fill {
+  background: #b3261e;
+  border-color: #b3261e;
+  color: #fff;
+}
+
 .save-status {
   margin: 0 0 0 auto;
   color: var(--muted);

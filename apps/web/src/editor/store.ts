@@ -78,6 +78,8 @@ export interface EditorState {
   future: HistoryEntry[]
   /** True until the plan is changed after being opened or created. */
   pristine: boolean
+  /** The plan's id in the library, or undefined if it hasn't joined it yet. */
+  planId: string | undefined
   /** An edit in progress, such as a drag: previews apply to `base`. */
   gesture: { base: Plan; recipe: Recipe | undefined } | undefined
 
@@ -94,10 +96,11 @@ export interface EditorState {
   undo: () => void
   redo: () => void
   /**
-   * Replaces the plan and clears history, as when opening a file. A pristine
-   * plan (a fresh sample or blank plan) can be replaced without asking.
+   * Opens a plan, clearing history. `id` is its id in the library; a new or
+   * sample plan has none and is pristine until edited (D21).
    */
-  loadPlan: (plan: Plan, pristine?: boolean) => void
+  loadPlan: (plan: Plan, options?: { id?: string; pristine?: boolean }) => void
+  setPlanId: (id: string) => void
   renamePlan: (name: string) => void
 
   setBand: (band: Band) => void
@@ -155,7 +158,7 @@ function validSelection(plan: Plan, floorId: string, selection: Selection) {
 
 export function createEditorStore(
   plan: Plan,
-  options: { units?: Units; pristine?: boolean } = {},
+  options: { units?: Units; pristine?: boolean; id?: string } = {},
 ): StoreApi<EditorState> {
   return createStore<EditorState>()((set, get) => ({
     plan,
@@ -173,6 +176,7 @@ export function createEditorStore(
     past: [],
     future: [],
     pristine: options.pristine ?? true,
+    planId: options.id,
     gesture: undefined,
 
     edit: (label, recipe) => {
@@ -250,9 +254,10 @@ export function createEditorStore(
       }))
     },
 
-    loadPlan: (next, pristine = false) => {
+    loadPlan: (next, { id, pristine = false } = {}) => {
       set({
         plan: next,
+        planId: id,
         pristine,
         floorId: next.floors[0]!.id,
         past: [],
@@ -263,6 +268,8 @@ export function createEditorStore(
         chain: undefined,
       })
     },
+
+    setPlanId: (planId) => set({ planId }),
 
     renamePlan: (name) => {
       const trimmed = name.trim()

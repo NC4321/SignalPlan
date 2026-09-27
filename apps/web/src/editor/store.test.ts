@@ -134,7 +134,7 @@ describe('pristine', () => {
     const store = createEditorStore(sample())
     store.getState().loadPlan(sample())
     expect(store.getState().pristine).toBe(false)
-    store.getState().loadPlan(sample(), true)
+    store.getState().loadPlan(sample(), { pristine: true })
     expect(store.getState().pristine).toBe(true)
   })
 })

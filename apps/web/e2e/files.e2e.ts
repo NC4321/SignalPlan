@@ -53,24 +53,84 @@ test('starts a new plan straight away from the untouched sample', async ({
   await expect(page.locator('.readout')).toContainText(/dBm/)
 })
 
-test('asks before replacing an edited plan', async ({ page }) => {
+test('keeps an edited plan in My plans when starting a new one', async ({
+  page,
+}) => {
   await openEditor(page)
   await moveRouter(page)
   await openFileMenu(page)
   await page.getByRole('button', { name: 'New plan' }).click()
-  const dialog = page.getByRole('dialog', {
-    name: 'Replace your current plan?',
-  })
-  await expect(dialog).toBeVisible()
-  await dialog.getByRole('button', { name: 'Cancel' }).click()
-  await expect(dialog).toBeHidden()
-  await page.keyboard.press('Escape') // clear the router selection
-  expect(await summaryCount(page, 'Walls')).toBeGreaterThan(0)
+  // No confirmation: the edited sample is kept in the list.
+  expect(await summaryCount(page, 'Walls')).toBe(0)
 
   await openFileMenu(page)
-  await page.getByRole('button', { name: 'New plan' }).click()
-  await dialog.getByRole('button', { name: 'Start a new plan' }).click()
-  expect(await summaryCount(page, 'Walls')).toBe(0)
+  await page.getByRole('button', { name: 'My plans…' }).click()
+  const dialog = page.getByRole('dialog', { name: 'My plans' })
+  await expect(dialog.getByText('Sample bungalow')).toBeVisible()
+  await dialog.getByRole('button', { name: 'Open Sample bungalow' }).click()
+  await expect(dialog).toBeHidden()
+  expect(await summaryCount(page, 'Walls')).toBeGreaterThan(0)
+})
+
+test('renames, duplicates and deletes plans', async ({ page }) => {
+  await openEditor(page)
+  await moveRouter(page)
+  await openFileMenu(page)
+  await page.getByRole('button', { name: 'My plans…' }).click()
+  const dialog = page.getByRole('dialog', { name: 'My plans' })
+
+  await dialog.getByRole('button', { name: 'Rename Sample bungalow' }).click()
+  const field = dialog.getByRole('textbox', { name: /New name/ })
+  await field.fill('Our house')
+  await field.press('Enter')
+  await expect(dialog.getByText('Our house', { exact: true })).toBeVisible()
+  // The open plan was renamed too, as an undoable edit.
+  await expect(page.locator('.plan-name')).toHaveText('Our house')
+
+  await dialog.getByRole('button', { name: 'Duplicate Our house' }).click()
+  await expect(dialog.getByText('Copy of Our house')).toBeVisible()
+
+  await dialog.getByRole('button', { name: 'Delete Copy of Our house' }).click()
+  const confirm = page.getByRole('dialog', {
+    name: 'Delete “Copy of Our house”?',
+  })
+  await expect(confirm).toContainText('can’t be undone')
+  await confirm.getByRole('button', { name: 'Delete' }).click()
+  await expect(dialog.getByText('Copy of Our house')).toBeHidden()
+  await expect(dialog.getByText('Our house', { exact: true })).toBeVisible()
+})
+
+test('moves a plan saved by the previous version into My plans', async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    if (sessionStorage.getItem('seeded')) return
+    sessionStorage.setItem('seeded', '1')
+    localStorage.setItem(
+      'signalplan:plan',
+      JSON.stringify({
+        schemaVersion: 1,
+        name: 'Old flat',
+        floors: [
+          {
+            id: 'f',
+            name: 'Floor',
+            elevationM: 0,
+            heightM: 2.5,
+            nodes: [],
+            walls: [],
+            openings: [],
+          },
+        ],
+        accessPoints: [],
+      }),
+    )
+  })
+  await openEditor(page)
+  await expect(page.locator('.plan-name')).toHaveText('Old flat')
+  expect(
+    await page.evaluate(() => localStorage.getItem('signalplan:plan')),
+  ).toBeNull()
 })
 
 test('saves a plan to a file named after it', async ({ page }) => {
