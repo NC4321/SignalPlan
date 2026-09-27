@@ -12,4 +12,5 @@ All notable changes to this project are documented here. The format follows [Kee
 - Engine: wall crossings along a straight path and the total wall loss, counting corners and door edges once.
 - Engine: North American band profiles and wall-material losses computed from ITU-R P.2040-4 layered constructions, including low-E glass fitted to published measurements; `docs/MODEL.md`.
 - Floor plan: `low-e-glass` material; radio power is EIRP.
+- Engine: coverage grid for a floor and band (10 cm cells, strongest access point per cell) and a typed Web Worker message API.
 - CI: typecheck, lint, format check, tests, build, and Cloudflare Pages deploys with pull request previews.

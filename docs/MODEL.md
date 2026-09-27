@@ -20,6 +20,18 @@ P_{rx} = \mathrm{EIRP} - \left[ PL(d_0) + 10\,n\,\log_{10}\frac{d}{d_0} + \sum_i
 
 The receiver is assumed to have 0 dBi gain, which is typical of a phone.
 
+Distance is measured in 3D, from the access point's mounting height to a receiver held **1 m above the floor**. Within 1 m of an access point the 1 m value is used, since the formula isn't meant for the near field.
+
+## From equation to heatmap
+
+The engine evaluates the equation at the centre of every cell in a regular grid covering the floor's walls plus a 1 m margin. The default cell size is **10 cm**. For each cell it:
+
+1. finds every wall segment on the straight line from each access point (`crossings.ts`; a corner or door edge counts once, using the lossier material),
+2. computes the predicted signal from each access point with a radio in the selected band, and
+3. keeps the **strongest** one, recording which access point it came from.
+
+The sample flat's grid (120 m² including the margin, 12,000 cells) computes in under 10 ms on a laptop, so no spatial index is needed yet. A unit test fails if a 100 m² grid takes longer than 200 ms. Access points on other floors are ignored until multi-floor support in Phase 5.
+
 This is a **multi-wall model**, as in the COST 231 final report. Because walls are counted one by one, the distance term uses the free-space exponent n = 2 rather than a larger empirical exponent that would already include walls. Calibration (Phase 7) may adjust n and the wall losses to fit real measurements.
 
 ## Bands
