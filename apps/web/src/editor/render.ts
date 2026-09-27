@@ -42,6 +42,20 @@ export interface Scene {
   openings: readonly OpeningSpan[]
   /** The door or window tool's preview of where a click would place one. */
   openingPreview?: { a: Point; b: Point; material: OpeningMaterial } | undefined
+  /** The floor's tracing image, drawn under everything else. */
+  background?:
+    | {
+        bitmap: ImageBitmap
+        x: number
+        y: number
+        width: number
+        height: number
+        opacity: number
+      }
+    | undefined
+  /** Calibration: the points clicked so far, and where the pointer is. */
+  calibration?:
+    { points: readonly Point[]; cursor: Point | undefined } | undefined
   /** Corners, drawn as small dots so they can be grabbed. */
   corners: readonly (Point & { id: string })[]
   /** The wall tool's preview of the wall being drawn. */
@@ -77,6 +91,21 @@ export function draw(
   const { camera, width, height } = scene
   context.fillStyle = colour('--canvas')
   context.fillRect(0, 0, width, height)
+
+  if (scene.background) {
+    const { bitmap, x, y, opacity } = scene.background
+    const at = toScreen(camera, { x, y })
+    context.globalAlpha = opacity
+    context.imageSmoothingEnabled = true
+    context.drawImage(
+      bitmap,
+      at.x,
+      at.y,
+      scene.background.width * camera.scale,
+      scene.background.height * camera.scale,
+    )
+    context.globalAlpha = 1
+  }
 
   drawGrid(context, colour, scene)
 
@@ -169,6 +198,7 @@ export function draw(
   }
 
   if (scene.drawing) drawPreview(context, colour, scene, wallWidth)
+  if (scene.calibration) drawCalibration(context, colour, scene)
 
   context.font = '600 12px system-ui, sans-serif'
   context.textBaseline = 'middle'
@@ -198,6 +228,37 @@ export function draw(
     context.strokeText(ap.name, x, at.y)
     context.fillStyle = colour('--text')
     context.fillText(ap.name, x, at.y)
+  }
+}
+
+/** The calibration points as crosses, joined by a dashed line. */
+function drawCalibration(
+  context: CanvasRenderingContext2D,
+  colour: (name: string) => string,
+  { camera, calibration }: Scene,
+) {
+  if (!calibration) return
+  const points = [...calibration.points]
+  if (points.length === 1 && calibration.cursor) points.push(calibration.cursor)
+  const screen = points.map((p) => toScreen(camera, p))
+  context.lineCap = 'round'
+  context.strokeStyle = colour('--accent')
+  context.lineWidth = 2
+  if (screen.length === 2) {
+    context.setLineDash([6, 4])
+    context.beginPath()
+    context.moveTo(screen[0]!.x, screen[0]!.y)
+    context.lineTo(screen[1]!.x, screen[1]!.y)
+    context.stroke()
+    context.setLineDash([])
+  }
+  for (const p of screen.slice(0, calibration.points.length)) {
+    context.beginPath()
+    context.moveTo(p.x - 8, p.y)
+    context.lineTo(p.x + 8, p.y)
+    context.moveTo(p.x, p.y - 8)
+    context.lineTo(p.x, p.y + 8)
+    context.stroke()
   }
 }
 

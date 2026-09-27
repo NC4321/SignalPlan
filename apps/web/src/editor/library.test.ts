@@ -98,4 +98,29 @@ describe('PlanLibrary', () => {
     expect(await library.lastPlanId()).toBe(plans[0]?.id)
     expect(storage.getItem(LEGACY_PLAN_KEY)).toBeNull()
   })
+
+  it('stores images and deletes ones no plan uses', async () => {
+    const used = await library.addImage(new Blob(['a'], { type: 'image/png' }))
+    const unused = await library.addImage(
+      new Blob(['b'], { type: 'image/png' }),
+    )
+    const kept = await library.addImage(new Blob(['c'], { type: 'image/png' }))
+    const plan = blankPlan()
+    plan.floors[0]!.background = {
+      imageId: used,
+      x: 0,
+      y: 0,
+      metresPerPixel: 0.01,
+      widthPx: 10,
+      heightPx: 10,
+      opacity: 0.5,
+      visible: true,
+      locked: true,
+    }
+    await library.save('a', plan)
+    await library.collectGarbage([kept])
+    expect(await library.image(used)).toBeDefined()
+    expect(await library.image(kept)).toBeDefined()
+    expect(await library.image(unused)).toBeUndefined()
+  })
 })

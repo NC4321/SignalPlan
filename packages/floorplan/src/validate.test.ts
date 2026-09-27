@@ -105,6 +105,41 @@ describe('parsePlan', () => {
   })
 })
 
+describe('background images', () => {
+  const background = {
+    imageId: 'img1',
+    x: 0,
+    y: 0,
+    metresPerPixel: 0.01,
+    widthPx: 1000,
+    heightPx: 800,
+    opacity: 0.5,
+    visible: true,
+    locked: false,
+  }
+
+  it('accepts a background referenced by id or embedded as a data URL', () => {
+    const plan = box()
+    plan.floors[0]!.background = background
+    expect(parsePlan(plan).ok).toBe(true)
+    const { imageId: _, ...embedded } = background
+    plan.floors[0]!.background = {
+      ...embedded,
+      dataUrl: 'data:image/png;base64,AAAA',
+    }
+    expect(parsePlan(plan).ok).toBe(true)
+  })
+
+  it('rejects a background with no image', () => {
+    const plan = box()
+    const { imageId: _, ...noImage } = background
+    plan.floors[0]!.background = noImage
+    expect(issuesOf(parsePlan(plan))[0]?.message).toMatch(
+      /imageId or a dataUrl/,
+    )
+  })
+})
+
 describe('structural checks', () => {
   it('reports walls that reference missing nodes', () => {
     const plan = box()

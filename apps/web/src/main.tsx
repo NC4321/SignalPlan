@@ -4,7 +4,7 @@ import { createRoot } from 'react-dom/client'
 import App from './App.tsx'
 import { Autosaver } from './editor/autosave.ts'
 import { EditorContext } from './editor/context.ts'
-import { PlanLibrary } from './editor/library.ts'
+import { imageIdsIn, PlanLibrary } from './editor/library.ts'
 import { readUnits, safeStorage, samplePlan } from './editor/persistence.ts'
 import { ServicesContext } from './editor/services.ts'
 import { createEditorStore } from './editor/store.ts'
@@ -30,6 +30,8 @@ const store =
     : createEditorStore(samplePlan(), { units: readUnits(), pristine: true })
 const autosaver = new Autosaver(store, library)
 autosaver.start()
+// Tidy away tracing images that no saved plan uses any more.
+void library?.collectGarbage(imageIdsIn(store.getState().plan))
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

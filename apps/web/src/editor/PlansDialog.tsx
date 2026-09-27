@@ -5,6 +5,7 @@ import { Dialog, PlanIssues } from './Dialog.tsx'
 import type { PlanLibrary, PlanSummary } from './library.ts'
 import { downloadPlan, rescuePlan, samplePlan } from './persistence.ts'
 import { useServices } from './services.ts'
+import { embedImages } from './tracing.ts'
 import { editedAgo } from './util.ts'
 
 /**
@@ -90,7 +91,8 @@ export function PlansDialog({
 
   const downloadCopy = async (id: string) => {
     const opened = await library.open(id)
-    if (opened.kind === 'plan') downloadPlan(opened.plan)
+    if (opened.kind === 'plan')
+      downloadPlan(await embedImages(opened.plan, library))
     else if (opened.kind === 'invalid') rescuePlan(opened.raw)
   }
 

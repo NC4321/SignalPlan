@@ -10,6 +10,7 @@ import {
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { fitCamera, panBy, toPlan, zoomAt, type Camera } from './camera.ts'
 import { useEditor, useEditorStore } from './context.ts'
+import { useBackgroundImage } from './images.ts'
 import { LengthInput } from './LengthInput.tsx'
 import { BLANK_BOUNDS } from './persistence.ts'
 import { draw, heatmapBitmap } from './render.ts'
@@ -31,6 +32,8 @@ import {
   sameItem,
   type SelectionItem,
 } from './store.ts'
+import { useServices } from './services.ts'
+import { onImage } from './tracing.ts'
 import { isTyping } from './util.ts'
 
 /** Arrow keys move the selection this far; with Shift, 5×. */
@@ -40,6 +43,7 @@ const DRAG_THRESHOLD_PX = 3
 
 type Drag =
   | { kind: 'pan'; last: Point }
+  | { kind: 'background'; startPlan: Point; origin: Point; moved: boolean }
   | {
       kind: 'item'
       item: SelectionItem
@@ -86,6 +90,9 @@ export function EditorCanvas({ coverage }: { coverage: Coverage | undefined }) {
     a: Point
     b: Point
   }>()
+  const calibrationPoints = useEditor((s) => s.calibrationPoints)
+  const pointer = useEditor((s) => s.pointer)
+  const { library } = useServices()
   const anchor = chain?.at(-1)?.point
   /** Wall tool: where the next click would land. */
   const [preview, setPreview] = useState<{ cursor: Point; snap: SnapKind }>()
@@ -98,6 +105,8 @@ export function EditorCanvas({ coverage }: { coverage: Coverage | undefined }) {
   const [cursor, setCursor] = useState<Cursor>('default')
 
   const floor = plan.floors.find((f) => f.id === floorId)!
+  const background = floor.background
+  const backgroundImage = useBackgroundImage(background, library)
   const accessPoints = useMemo(
     () => plan.accessPoints.filter((ap) => ap.floorId === floorId),
     [plan.accessPoints, floorId],
@@ -228,6 +237,21 @@ export function EditorCanvas({ coverage }: { coverage: Coverage | undefined }) {
               material: openingMaterial[openingTool],
             }
           : undefined,
+      background:
+        background?.visible && backgroundImage
+          ? {
+              bitmap: backgroundImage,
+              x: background.x,
+              y: background.y,
+              width: background.widthPx * background.metresPerPixel,
+              height: background.heightPx * background.metresPerPixel,
+              opacity: background.opacity,
+            }
+          : undefined,
+      calibration:
+        tool === 'calibrate'
+          ? { points: calibrationPoints, cursor: pointer }
+          : undefined,
       corners: floor.nodes,
       drawing:
         tool === 'wall' && preview
@@ -249,6 +273,10 @@ export function EditorCanvas({ coverage }: { coverage: Coverage | undefined }) {
     openingTool,
     placement,
     openingMaterial,
+    background,
+    backgroundImage,
+    calibrationPoints,
+    pointer,
     floor.nodes,
     tool,
     preview,
@@ -295,9 +323,17 @@ export function EditorCanvas({ coverage }: { coverage: Coverage | undefined }) {
     }
     if (tool !== 'select') return 'default'
     const hit = hitTest(camera, floor, accessPoints, openings, screen)
-    if (!hit) return 'default'
+    if (!hit) return draggableImageAt(screen) ? 'move' : 'default'
     return hit.kind === 'wall' ? 'move' : 'grab'
   }
+
+  /** True if the pointer is over the tracing image and it can be dragged. */
+  const draggableImageAt = (screen: Point) =>
+    !!camera &&
+    !!background &&
+    background.visible &&
+    !background.locked &&
+    onImage(background, toPlan(camera, screen))
 
   /** Where the dragged item's position starts, for computing moves. */
   const originOf = (item: SelectionItem): Point | undefined => {
@@ -443,6 +479,13 @@ export function EditorCanvas({ coverage }: { coverage: Coverage | undefined }) {
             return
           }
 
+          if (tool === 'calibrate') {
+            if (state.calibrationPoints.length < 2) {
+              state.addCalibrationPoint(toPlan(camera, at))
+            }
+            return
+          }
+
           if (openingTool) {
             const place = placementAt(at)
             if (!place) return
@@ -466,6 +509,17 @@ export function EditorCanvas({ coverage }: { coverage: Coverage | undefined }) {
           // On touch, editing is desktop-first: only access points drag (D16).
           const draggable =
             hit && (event.pointerType !== 'touch' || hit.kind === 'accessPoint')
+          if (!hit && event.pointerType !== 'touch' && draggableImageAt(at)) {
+            state.select([])
+            drag.current = {
+              kind: 'background',
+              startPlan: toPlan(camera, at),
+              origin: { x: background!.x, y: background!.y },
+              moved: false,
+            }
+            state.beginGesture()
+            return
+          }
           if (!hit || !draggable) {
             if (!event.shiftKey) state.select([])
             if (event.pointerType === 'touch') {
@@ -524,6 +578,15 @@ export function EditorCanvas({ coverage }: { coverage: Coverage | undefined }) {
                 panBy(current, at.x - active.last.x, at.y - active.last.y),
               )
             active.last = at
+          } else if (active?.kind === 'background') {
+            const here = toPlan(current, at)
+            active.moved = true
+            const x = active.origin.x + here.x - active.startPlan.x
+            const y = active.origin.y + here.y - active.startPlan.y
+            store.getState().updateGesture((draft) => {
+              const bg = draft.floors.find((f) => f.id === floorId)?.background
+              if (bg) Object.assign(bg, { x, y })
+            })
           } else if (active?.kind === 'item') {
             const travelled = Math.hypot(
               at.x - active.startScreen.x,
@@ -541,6 +604,10 @@ export function EditorCanvas({ coverage }: { coverage: Coverage | undefined }) {
           touches.current.delete(event.pointerId)
           const active = drag.current
           const state = store.getState()
+          if (active?.kind === 'background') {
+            if (active.moved) state.endGesture('Move tracing image')
+            else state.cancelGesture()
+          }
           if (active?.kind === 'item') {
             if (active.moved && state.camera) {
               dragTo(active, local(event), event.altKey, state.camera, true)
@@ -560,7 +627,12 @@ export function EditorCanvas({ coverage }: { coverage: Coverage | undefined }) {
         }}
         onPointerCancel={(event) => {
           touches.current.delete(event.pointerId)
-          if (drag.current?.kind === 'item') store.getState().cancelGesture()
+          if (
+            drag.current?.kind === 'item' ||
+            drag.current?.kind === 'background'
+          ) {
+            store.getState().cancelGesture()
+          }
           drag.current = undefined
           setCursor('default')
         }}
