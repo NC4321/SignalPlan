@@ -1,0 +1,46 @@
+import type { Page } from '@playwright/test'
+
+/** Where a plan point (in metres) appears on the page. */
+export async function screenPoint(page: Page, x: number, y: number) {
+  const canvas = page.locator('.editor-canvas')
+  const box = (await canvas.boundingBox())!
+  const camera = await canvas.evaluate((el) => ({
+    scale: Number(el.dataset['scale']),
+    offsetX: Number(el.dataset['offsetX']),
+    offsetY: Number(el.dataset['offsetY']),
+  }))
+  return {
+    x: box.x + camera.offsetX + x * camera.scale,
+    y: box.y + camera.offsetY + y * camera.scale,
+  }
+}
+
+/** The plan point (in metres) under a page position. */
+export async function planPoint(page: Page, at: { x: number; y: number }) {
+  const origin = await screenPoint(page, 0, 0)
+  const unit = await screenPoint(page, 1, 0)
+  const scale = unit.x - origin.x
+  return { x: (at.x - origin.x) / scale, y: (at.y - origin.y) / scale }
+}
+
+/** Clicks a plan point (in metres). */
+export async function clickPlan(page: Page, x: number, y: number) {
+  const at = await screenPoint(page, x, y)
+  await page.mouse.click(at.x, at.y)
+}
+
+/** Opens the app and waits until the plan has been fitted to the canvas. */
+export async function openEditor(page: Page) {
+  await page.goto('/')
+  await page.locator('.editor-canvas[data-scale]').waitFor({ state: 'visible' })
+}
+
+/** The number shown next to a label in the plan summary. */
+export async function summaryCount(page: Page, label: string) {
+  const text = await page
+    .getByRole('complementary', { name: 'Properties' })
+    .locator('dt', { hasText: label })
+    .locator('xpath=following-sibling::dd[1]')
+    .textContent()
+  return Number(text)
+}

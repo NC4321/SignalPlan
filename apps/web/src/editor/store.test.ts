@@ -119,3 +119,107 @@ describe('loadPlan', () => {
     expect(store.getState().past).toEqual([])
   })
 })
+
+describe('wall chain', () => {
+  const blank = (): Plan => ({
+    schemaVersion: 1,
+    name: 'Blank',
+    floors: [
+      {
+        id: 'f',
+        name: 'Floor',
+        elevationM: 0,
+        heightM: 2.5,
+        nodes: [],
+        walls: [],
+        openings: [],
+      },
+    ],
+    accessPoints: [],
+  })
+  const walls = (store: ReturnType<typeof createEditorStore>) =>
+    store.getState().plan.floors[0]!.walls.length
+
+  it('draws one wall per click after the first', () => {
+    const store = createEditorStore(blank())
+    const { clickWallPoint } = store.getState()
+    clickWallPoint({ x: 0, y: 0 })
+    expect(walls(store)).toBe(0)
+    clickWallPoint({ x: 4, y: 0 })
+    clickWallPoint({ x: 4, y: 3 })
+    expect(walls(store)).toBe(2)
+    expect(store.getState().past.map((e) => e.label)).toEqual([
+      'Draw wall',
+      'Draw wall',
+    ])
+    expect(store.getState().chain?.at(-1)?.point).toEqual({ x: 4, y: 3 })
+  })
+
+  it('uses the chosen material', () => {
+    const store = createEditorStore(blank())
+    store.getState().setWallMaterial('brick')
+    store.getState().clickWallPoint({ x: 0, y: 0 })
+    store.getState().clickWallPoint({ x: 2, y: 0 })
+    expect(store.getState().plan.floors[0]!.walls[0]!.material).toBe('brick')
+  })
+
+  it('closes a room when clicking the first corner, ending the chain', () => {
+    const store = createEditorStore(blank())
+    for (const p of [
+      { x: 0, y: 0 },
+      { x: 4, y: 0 },
+      { x: 4, y: 3 },
+      { x: 0, y: 3 },
+      { x: 0, y: 0 },
+    ]) {
+      store.getState().clickWallPoint(p)
+    }
+    expect(walls(store)).toBe(4)
+    expect(store.getState().plan.floors[0]!.nodes).toHaveLength(4)
+    expect(store.getState().chain).toBeUndefined()
+  })
+
+  it('ignores a repeated click at the same point', () => {
+    const store = createEditorStore(blank())
+    store.getState().clickWallPoint({ x: 0, y: 0 })
+    store.getState().clickWallPoint({ x: 2, y: 0 })
+    store.getState().clickWallPoint({ x: 2, y: 0 })
+    expect(walls(store)).toBe(1)
+    expect(store.getState().chain).toHaveLength(2)
+  })
+
+  it('undo mid-chain removes the last wall and keeps drawing from before it', () => {
+    const store = createEditorStore(blank())
+    store.getState().clickWallPoint({ x: 0, y: 0 })
+    store.getState().clickWallPoint({ x: 4, y: 0 })
+    store.getState().clickWallPoint({ x: 4, y: 3 })
+    store.getState().undo()
+    expect(walls(store)).toBe(1)
+    expect(store.getState().chain?.at(-1)?.point).toEqual({ x: 4, y: 0 })
+    store.getState().undo()
+    expect(walls(store)).toBe(0)
+    expect(store.getState().chain).toHaveLength(1)
+    store.getState().undo()
+    expect(store.getState().chain).toBeUndefined()
+  })
+
+  it('moves along an existing wall without an undo step', () => {
+    const store = createEditorStore(blank())
+    store.getState().clickWallPoint({ x: 0, y: 0 })
+    store.getState().clickWallPoint({ x: 4, y: 0 })
+    store.getState().endChain()
+    store.getState().clickWallPoint({ x: 4, y: 0 })
+    store.getState().clickWallPoint({ x: 0, y: 0 }) // along the existing wall
+    expect(store.getState().past).toHaveLength(1)
+    store.getState().undo() // steps back the click, not the first wall
+    expect(walls(store)).toBe(1)
+  })
+
+  it('ends the chain when switching tools', () => {
+    const store = createEditorStore(blank())
+    store.getState().setTool('wall')
+    store.getState().clickWallPoint({ x: 0, y: 0 })
+    store.getState().setTool('select')
+    expect(store.getState().chain).toBeUndefined()
+  })
+})

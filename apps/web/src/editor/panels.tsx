@@ -1,10 +1,17 @@
 import { BAND_PROFILES, type Coverage } from '@signalplan/engine'
-import { BANDS, type Band } from '@signalplan/floorplan'
+import {
+  BANDS,
+  WALL_MATERIALS,
+  type Band,
+  type WallMaterial,
+} from '@signalplan/floorplan'
+import { useEffect, useRef } from 'react'
 import { cssColour, QUALITY_BANDS, qualityOf } from '../quality.ts'
 import { zoomAt } from './camera.ts'
 import { useEditor, useEditorStore } from './context.ts'
 import { formatLength, type Units } from './units.ts'
 import { MOD_KEY, signalAt } from './util.ts'
+import { drawWall, WALL_STYLES } from './wallStyles.ts'
 
 const BAND_LABELS: Record<Band, string> = {
   '2.4GHz': '2.4 GHz',
@@ -150,6 +157,15 @@ export function Toolbar() {
         <span aria-hidden="true">↖</span>
         <span className="tool-name">Select</span>
       </button>
+      <button
+        type="button"
+        aria-pressed={tool === 'wall'}
+        onClick={() => store.getState().setTool('wall')}
+        title="Draw walls (W)"
+      >
+        <span aria-hidden="true">▭</span>
+        <span className="tool-name">Wall</span>
+      </button>
     </nav>
   )
 }
@@ -162,6 +178,8 @@ export function PropertiesPanel({ open }: { open: boolean }) {
   const units = useEditor((s) => s.units)
   const floor = plan.floors.find((f) => f.id === floorId)
 
+  const tool = useEditor((s) => s.tool)
+  const wallMaterial = useEditor((s) => s.wallMaterial)
   const ap =
     selection?.kind === 'accessPoint'
       ? plan.accessPoints.find((a) => a.id === selection.id)
@@ -174,7 +192,40 @@ export function PropertiesPanel({ open }: { open: boolean }) {
       data-open={open || undefined}
       aria-label="Properties"
     >
-      {ap ? (
+      {tool === 'wall' && !ap ? (
+        <section>
+          <h2>Wall tool</h2>
+          <p className="kind">Click to place corners</p>
+          <fieldset className="material-picker">
+            <legend>Material for new walls</legend>
+            {WALL_MATERIALS.map((material) => (
+              <label key={material}>
+                <input
+                  type="radio"
+                  name="wall-material"
+                  value={material}
+                  checked={wallMaterial === material}
+                  onChange={() => store.getState().setWallMaterial(material)}
+                />
+                <WallSwatch material={material} />
+                {WALL_STYLES[material].label}
+              </label>
+            ))}
+          </fieldset>
+          <ul className="hint tips">
+            <li>
+              Double-click, Enter or Esc finishes a chain; clicking the first
+              corner closes a room.
+            </li>
+            <li>Type a number for an exact length; Tab for an angle.</li>
+            <li>
+              Snaps to corners, walls, 15° steps and the grid. Hold Alt to place
+              freely.
+            </li>
+            <li>{MOD_KEY}Z steps back one corner.</li>
+          </ul>
+        </section>
+      ) : ap ? (
         <section>
           <h2>{ap.name}</h2>
           <p className="kind">Access point</p>
@@ -226,6 +277,20 @@ export function PropertiesPanel({ open }: { open: boolean }) {
                   </button>
                 </li>
               ))}
+          </ul>
+        </section>
+      )}
+
+      {tool !== 'wall' && (
+        <section>
+          <h2>Walls</h2>
+          <ul className="wall-legend">
+            {WALL_MATERIALS.map((material) => (
+              <li key={material}>
+                <WallSwatch material={material} />
+                {WALL_STYLES[material].label}
+              </li>
+            ))}
           </ul>
         </section>
       )}
@@ -297,10 +362,20 @@ export function StatusBar({ coverage }: { coverage: Coverage | undefined }) {
           ` · ${signal.toFixed(0)} dBm · ${quality?.label ?? 'No signal'}`}
       </p>
       <div className="zoom" role="group" aria-label="Zoom">
-        <button type="button" onClick={() => zoomBy(1 / 1.25)} title="Zoom out">
+        <button
+          type="button"
+          onClick={() => zoomBy(1 / 1.25)}
+          title="Zoom out"
+          aria-label="Zoom out"
+        >
           −
         </button>
-        <button type="button" onClick={() => zoomBy(1.25)} title="Zoom in">
+        <button
+          type="button"
+          onClick={() => zoomBy(1.25)}
+          title="Zoom in"
+          aria-label="Zoom in"
+        >
           +
         </button>
         <button type="button" onClick={fit} title="Fit plan to window">
@@ -309,4 +384,30 @@ export function StatusBar({ coverage }: { coverage: Coverage | undefined }) {
       </div>
     </footer>
   )
+}
+
+/** A short sample of a wall material, drawn exactly as on the plan. */
+function WallSwatch({ material }: { material: WallMaterial }) {
+  const canvas = useRef<HTMLCanvasElement>(null)
+  useEffect(() => {
+    const element = canvas.current
+    const context = element?.getContext('2d')
+    if (!element || !context) return
+    const ratio = window.devicePixelRatio || 1
+    element.width = 40 * ratio
+    element.height = 16 * ratio
+    context.setTransform(ratio, 0, 0, ratio, 0, 0)
+    const casing = getComputedStyle(element)
+      .getPropertyValue('--wall-casing')
+      .trim()
+    drawWall(
+      context,
+      { x: 5, y: 8 },
+      { x: 35, y: 8 },
+      WALL_STYLES[material],
+      7,
+      casing,
+    )
+  }, [material])
+  return <canvas ref={canvas} className="wall-swatch" aria-hidden="true" />
 }

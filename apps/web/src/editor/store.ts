@@ -1,4 +1,12 @@
-import type { Band, Plan, Point } from '@signalplan/floorplan'
+import {
+  addWall,
+  JOIN_TOLERANCE_M,
+  type Band,
+  type Floor,
+  type Plan,
+  type Point,
+  type WallMaterial,
+} from '@signalplan/floorplan'
 import {
   applyPatches,
   enablePatches,
@@ -24,9 +32,16 @@ interface HistoryEntry {
 /** Older edits are dropped beyond this many undo steps. */
 export const HISTORY_LIMIT = 200
 
-export type Tool = 'select'
+export type Tool = 'select' | 'wall'
 
 export type Selection = { kind: 'accessPoint'; id: string } | undefined
+
+/**
+ * A chain of walls being drawn. Each point after the first was a click; `drew`
+ * says whether that click added walls (and so an undo step) or only moved
+ * along existing ones.
+ */
+export type Chain = { point: Point; drew: boolean }[]
 
 export interface EditorState {
   plan: Plan
@@ -40,6 +55,10 @@ export interface EditorState {
   camera: Camera | undefined
   /** Where the pointer is over the plan, in metres. */
   pointer: Point | undefined
+  /** Material for new walls: the last one picked (D16). */
+  wallMaterial: WallMaterial
+  /** The chain of walls being drawn, if any. */
+  chain: Chain | undefined
   past: HistoryEntry[]
   future: HistoryEntry[]
   /** An edit in progress, such as a drag: previews apply to `base`. */
@@ -67,6 +86,24 @@ export interface EditorState {
   select: (selection: Selection) => void
   setCamera: (camera: Camera | undefined) => void
   setPointer: (pointer: Point | undefined) => void
+  setWallMaterial: (material: WallMaterial) => void
+  /** Wall tool: a click at a (snapped) point starts or extends the chain. */
+  clickWallPoint: (point: Point) => void
+  /** Finishes the chain being drawn, keeping its walls. */
+  endChain: () => void
+}
+
+const samePoint = (a: Point, b: Point) =>
+  Math.hypot(a.x - b.x, a.y - b.y) <= JOIN_TOLERANCE_M
+
+/** Would drawing a→b add any wall? Tried on a copy, so nothing changes. */
+function wouldAddWall(
+  floor: Floor,
+  a: Point,
+  b: Point,
+  material: WallMaterial,
+) {
+  return addWall(structuredClone(floor), a, b, material).length > 0
 }
 
 /** Clears the selection if what it points at no longer exists. */
@@ -90,6 +127,8 @@ export function createEditorStore(plan: Plan): StoreApi<EditorState> {
     selection: undefined,
     camera: undefined,
     pointer: undefined,
+    wallMaterial: 'drywall',
+    chain: undefined,
     past: [],
     future: [],
     gesture: undefined,
@@ -132,7 +171,17 @@ export function createEditorStore(plan: Plan): StoreApi<EditorState> {
     },
 
     undo: () => {
-      const { past, plan, gesture } = get()
+      const { past, plan, gesture, chain } = get()
+      if (chain) {
+        // Mid-chain, undo steps back one click (D16).
+        const last = chain.at(-1)!
+        if (chain.length === 1 || !last.drew) {
+          const rest = chain.slice(0, -1)
+          set({ chain: rest.length > 0 ? rest : undefined })
+          return
+        }
+        set({ chain: chain.slice(0, -1) })
+      }
       const entry = past.at(-1)
       if (!entry || gesture) return
       const next = applyPatches(plan, entry.inverse)
@@ -150,6 +199,7 @@ export function createEditorStore(plan: Plan): StoreApi<EditorState> {
       if (!entry || gesture) return
       const next = applyPatches(plan, entry.patches)
       set((state) => ({
+        chain: undefined,
         plan: next,
         past: [...state.past, entry],
         future: state.future.slice(0, -1),
@@ -166,15 +216,41 @@ export function createEditorStore(plan: Plan): StoreApi<EditorState> {
         gesture: undefined,
         selection: undefined,
         camera: undefined,
+        chain: undefined,
       })
     },
 
     setBand: (band) => set({ band }),
     setUnits: (units) => set({ units }),
     setShowHeatmap: (showHeatmap) => set({ showHeatmap }),
-    setTool: (tool) => set({ tool }),
+    setTool: (tool) => set({ tool, chain: undefined }),
     select: (selection) => set({ selection }),
     setCamera: (camera) => set({ camera }),
     setPointer: (pointer) => set({ pointer }),
+    setWallMaterial: (wallMaterial) => set({ wallMaterial }),
+
+    clickWallPoint: (point) => {
+      const { chain, plan, floorId, wallMaterial } = get()
+      if (!chain) {
+        set({ chain: [{ point, drew: false }], selection: undefined })
+        return
+      }
+      const anchor = chain.at(-1)!.point
+      if (samePoint(anchor, point)) return // e.g. the second click of a double-click
+
+      const floor = plan.floors.find((f) => f.id === floorId)!
+      const drew = wouldAddWall(floor, anchor, point, wallMaterial)
+      if (drew) {
+        get().edit('Draw wall', (draft) => {
+          const target = draft.floors.find((f) => f.id === floorId)!
+          addWall(target, anchor, point, wallMaterial)
+        })
+      }
+      // Clicking the chain's first corner closes the room and ends the chain.
+      const closes = chain.length >= 2 && samePoint(chain[0]!.point, point)
+      set({ chain: closes ? undefined : [...chain, { point, drew }] })
+    },
+
+    endChain: () => set({ chain: undefined }),
   }))
 }
