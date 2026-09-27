@@ -25,11 +25,12 @@ flowchart LR
   grid --> analysis[Overlap, roaming and channel views]
 ```
 
-| Path              | Contents                                                                 |
-| ----------------- | ------------------------------------------------------------------------ |
-| `apps/web`        | React + Vite front end                                                   |
-| `packages/engine` | RF propagation engine: pure TypeScript, unit tested                      |
-| `docs/`           | [Project outline](docs/OUTLINE.md) and [decision log](docs/DECISIONS.md) |
+| Path                 | Contents                                                                 |
+| -------------------- | ------------------------------------------------------------------------ |
+| `apps/web`           | React + Vite front end                                                   |
+| `packages/floorplan` | Floor plan JSON schema, validation and geometry                          |
+| `packages/engine`    | RF propagation engine: pure TypeScript, unit tested                      |
+| `docs/`              | [Project outline](docs/OUTLINE.md) and [decision log](docs/DECISIONS.md) |
 
 ## Getting started
 
@@ -38,7 +39,8 @@ Requires Node 24+ and pnpm.
 ```sh
 pnpm install
 pnpm dev      # start the web app
-pnpm check    # typecheck, lint, format check and tests
+pnpm check    # typecheck, lint, format check and unit tests
+pnpm --filter @signalplan/web e2e   # browser tests (Playwright)
 ```
 
 ## Roadmap

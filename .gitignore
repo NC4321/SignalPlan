@@ -27,3 +27,5 @@ dist-ssr
 coverage
 .wrangler
 *.tsbuildinfo
+test-results
+playwright-report
