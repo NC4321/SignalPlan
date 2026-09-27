@@ -1,3 +1,4 @@
+import { deflateSync, crc32 } from 'node:zlib'
 import type { Page } from '@playwright/test'
 
 /** Where a plan point (in metres) appears on the page. */
@@ -43,4 +44,38 @@ export async function summaryCount(page: Page, label: string) {
     .locator('xpath=following-sibling::dd[1]')
     .textContent()
   return Number(text)
+}
+
+/** A 200 × 100 PNG: grey with a dark frame, like a scanned plan. */
+export function planImage(): Buffer {
+  const width = 200
+  const height = 100
+  const rows = []
+  for (let y = 0; y < height; y++) {
+    const row = Buffer.alloc(1 + width * 3)
+    for (let x = 0; x < width; x++) {
+      const edge = x < 4 || y < 4 || x >= width - 4 || y >= height - 4
+      row.fill(edge ? 40 : 220, 1 + x * 3, 4 + x * 3)
+    }
+    rows.push(row)
+  }
+  const chunk = (type: string, data: Buffer) => {
+    const length = Buffer.alloc(4)
+    length.writeUInt32BE(data.length)
+    const body = Buffer.concat([Buffer.from(type, 'ascii'), data])
+    const crc = Buffer.alloc(4)
+    crc.writeUInt32BE(crc32(body))
+    return Buffer.concat([length, body, crc])
+  }
+  const header = Buffer.alloc(13)
+  header.writeUInt32BE(width, 0)
+  header.writeUInt32BE(height, 4)
+  header[8] = 8 // bit depth
+  header[9] = 2 // RGB
+  return Buffer.concat([
+    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    chunk('IHDR', header),
+    chunk('IDAT', deflateSync(Buffer.concat(rows))),
+    chunk('IEND', Buffer.alloc(0)),
+  ])
 }

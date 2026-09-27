@@ -33,7 +33,8 @@ interface HistoryEntry {
 /** Older edits are dropped beyond this many undo steps. */
 export const HISTORY_LIMIT = 200
 
-export type Tool = 'select' | 'wall' | 'door' | 'window'
+/** `calibrate` is the step after adding a tracing image: click two points. */
+export type Tool = 'select' | 'wall' | 'door' | 'window' | 'calibrate'
 
 /** Sizes for new openings (D19): a 32″ door and a 48″ window. */
 export const DEFAULT_OPENING_WIDTH_M = { door: 0.8128, window: 1.2192 } as const
@@ -72,6 +73,8 @@ export interface EditorState {
   wallMaterial: WallMaterial
   /** The chain of walls being drawn, if any. */
   chain: Chain | undefined
+  /** Calibration: the points clicked on the tracing image so far. */
+  calibrationPoints: Point[]
   /** Material for new doors and windows: the last one picked for each. */
   openingMaterial: { door: OpeningMaterial; window: OpeningMaterial }
   past: HistoryEntry[]
@@ -114,6 +117,7 @@ export interface EditorState {
   setCamera: (camera: Camera | undefined) => void
   setPointer: (pointer: Point | undefined) => void
   setWallMaterial: (material: WallMaterial) => void
+  addCalibrationPoint: (point: Point) => void
   setOpeningMaterial: (
     kind: 'door' | 'window',
     material: OpeningMaterial,
@@ -173,6 +177,7 @@ export function createEditorStore(
     wallMaterial: 'drywall',
     chain: undefined,
     openingMaterial: { door: 'wood', window: 'glass' },
+    calibrationPoints: [],
     past: [],
     future: [],
     pristine: options.pristine ?? true,
@@ -282,7 +287,11 @@ export function createEditorStore(
     setBand: (band) => set({ band }),
     setUnits: (units) => set({ units }),
     setShowHeatmap: (showHeatmap) => set({ showHeatmap }),
-    setTool: (tool) => set({ tool, chain: undefined }),
+    setTool: (tool) => set({ tool, chain: undefined, calibrationPoints: [] }),
+    addCalibrationPoint: (point) =>
+      set((state) => ({
+        calibrationPoints: [...state.calibrationPoints, point].slice(-2),
+      })),
     select: (selection) => set({ selection }),
     toggleSelected: (item) =>
       set((state) => ({
@@ -323,3 +332,30 @@ export function createEditorStore(
     endChain: () => set({ chain: undefined }),
   }))
 }
+
+/**
+ * While tracing, the heatmap would cover the image (D22), so it's hidden when
+ * calibrating, and on the Select tool with nothing selected while the floor's
+ * image shows. The Heatmap setting itself is left alone.
+ */
+export function tracingHidesHeatmap(
+  state: Pick<EditorState, 'plan' | 'floorId' | 'tool' | 'selection'>,
+): boolean {
+  if (state.tool === 'calibrate') return true
+  const background = state.plan.floors.find(
+    (f) => f.id === state.floorId,
+  )?.background
+  return (
+    state.tool === 'select' &&
+    state.selection.length === 0 &&
+    background?.visible === true
+  )
+}
+
+/** Whether the heatmap is drawn: the setting, unless tracing hides it. */
+export const heatmapShown = (
+  state: Pick<
+    EditorState,
+    'plan' | 'floorId' | 'tool' | 'selection' | 'showHeatmap'
+  >,
+) => state.showHeatmap && !tracingHidesHeatmap(state)

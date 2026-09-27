@@ -168,7 +168,7 @@ test('opens a plan file', async ({ page }) => {
     ],
     accessPoints: [],
   }
-  await page.locator('input[type=file]').setInputFiles({
+  await page.getByLabel('Open a plan file').setInputFiles({
     name: 'studio.signalplan.json',
     mimeType: 'application/json',
     buffer: Buffer.from(JSON.stringify(plan)),
@@ -181,7 +181,7 @@ test('opens a plan file', async ({ page }) => {
 
 test('explains why a file can’t be opened', async ({ page }) => {
   await openEditor(page)
-  await page.locator('input[type=file]').setInputFiles({
+  await page.getByLabel('Open a plan file').setInputFiles({
     name: 'broken.json',
     mimeType: 'application/json',
     buffer: Buffer.from('{"schemaVersion": 1, "name": "x", "floors": []}'),

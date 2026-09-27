@@ -11,6 +11,8 @@ import {
 } from './persistence.ts'
 import { PlansDialog } from './PlansDialog.tsx'
 import { useServices } from './services.ts'
+import { embedImages, storeEmbeddedImages } from './tracing.ts'
+import { useTracing } from './tracingContext.ts'
 import { isTyping, MOD_KEY } from './util.ts'
 
 /**
@@ -21,6 +23,12 @@ import { isTyping, MOD_KEY } from './util.ts'
 export function FileMenu() {
   const store = useEditorStore()
   const { library, autosaver } = useServices()
+  const { chooseImage } = useTracing()
+  /** Saves the open plan to a file, with its tracing images embedded. */
+  const saveToFile = async () => {
+    const state = store.getState()
+    downloadPlan(await embedImages(state.plan, library))
+  }
   const menu = useRef<HTMLDetailsElement>(null)
   const fileInput = useRef<HTMLInputElement>(null)
   const [plansOpen, setPlansOpen] = useState(false)
@@ -45,10 +53,12 @@ export function FileMenu() {
       return
     }
     await autosaver.flush()
-    // Opened files are your work: they join the list straight away.
+    // Opened files are your work: they join the list straight away. Their
+    // embedded images move into the browser's image store.
+    const plan = await storeEmbeddedImages(result.plan, library)
     const id = newPlanId()
-    await library?.save(id, result.plan)
-    store.getState().loadPlan(result.plan, { id })
+    await library?.save(id, plan)
+    store.getState().loadPlan(plan, { id })
   }
 
   // Ctrl/⌘+S saves to a file, Ctrl/⌘+O opens one.
@@ -59,7 +69,7 @@ export function FileMenu() {
       if (isTyping(event) && key !== 's') return
       if (key === 's') {
         event.preventDefault()
-        downloadPlan(store.getState().plan)
+        void saveToFile()
       } else if (key === 'o') {
         event.preventDefault()
         fileInput.current?.click()
@@ -67,7 +77,7 @@ export function FileMenu() {
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [store])
+  })
 
   return (
     <>
@@ -101,10 +111,19 @@ export function FileMenu() {
             type="button"
             onClick={() => {
               closeMenu()
-              downloadPlan(store.getState().plan)
+              void saveToFile()
             }}
           >
             Save to file <kbd>{MOD_KEY}S</kbd>
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              closeMenu()
+              chooseImage()
+            }}
+          >
+            Trace a floor plan image…
           </button>
           <button type="button" onClick={() => void startFresh(samplePlan())}>
             Open the sample home

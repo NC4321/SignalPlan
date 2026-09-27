@@ -151,6 +151,32 @@ export class PlanLibrary {
     return copy
   }
 
+  /** Stores a tracing image, returning its id. */
+  async addImage(blob: Blob): Promise<string> {
+    const id = `img-${newPlanId()}`
+    await this.db.put('images', { id, blob })
+    return id
+  }
+
+  async image(id: string): Promise<Blob | undefined> {
+    return (await this.db.get('images', id))?.blob
+  }
+
+  /**
+   * Deletes images no stored plan uses any more: ones replaced or removed
+   * (kept until now so undo could bring them back) and ones whose plans were
+   * deleted. `keep` protects images the open plan uses but hasn't saved yet.
+   */
+  async collectGarbage(keep: Iterable<string> = []) {
+    const used = new Set(keep)
+    for (const stored of await this.db.getAll('plans')) {
+      for (const id of imageIdsIn(stored.plan)) used.add(id)
+    }
+    for (const id of await this.db.getAllKeys('images')) {
+      if (!used.has(id)) await this.db.delete('images', id)
+    }
+  }
+
   async lastPlanId(): Promise<string | undefined> {
     return this.db.get('meta', LAST_PLAN)
   }
@@ -195,4 +221,18 @@ export class PlanLibrary {
     await this.setLastPlanId(id)
     storage?.removeItem(LEGACY_PLAN_KEY)
   }
+}
+
+/** The ids of the tracing images a (possibly unvalidated) plan refers to. */
+export function imageIdsIn(plan: unknown): string[] {
+  if (!plan || typeof plan !== 'object' || !('floors' in plan)) return []
+  const floors = (plan as { floors: unknown }).floors
+  if (!Array.isArray(floors)) return []
+  return floors.flatMap((floor: unknown) => {
+    const id =
+      floor && typeof floor === 'object' && 'background' in floor
+        ? (floor as { background?: { imageId?: unknown } }).background?.imageId
+        : undefined
+    return typeof id === 'string' ? [id] : []
+  })
 }

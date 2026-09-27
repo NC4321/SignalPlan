@@ -61,6 +61,31 @@ export const openingSchema = z.object({
   material: openingMaterialSchema,
 })
 
+/**
+ * A floor plan image to trace over (D22). In the browser the image is kept
+ * in its own store and referenced by `imageId`; saved files embed it as a
+ * `dataUrl` so one file restores everything.
+ */
+export const backgroundSchema = z
+  .object({
+    imageId: id.optional(),
+    dataUrl: z.string().startsWith('data:image/').optional(),
+    /** Plan position of the image's top-left corner. */
+    x: metres,
+    y: metres,
+    /** Scale: plan metres per image pixel, set by calibration. */
+    metresPerPixel: z.number().positive(),
+    widthPx: z.number().int().positive(),
+    heightPx: z.number().int().positive(),
+    opacity: z.number().min(0).max(1),
+    visible: z.boolean(),
+    /** Locked images can't be dragged by accident. */
+    locked: z.boolean(),
+  })
+  .refine((b) => b.imageId !== undefined || b.dataUrl !== undefined, {
+    message: 'A background needs an imageId or a dataUrl.',
+  })
+
 export const floorSchema = z.object({
   id,
   name: z.string().max(100),
@@ -71,6 +96,7 @@ export const floorSchema = z.object({
   nodes: z.array(nodeSchema),
   walls: z.array(wallSchema),
   openings: z.array(openingSchema),
+  background: backgroundSchema.optional(),
 })
 
 export const radioSchema = z.object({
@@ -106,6 +132,7 @@ export type Band = z.infer<typeof bandSchema>
 export type PlanNode = z.infer<typeof nodeSchema>
 export type Wall = z.infer<typeof wallSchema>
 export type Opening = z.infer<typeof openingSchema>
+export type Background = z.infer<typeof backgroundSchema>
 export type Floor = z.infer<typeof floorSchema>
 export type Radio = z.infer<typeof radioSchema>
 export type AccessPoint = z.infer<typeof accessPointSchema>

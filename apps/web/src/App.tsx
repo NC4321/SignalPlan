@@ -3,6 +3,8 @@ import { useEffect, useState } from 'react'
 import { useEditor, useEditorStore } from './editor/context.ts'
 import { EditorCanvas } from './editor/EditorCanvas.tsx'
 import { useSaveStatus } from './editor/autosave.ts'
+import { CalibrationBar } from './editor/CalibrationBar.tsx'
+import { TracingProvider } from './editor/TracingProvider.tsx'
 import { Dialog, PlanIssues } from './editor/Dialog.tsx'
 import { rescuePlan } from './editor/persistence.ts'
 import { useServices } from './editor/services.ts'
@@ -82,57 +84,64 @@ function App({
     return () => window.removeEventListener('keydown', onKey)
   }, [store])
 
+  const tool = useEditor((s) => s.tool)
+
   return (
-    <div className="app">
-      <TopBar
-        panelOpen={panelOpen}
-        onTogglePanel={() => setPanelOpen((open) => !open)}
-      />
-      <Toolbar />
-      <main className="stage">
-        <h1 className="visually-hidden">SignalPlan editor</h1>
-        <EditorCanvas coverage={broadcasting ? coverage : undefined} />
-        {!broadcasting && (
-          <p className="notice">
-            No access point on this floor broadcasts on this band.
+    <TracingProvider>
+      <div className="app">
+        <TopBar
+          panelOpen={panelOpen}
+          onTogglePanel={() => setPanelOpen((open) => !open)}
+        />
+        <Toolbar />
+        <main className="stage">
+          <h1 className="visually-hidden">SignalPlan editor</h1>
+          <EditorCanvas coverage={broadcasting ? coverage : undefined} />
+          {tool === 'calibrate' && <CalibrationBar />}
+          {!broadcasting && (
+            <p className="notice">
+              No access point on this floor broadcasts on this band.
+            </p>
+          )}
+          {error && (
+            <p className="notice">Couldn’t compute coverage: {error}</p>
+          )}
+        </main>
+        <PropertiesPanel open={panelOpen} />
+        <StatusBar
+          coverage={broadcasting ? coverage : undefined}
+          saveStatus={saveStatus}
+        />
+        <Dialog
+          open={problemOpen}
+          title="Your saved plan couldn’t be opened"
+          onClose={() => setProblemOpen(false)}
+          actions={
+            <>
+              <button
+                type="button"
+                onClick={() => rescuePlan(savedPlanProblem?.raw)}
+              >
+                Download it
+              </button>
+              <button
+                type="button"
+                className="primary"
+                onClick={() => setProblemOpen(false)}
+              >
+                Continue with the sample
+              </button>
+            </>
+          }
+        >
+          <p>
+            The sample home is open instead. The plan is still in My plans;
+            download it to keep a copy of what was stored.
           </p>
-        )}
-        {error && <p className="notice">Couldn’t compute coverage: {error}</p>}
-      </main>
-      <PropertiesPanel open={panelOpen} />
-      <StatusBar
-        coverage={broadcasting ? coverage : undefined}
-        saveStatus={saveStatus}
-      />
-      <Dialog
-        open={problemOpen}
-        title="Your saved plan couldn’t be opened"
-        onClose={() => setProblemOpen(false)}
-        actions={
-          <>
-            <button
-              type="button"
-              onClick={() => rescuePlan(savedPlanProblem?.raw)}
-            >
-              Download it
-            </button>
-            <button
-              type="button"
-              className="primary"
-              onClick={() => setProblemOpen(false)}
-            >
-              Continue with the sample
-            </button>
-          </>
-        }
-      >
-        <p>
-          The sample home is open instead. The plan is still in My plans;
-          download it to keep a copy of what was stored.
-        </p>
-        <PlanIssues issues={savedPlanProblem?.issues ?? []} />
-      </Dialog>
-    </div>
+          <PlanIssues issues={savedPlanProblem?.issues ?? []} />
+        </Dialog>
+      </div>
+    </TracingProvider>
   )
 }
 

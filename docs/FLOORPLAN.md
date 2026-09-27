@@ -21,12 +21,16 @@ Plan
 │  ├─ heightM          floor-to-ceiling height
 │  ├─ nodes[]          { id, x, y }
 │  ├─ walls[]          { id, from, to, material }
-│  └─ openings[]       { id, wallId, kind: door | window, offsetM, widthM, material }
+│  ├─ openings[]       { id, wallId, kind: door | window, offsetM, widthM, material }
+│  └─ background?      { imageId | dataUrl, x, y, metresPerPixel, widthPx, heightPx,
+│                        opacity, visible, locked }
 └─ accessPoints[]
    └─ { id, name, floorId, x, y, heightM, radios[]: { band, txPowerDbm? } }
 ```
 
 Wall materials are `drywall`, `brick`, `concrete`, `glass`, `low-e-glass`, `wood` and `metal`; each stands for a typical North American construction described in [MODEL.md](MODEL.md#wall-materials). Openings can use any of these, or `open` for a doorway with no door. Bands are `2.4GHz`, `5GHz` and `6GHz`. `txPowerDbm` is the radio's EIRP (antenna gain included); a radio without it uses the engine's default for its band.
+
+A floor may have a **background** image to trace over. `x` and `y` place its top-left corner and `metresPerPixel` sets its scale. In the browser the image lives in its own store and is referenced by `imageId`; saved files embed it as a `dataUrl` instead. At least one of the two is needed. `widthPx` and `heightPx` are the image's size in pixels, `opacity` runs from 0 to 1, and `locked` stops the image being dragged by accident. See [D22](DECISIONS.md#d22-tracing-over-a-floor-plan-image--2026-09-27).
 
 ## Validation
 

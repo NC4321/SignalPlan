@@ -93,7 +93,7 @@ input:focus-visible + *,
   grid-template:
     'top top top' auto
     'tools stage props' 1fr
-    'status status status' auto / auto 1fr 18rem;
+    'status status status' auto / auto minmax(0, 1fr) 18rem;
   height: 100dvh;
   overflow: hidden;
 }
@@ -356,6 +356,7 @@ dd {
 }
 
 .readout {
+  min-width: 0;
   margin: 0;
   font-variant-numeric: tabular-nums;
   color: var(--muted);
@@ -699,6 +700,7 @@ button.danger-fill {
 }
 
 .save-status {
+  min-width: 0;
   margin: 0 0 0 auto;
   color: var(--muted);
   white-space: nowrap;
@@ -711,6 +713,69 @@ button.danger-fill {
   font-weight: 600;
 }
 
+/* Calibration (D22): a bar along the bottom of the plan while it's active. */
+.calibration-bar {
+  position: absolute;
+  inset: auto 1rem 1rem;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem 0.75rem;
+  width: fit-content;
+  max-width: calc(100% - 2rem);
+  margin: 0 auto;
+  padding: 0.6rem 0.75rem 0.6rem 1rem;
+  background: var(--surface);
+  border: 1px solid var(--accent);
+  border-radius: 0.5rem;
+  box-shadow: 0 6px 18px rgb(0 0 0 / 0.18);
+  z-index: 5;
+}
+
+.calibration-bar p {
+  margin: 0;
+  max-width: 36rem;
+}
+
+.calibration-bar form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem 0.5rem;
+}
+
+.calibration-bar input {
+  width: 7rem;
+  font: inherit;
+  color: var(--text);
+  padding: 0.3rem 0.5rem;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 0.375rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.calibration-bar input[aria-invalid='true'] {
+  border-color: #d55e00;
+}
+
+.calibration-bar .field-error {
+  flex-basis: 100%;
+}
+
+.tracing-toggle {
+  display: flex;
+  margin-bottom: 0.4rem;
+}
+
+.field input[type='range'] {
+  padding: 0;
+  border: 0;
+  background: none;
+  accent-color: var(--accent);
+}
+
 /* Narrow screens: tools along the bottom, properties as a drawer. */
 @media (max-width: 48rem) {
   .app {
@@ -718,7 +783,7 @@ button.danger-fill {
       'top' auto
       'stage' 1fr
       'tools' auto
-      'status' auto / 1fr;
+      'status' auto / minmax(0, 1fr);
   }
 
   .toolbar {
@@ -749,5 +814,21 @@ button.danger-fill {
 
   .brand .plan-name {
     display: none;
+  }
+
+  .calibration-bar {
+    inset: auto 0.5rem 0.5rem;
+    max-width: none;
+    width: auto;
+  }
+
+  .calibration-bar form {
+    flex: 1 1 100%;
+    min-width: 0;
+  }
+
+  .calibration-bar input {
+    flex: 1 1 5rem;
+    min-width: 0;
   }
 }
