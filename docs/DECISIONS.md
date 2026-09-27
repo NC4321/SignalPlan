@@ -118,3 +118,10 @@ A running log of project decisions, newest last. Each entry records what was dec
 - **Deleting a corner** joins its two walls into one straight wall (taking the longer wall's material), or, with more or fewer than two walls, removes the walls attached to it. **Deleting a wall** merges any straight, same-material halves it leaves at an otherwise unused corner.
 - **Doors and windows on a changed wall** slide to stay inside it and apart, and shrink in proportion if the wall gets too short; nothing is deleted.
 - **Wall properties:** material and length (the start corner stays, the end corner moves); Split in half and Delete buttons; double-click splits a wall anywhere.
+
+### D19. Doors and windows — 2026-09-27
+
+- **Placing:** Door (D) and Window (N) tools preview a default-sized opening on the wall under the cursor; a click places it, sliding it to fit beside corners and other openings. Where no free stretch is wide enough, nothing is placed.
+- **Defaults:** doors 32″ (0.81 m) wood, windows 48″ (1.22 m) glass; each tool remembers the last material picked.
+- **Look:** openings draw in their material's style, thinner than walls, with end marks; an open doorway is just its end marks. No door swings.
+- **Editing:** switch door/window, type a width (it grows about its centre, up to the next corner or opening), pick a material including open, drag it along its wall (it stops at neighbours), or delete it.

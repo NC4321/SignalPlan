@@ -73,3 +73,41 @@ export function materialSegments(floor: Floor): MaterialSegment[] {
 
   return segments
 }
+
+/** A door or window as a line on the plan, including open doorways. */
+export interface OpeningSpan {
+  id: string
+  wallId: string
+  kind: 'door' | 'window'
+  material: OpeningMaterial
+  a: Point
+  b: Point
+}
+
+/** Every opening's endpoints on the plan. */
+export function openingSpans(floor: Floor): OpeningSpan[] {
+  const nodes = new Map(floor.nodes.map((node) => [node.id, node]))
+  const walls = new Map(floor.walls.map((wall) => [wall.id, wall]))
+  const spans: OpeningSpan[] = []
+  for (const opening of floor.openings) {
+    const wall = walls.get(opening.wallId)
+    const from = wall && nodes.get(wall.from)
+    const to = wall && nodes.get(wall.to)
+    if (!from || !to) continue
+    const length = Math.hypot(to.x - from.x, to.y - from.y)
+    if (length === 0) continue
+    const at = (d: number): Point => ({
+      x: from.x + ((to.x - from.x) * d) / length,
+      y: from.y + ((to.y - from.y) * d) / length,
+    })
+    spans.push({
+      id: opening.id,
+      wallId: opening.wallId,
+      kind: opening.kind,
+      material: opening.material,
+      a: at(opening.offsetM),
+      b: at(opening.offsetM + opening.widthM),
+    })
+  }
+  return spans
+}

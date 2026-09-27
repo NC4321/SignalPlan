@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import sampleHome from '../fixtures/sample-home.json' with { type: 'json' }
-import { materialSegments } from './geometry.ts'
+import { materialSegments, openingSpans } from './geometry.ts'
 import type { Floor } from './schema.ts'
 import { parsePlan } from './validate.ts'
 
@@ -123,5 +123,30 @@ describe('materialSegments', () => {
 
     const expected = floor.walls.reduce((sum, w) => sum + wallLength(w.id), 0)
     expect(total(materialSegments(floor))).toBeCloseTo(expected, 9)
+  })
+})
+
+describe('openingSpans', () => {
+  it('places every opening, including open doorways, on the plan', () => {
+    const floor = wallWith([
+      {
+        id: 'd',
+        wallId: 'w',
+        kind: 'door',
+        offsetM: 1,
+        widthM: 1,
+        material: 'open',
+      },
+    ])
+    expect(openingSpans(floor)).toEqual([
+      {
+        id: 'd',
+        wallId: 'w',
+        kind: 'door',
+        material: 'open',
+        a: { x: 1, y: 0 },
+        b: { x: 2, y: 0 },
+      },
+    ])
   })
 })

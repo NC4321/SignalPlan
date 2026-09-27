@@ -1,12 +1,16 @@
 import {
+  alongWall,
   collapseShortWalls,
   deleteNode,
+  deleteOpening,
   deleteWall,
   joinNode,
   moveNodes,
+  moveOpening,
   splitWall,
   type AccessPoint,
   type Floor,
+  type OpeningSpan,
   type Plan,
   type Point,
 } from '@signalplan/floorplan'
@@ -22,14 +26,19 @@ const NODE_GRAB_PX = 8
 
 const distance = (a: Point, b: Point) => Math.hypot(b.x - a.x, b.y - a.y)
 
+/** How close to a wall's line the pointer must be to hit it, in pixels. */
+const wallReach = (camera: Camera) =>
+  Math.max(baseWallWidth(camera) * 0.9 + 3, 6)
+
 /**
  * What is under a screen point, in order of priority: an access point, a
- * corner, then a wall.
+ * corner, a door or window, then a wall.
  */
 export function hitTest(
   camera: Camera,
   floor: Floor,
   accessPoints: readonly AccessPoint[],
+  openings: readonly OpeningSpan[],
   screen: Point,
 ): SelectionItem | undefined {
   const ap = accessPoints.find(
@@ -46,7 +55,17 @@ export function hitTest(
   }
   if (best) return best.item
 
-  const reach = Math.max(baseWallWidth(camera) * 0.9 + 3, 6)
+  const reach = wallReach(camera)
+  for (const span of openings) {
+    const sa = toScreen(camera, span.a)
+    const sb = toScreen(camera, span.b)
+    const d = distance(nearestOnSegment(sa, sb, screen), screen)
+    if (d <= reach && (!best || d < best.d)) {
+      best = { item: { kind: 'opening', id: span.id }, d }
+    }
+  }
+  if (best) return best.item
+
   const nodes = new Map(floor.nodes.map((n) => [n.id, n]))
   for (const wall of floor.walls) {
     const a = nodes.get(wall.from)
@@ -60,6 +79,45 @@ export function hitTest(
     }
   }
   return best?.item
+}
+
+/** The wall under a screen point and how far along it the point is. */
+export function wallAt(
+  camera: Camera,
+  floor: Floor,
+  screen: Point,
+): { wallId: string; along: number } | undefined {
+  const nodes = new Map(floor.nodes.map((n) => [n.id, n]))
+  let best: { wallId: string; d: number; point: Point } | undefined
+  for (const wall of floor.walls) {
+    const a = nodes.get(wall.from)
+    const b = nodes.get(wall.to)
+    if (!a || !b) continue
+    const onWall = nearestOnSegment(
+      toScreen(camera, a),
+      toScreen(camera, b),
+      screen,
+    )
+    const d = distance(onWall, screen)
+    if (d <= wallReach(camera) * 1.5 && (!best || d < best.d)) {
+      best = { wallId: wall.id, d, point: onWall }
+    }
+  }
+  if (!best) return undefined
+  const plan = {
+    x: (best.point.x - camera.offsetX) / camera.scale,
+    y: (best.point.y - camera.offsetY) / camera.scale,
+  }
+  return { wallId: best.wallId, along: alongWall(floor, best.wallId, plan) }
+}
+
+/** Slides a door or window so its centre is `centre` metres along its wall. */
+export function moveOpeningRecipe(
+  floorId: string,
+  openingId: string,
+  centre: number,
+): Recipe {
+  return (plan) => moveOpening(floorOf(plan, floorId), openingId, centre)
 }
 
 const floorOf = (plan: Draft<Plan> | Plan, floorId: string) =>
@@ -149,6 +207,21 @@ export function nudgeRecipe(
     const floor = floorOf(plan, floorId)
     const nodeIds = new Set<string>()
     for (const item of selection) {
+      if (item.kind === 'opening') {
+        // Openings slide along their wall by the part of the move along it.
+        const opening = floor.openings.find((o) => o.id === item.id)
+        const wall = floor.walls.find((w) => w.id === opening?.wallId)
+        const a = floor.nodes.find((n) => n.id === wall?.from)
+        const b = floor.nodes.find((n) => n.id === wall?.to)
+        if (!opening || !a || !b) continue
+        const length = distance(a, b)
+        const along = (delta.x * (b.x - a.x) + delta.y * (b.y - a.y)) / length
+        moveOpening(
+          floor,
+          opening.id,
+          opening.offsetM + opening.widthM / 2 + along,
+        )
+      }
       if (item.kind === 'node') nodeIds.add(item.id)
       if (item.kind === 'wall') {
         const wall = floor.walls.find((w) => w.id === item.id)
@@ -179,6 +252,9 @@ export function deleteRecipe(floorId: string, selection: Selection): Recipe {
   return (plan) => {
     const floor = floorOf(plan, floorId)
     for (const item of selection) {
+      if (item.kind === 'opening') deleteOpening(floor, item.id)
+    }
+    for (const item of selection) {
       if (item.kind === 'wall') deleteWall(floor, item.id)
     }
     for (const item of selection) {
@@ -204,7 +280,10 @@ export function splitRecipe(
 /** A short label for the undo button, describing what was changed. */
 export function describeSelection(selection: Selection): string {
   if (selection.length !== 1) return `${selection.length} items`
-  return { accessPoint: 'access point', wall: 'wall', node: 'corner' }[
-    selection[0]!.kind
-  ]
+  return {
+    accessPoint: 'access point',
+    wall: 'wall',
+    node: 'corner',
+    opening: 'opening',
+  }[selection[0]!.kind]
 }

@@ -531,6 +531,10 @@ dd {
   color: #d55e00;
 }
 
+.opening-kind {
+  margin-bottom: 0.75rem;
+}
+
 .properties .material-picker {
   margin-top: 1rem;
 }

@@ -10,12 +10,20 @@ export {
 } from './validate.ts'
 export {
   materialSegments,
+  openingSpans,
   type MaterialSegment,
+  type OpeningSpan,
   type Point,
 } from './geometry.ts'
 export {
+  addOpening,
   addWall,
+  alongWall,
   collapseShortWalls,
+  deleteOpening,
+  fitOpeningAt,
+  moveOpening,
+  setOpeningWidth,
   deleteNode,
   deleteWall,
   fitOpenings,

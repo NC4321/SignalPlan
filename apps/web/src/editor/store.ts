@@ -3,6 +3,7 @@ import {
   JOIN_TOLERANCE_M,
   type Band,
   type Floor,
+  type OpeningMaterial,
   type Plan,
   type Point,
   type WallMaterial,
@@ -32,10 +33,13 @@ interface HistoryEntry {
 /** Older edits are dropped beyond this many undo steps. */
 export const HISTORY_LIMIT = 200
 
-export type Tool = 'select' | 'wall'
+export type Tool = 'select' | 'wall' | 'door' | 'window'
+
+/** Sizes for new openings (D19): a 32″ door and a 48″ window. */
+export const DEFAULT_OPENING_WIDTH_M = { door: 0.8128, window: 1.2192 } as const
 
 export type SelectionItem = {
-  kind: 'accessPoint' | 'wall' | 'node'
+  kind: 'accessPoint' | 'wall' | 'node' | 'opening'
   id: string
 }
 
@@ -68,6 +72,8 @@ export interface EditorState {
   wallMaterial: WallMaterial
   /** The chain of walls being drawn, if any. */
   chain: Chain | undefined
+  /** Material for new doors and windows: the last one picked for each. */
+  openingMaterial: { door: OpeningMaterial; window: OpeningMaterial }
   past: HistoryEntry[]
   future: HistoryEntry[]
   /** An edit in progress, such as a drag: previews apply to `base`. */
@@ -99,6 +105,10 @@ export interface EditorState {
   setCamera: (camera: Camera | undefined) => void
   setPointer: (pointer: Point | undefined) => void
   setWallMaterial: (material: WallMaterial) => void
+  setOpeningMaterial: (
+    kind: 'door' | 'window',
+    material: OpeningMaterial,
+  ) => void
   /** Wall tool: a click at a (snapped) point starts or extends the chain. */
   clickWallPoint: (point: Point) => void
   /** Finishes the chain being drawn, keeping its walls. */
@@ -129,6 +139,8 @@ function validSelection(plan: Plan, floorId: string, selection: Selection) {
         return floor?.walls.some((w) => w.id === item.id) ?? false
       case 'node':
         return floor?.nodes.some((n) => n.id === item.id) ?? false
+      case 'opening':
+        return floor?.openings.some((o) => o.id === item.id) ?? false
     }
   }
   const kept = selection.filter(exists)
@@ -148,6 +160,7 @@ export function createEditorStore(plan: Plan): StoreApi<EditorState> {
     pointer: undefined,
     wallMaterial: 'drywall',
     chain: undefined,
+    openingMaterial: { door: 'wood', window: 'glass' },
     past: [],
     future: [],
     gesture: undefined,
@@ -253,6 +266,10 @@ export function createEditorStore(plan: Plan): StoreApi<EditorState> {
     setCamera: (camera) => set({ camera }),
     setPointer: (pointer) => set({ pointer }),
     setWallMaterial: (wallMaterial) => set({ wallMaterial }),
+    setOpeningMaterial: (kind, material) =>
+      set((state) => ({
+        openingMaterial: { ...state.openingMaterial, [kind]: material },
+      })),
 
     clickWallPoint: (point) => {
       const { chain, plan, floorId, wallMaterial } = get()
