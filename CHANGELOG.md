@@ -13,4 +13,5 @@ All notable changes to this project are documented here. The format follows [Kee
 - Engine: North American band profiles and wall-material losses computed from ITU-R P.2040-4 layered constructions, including low-E glass fitted to published measurements; `docs/MODEL.md`.
 - Floor plan: `low-e-glass` material; radio power is EIRP.
 - Engine: coverage grid for a floor and band (10 cm cells, strongest access point per cell) and a typed Web Worker message API.
+- Web: live heatmap of the sample flat with a draggable router, band switcher, signal readout and a colour-blind-safe quality legend.
 - CI: typecheck, lint, format check, tests, build, and Cloudflare Pages deploys with pull request previews.
