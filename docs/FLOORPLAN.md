@@ -26,7 +26,7 @@ Plan
    └─ { id, name, floorId, x, y, heightM, radios[]: { band, txPowerDbm? } }
 ```
 
-Wall materials are `drywall`, `brick`, `concrete`, `glass`, `wood` and `metal`. Openings can use any of these, or `open` for a doorway with no door. Bands are `2.4GHz`, `5GHz` and `6GHz`. A radio with no `txPowerDbm` uses the engine's default for its band.
+Wall materials are `drywall`, `brick`, `concrete`, `glass`, `low-e-glass`, `wood` and `metal`; each stands for a typical North American construction described in [MODEL.md](MODEL.md#wall-materials). Openings can use any of these, or `open` for a doorway with no door. Bands are `2.4GHz`, `5GHz` and `6GHz`. `txPowerDbm` is the radio's EIRP (antenna gain included); a radio without it uses the engine's default for its band.
 
 ## Validation
 
