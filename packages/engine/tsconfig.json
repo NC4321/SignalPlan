@@ -1,0 +1,9 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    // No DOM: the engine must run in a Web Worker, Node, or a CLI unchanged.
+    "lib": ["ES2023"],
+    "types": []
+  },
+  "include": ["src"]
+}

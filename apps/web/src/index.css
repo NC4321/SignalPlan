@@ -1,0 +1,59 @@
+:root {
+  --text: #1d1b22;
+  --muted: #5e5a66;
+  --bg: #fbfaf8;
+  --border: #e3e1e6;
+
+  color-scheme: light dark;
+  font:
+    16px/1.5 system-ui,
+    'Segoe UI',
+    Roboto,
+    sans-serif;
+  color: var(--text);
+  background: var(--bg);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --text: #ecebef;
+    --muted: #a6a2ad;
+    --bg: #16151a;
+    --border: #2e2c34;
+  }
+}
+
+body {
+  margin: 0;
+}
+
+main {
+  max-width: 40rem;
+  margin: 0 auto;
+  padding: 4rem 1rem;
+}
+
+p {
+  color: var(--muted);
+}
+
+table {
+  border-collapse: collapse;
+}
+
+caption {
+  text-align: left;
+  font-weight: 600;
+  padding-block-end: 0.5rem;
+}
+
+th,
+td {
+  text-align: left;
+  padding: 0.25rem 1.5rem 0.25rem 0;
+  border-bottom: 1px solid var(--border);
+}
+
+td {
+  font-variant-numeric: tabular-nums;
+}
