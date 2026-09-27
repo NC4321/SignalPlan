@@ -72,6 +72,9 @@ button:disabled {
 }
 
 button:focus-visible,
+summary:focus-visible,
+a:focus-visible,
+input:not([type='radio']):focus-visible,
 input:focus-visible + *,
 .editor-canvas:focus-visible {
   outline: 2px solid var(--accent);
