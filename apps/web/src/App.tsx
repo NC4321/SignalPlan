@@ -53,7 +53,7 @@ function App() {
       <header>
         <h1>SignalPlan</h1>
         <p className="lede">
-          Predicted Wi-Fi coverage for a sample flat. Drag the router to see how
+          Predicted Wi-Fi coverage for a sample home. Drag the router to see how
           coverage changes.
         </p>
       </header>

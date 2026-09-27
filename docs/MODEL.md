@@ -30,7 +30,7 @@ The engine evaluates the equation at the centre of every cell in a regular grid 
 2. computes the predicted signal from each access point with a radio in the selected band, and
 3. keeps the **strongest** one, recording which access point it came from.
 
-The sample flat's grid (120 m² including the margin, 12,000 cells) computes in under 10 ms on a laptop, so no spatial index is needed yet. A unit test fails if a 100 m² grid takes longer than 200 ms. Access points on other floors are ignored until multi-floor support in Phase 5.
+The sample home's grid (204 m² including the margin, 20,400 cells) computes in about 20 ms on a laptop, so no spatial index is needed yet. A unit test fails if a 100 m² grid takes longer than 200 ms. Access points on other floors are ignored until multi-floor support in Phase 5.
 
 This is a **multi-wall model**, as in the COST 231 final report. Because walls are counted one by one, the distance term uses the free-space exponent n = 2 rather than a larger empirical exponent that would already include walls. Calibration (Phase 7) may adjust n and the wall losses to fit real measurements.
 
@@ -105,6 +105,23 @@ The model is compared with co-polarised penetration loss measured at 6.75 GHz by
 
 The model is within 4 dB on every sample, but it **under-predicts wood and glass**. The measured door was a fire-rated solid-wood-core door, which is probably denser and lossier than the wood samples behind P.2040's wood class. A unit test keeps every sample within 4 dB so that later changes can't make the model silently worse. Measurements at 2.4 and 5 GHz, and in real homes (Phase 7), are needed before these numbers can be trusted in those bands.
 
+### Against the ITU-R P.1238-13 indoor model
+
+Recommendation ITU-R P.1238-13 gives an empirical site-general model for indoor path loss: L_b = 10α·log10(d) + β + 10γ·log10(f), with d in metres and f in GHz (eq. 1). It no longer publishes separate residential coefficients and advises using office values for homes. The office, no-line-of-sight coefficients (Table 2: α = 2.39, β = 30.13, γ = 2.40, σ = 5.01 dB) fold typical walls and clutter into the distance term.
+
+Path loss in dB (lower is stronger), comparing that median with this model's free-space term plus one or two `drywall` walls:
+
+| Band    | Distance | Free space | Model, 1 wall | Model, 2 walls | P.1238-13 office NLoS |
+| ------- | -------- | ---------- | ------------- | -------------- | --------------------- |
+| 2.4 GHz | 5 m      | 54.2       | 57.1          | 60.0           | 56.1                  |
+| 2.4 GHz | 10 m     | 60.2       | 63.1          | 66.0           | 63.3                  |
+| 2.4 GHz | 20 m     | 66.2       | 69.1          | 72.0           | 70.5                  |
+| 5 GHz   | 5 m      | 61.3       | 63.7          | 66.1           | 64.6                  |
+| 5 GHz   | 10 m     | 67.3       | 69.7          | 72.1           | 71.8                  |
+| 5 GHz   | 20 m     | 73.3       | 75.7          | 78.1           | 79.0                  |
+
+With the one or two interior walls a path typically crosses at these distances, the model sits within about 3 dB of the P.1238-13 median, well inside that model's 5 dB spread. The model therefore uses the free-space exponent n = 2 without an extra clutter term.
+
 ## Known limits
 
 - **Straight line only.** Signals that bend around corners (diffraction) or bounce off walls (reflection) are ignored, so areas behind strong walls are predicted darker than they are.
@@ -112,10 +129,12 @@ The model is within 4 dB on every sample, but it **under-predicts wood and glass
 - **Omnidirectional access points.** Antenna patterns are ignored.
 - **Typical constructions.** A real wall may differ from its construction above: metal studs, foil-backed insulation, tile or plaster lath all add loss.
 - **No furniture, people or neighbouring networks.**
+- **Receiver losses aren't modelled.** A phone's antenna is less efficient than the 0 dBi assumed, and a hand or body near it absorbs signal, so a phone may read several dB below the prediction.
 - **Uncalibrated.** Until Phase 7, predictions have not been checked against measurements in a real home.
 
 ## Sources
 
+- Recommendation ITU-R P.1238-13 (09/2025), _Propagation data and prediction methods for the planning of indoor radiocommunication systems and radio local area networks in the frequency range from 300 MHz to 450 GHz_. International Telecommunication Union. Eq. 1, Table 2.
 - Recommendation ITU-R P.2040-4 (09/2025), _Effects of building materials and structures on radiowave propagation above about 100 MHz_. International Telecommunication Union. Table 3; eqs. 27a, 39–44, 57–59.
 - D. Shakya, M. Ying, T. S. Rappaport, H. Poddar, P. Ma, Y. Wang and I. Al-Wazani, "Wideband Penetration Loss through Building Materials and Partitions at 6.75 GHz in FR1(C) and 16.95 GHz in the FR3 Upper Mid-band spectrum", IEEE GLOBECOM 2024. [arXiv:2405.01362](https://arxiv.org/abs/2405.01362). Table II.
 - COST Action 231, _Digital mobile radio towards future generation systems: final report_, European Commission, 1999. Indoor multi-wall model.

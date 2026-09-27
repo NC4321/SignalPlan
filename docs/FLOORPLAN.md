@@ -45,4 +45,4 @@ Adding an optional field does not need a new version. Renaming, removing or chan
 
 ## Example
 
-[`fixtures/sample-home.json`](../packages/floorplan/fixtures/sample-home.json) is a 10 m × 8 m flat with a living area, two bedrooms, a bathroom, doors, windows and one dual-band router. Tests and the thin-slice heatmap use it.
+[`fixtures/sample-home.json`](../packages/floorplan/fixtures/sample-home.json) is a 15 m × 10 m single-storey home: three bedrooms, a bathroom, an office, open-plan living and kitchen, and a poured-concrete utility room with a steel door. Exterior walls are brick with low-E windows, and a tri-band Wi-Fi 6E router sits near the front door. Tests and the thin-slice heatmap use it.

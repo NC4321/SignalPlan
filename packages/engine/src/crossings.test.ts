@@ -133,21 +133,27 @@ describe('crossings in the sample home', () => {
   const walls = materialSegments(floor)
   const router = result.plan.accessPoints[0]!
 
-  it('finds no walls within the living room', () => {
-    expect(crossings(walls, router, p(4, 3))).toEqual([])
+  const crossed = (to: { x: number; y: number }) =>
+    crossings(walls, router, to).flatMap((c) =>
+      c.segments.map((s) => `${s.wallId}:${s.material}`),
+    )
+
+  it('finds no walls within the open-plan living area', () => {
+    expect(crossed(p(9, 8))).toEqual([])
   })
 
-  it('finds the drywall into bedroom 1', () => {
-    const found = crossings(walls, router, p(8, 2))
-    expect(found.flatMap((c) => c.segments.map((s) => s.wallId))).toEqual([
-      'living-bed1',
-    ])
+  it('finds the drywall into the office', () => {
+    expect(crossed(p(13, 2))).toEqual(['living-office:drywall'])
   })
 
-  it('finds the brick outside wall when leaving the flat', () => {
-    const found = crossings(walls, router, p(-2, 3))
-    expect(found.flatMap((c) => c.segments.map((s) => s.material))).toEqual([
-      'brick',
+  it('finds the concrete into the utility room', () => {
+    expect(crossed(p(13, 5.5))).toEqual(['living-utility:concrete'])
+  })
+
+  it('finds the bedroom wall, then the brick, when leaving the house', () => {
+    expect(crossed(p(-2, 1.2))).toEqual([
+      'living-bed1:drywall',
+      'ext-left-bed1:brick',
     ])
   })
 })
