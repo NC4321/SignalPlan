@@ -25,11 +25,11 @@ flowchart LR
   grid --> analysis[Overlap, roaming and channel views]
 ```
 
-| Path              | Contents                                            |
-| ----------------- | --------------------------------------------------- |
-| `apps/web`        | React + Vite front end                              |
-| `packages/engine` | RF propagation engine: pure TypeScript, unit tested |
-| `docs/`           | [Project outline](docs/OUTLINE.md) and design notes |
+| Path              | Contents                                                                 |
+| ----------------- | ------------------------------------------------------------------------ |
+| `apps/web`        | React + Vite front end                                                   |
+| `packages/engine` | RF propagation engine: pure TypeScript, unit tested                      |
+| `docs/`           | [Project outline](docs/OUTLINE.md) and [decision log](docs/DECISIONS.md) |
 
 ## Getting started
 
