@@ -24,7 +24,7 @@ Distance is measured in 3D, from the access point's mounting height to a receive
 
 ## From equation to heatmap
 
-The engine evaluates the equation at the centre of every cell in a regular grid covering the floor's walls plus a 1 m margin. The default cell size is **10 cm**. For each cell it:
+The engine evaluates the equation at the centre of every cell in a regular grid covering the floor's walls and access points plus a 1 m margin (on a floor with no walls yet, 5 m around each access point). The default cell size is **10 cm**. For each cell it:
 
 1. finds every wall segment on the straight line from each access point (`crossings.ts`; a corner or door edge counts once, using the lossier material),
 2. computes the predicted signal from each access point with a radio in the selected band, and

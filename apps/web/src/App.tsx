@@ -1,6 +1,10 @@
+import type { PlanIssue } from '@signalplan/floorplan'
 import { useEffect, useState } from 'react'
 import { useEditor, useEditorStore } from './editor/context.ts'
 import { EditorCanvas } from './editor/EditorCanvas.tsx'
+import { Dialog, PlanIssues } from './editor/FileMenu.tsx'
+import { rescueSavedPlan } from './editor/persistence.ts'
+import { useAutosave } from './editor/useAutosave.ts'
 import {
   PropertiesPanel,
   StatusBar,
@@ -11,8 +15,15 @@ import { deleteRecipe, describeSelection } from './editor/selectTool.ts'
 import { isTyping } from './editor/util.ts'
 import { useCoverage } from './useCoverage.ts'
 
-function App() {
+function App({
+  savedPlanProblem,
+}: {
+  /** Set when the plan saved in this browser could not be opened. */
+  savedPlanProblem?: readonly PlanIssue[] | undefined
+}) {
   const store = useEditorStore()
+  const saveStatus = useAutosave(store)
+  const [problemOpen, setProblemOpen] = useState(savedPlanProblem !== undefined)
   const plan = useEditor((s) => s.plan)
   const floorId = useEditor((s) => s.floorId)
   const band = useEditor((s) => s.band)
@@ -87,7 +98,35 @@ function App() {
         {error && <p className="notice">Couldn’t compute coverage: {error}</p>}
       </main>
       <PropertiesPanel open={panelOpen} />
-      <StatusBar coverage={broadcasting ? coverage : undefined} />
+      <StatusBar
+        coverage={broadcasting ? coverage : undefined}
+        saveStatus={saveStatus}
+      />
+      <Dialog
+        open={problemOpen}
+        title="Your saved plan couldn’t be opened"
+        onClose={() => setProblemOpen(false)}
+        actions={
+          <>
+            <button type="button" onClick={() => rescueSavedPlan()}>
+              Download it
+            </button>
+            <button
+              type="button"
+              className="primary"
+              onClick={() => setProblemOpen(false)}
+            >
+              Continue with the sample
+            </button>
+          </>
+        }
+      >
+        <p>
+          The sample home is open instead. Your next change will replace the
+          saved plan, so download it first if you want to keep it.
+        </p>
+        <PlanIssues issues={savedPlanProblem ?? []} />
+      </Dialog>
     </div>
   )
 }

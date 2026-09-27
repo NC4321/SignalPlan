@@ -149,8 +149,26 @@ describe('gridForFloor', () => {
     expect(cellCentre(grid, 0, 0)).toEqual({ x: -0.75, y: -0.75 })
   })
 
-  it('is empty for a floor with no nodes', () => {
+  it('is empty for a floor with no walls or access points', () => {
     expect(gridForFloor(floor()).cols).toBe(0)
+  })
+
+  it('covers access points outside the walls', () => {
+    const grid = gridForFloor(floor([[0, 0, 4, 3, 'brick']]), 0.5, [
+      { x: 6, y: 1 },
+    ])
+    expect(grid.originX + grid.cols * grid.cellM).toBe(7)
+  })
+
+  it('reaches 5 m around access points on a floor with no walls', () => {
+    const grid = gridForFloor(floor(), 1, [{ x: 5, y: 4 }])
+    expect(grid).toEqual({
+      originX: 0,
+      originY: -1,
+      cellM: 1,
+      cols: 10,
+      rows: 10,
+    })
   })
 })
 

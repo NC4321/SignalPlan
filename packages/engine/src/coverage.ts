@@ -44,17 +44,35 @@ export interface Coverage {
   accessPointIds: string[]
 }
 
-/** The grid covering a floor's walls plus a margin, snapped to whole cells. */
-export function gridForFloor(floor: Floor, cellM = DEFAULT_CELL_M): Grid {
-  if (floor.nodes.length === 0) {
+/** Around access points on a floor with no walls yet, the grid reaches this far. */
+const OPEN_FLOOR_REACH_M = 5
+
+/**
+ * The grid covering a floor's walls and access points plus a 1 m margin,
+ * snapped to whole cells. On a floor with no walls yet, it reaches 5 m around
+ * each access point so there is coverage to see before any walls are drawn.
+ */
+export function gridForFloor(
+  floor: Floor,
+  cellM = DEFAULT_CELL_M,
+  accessPoints: readonly Point[] = [],
+): Grid {
+  const margin = floor.nodes.length === 0 ? OPEN_FLOOR_REACH_M : MARGIN_M
+  const points = [
+    ...floor.nodes.map((node) => ({ ...node, margin: MARGIN_M })),
+    ...accessPoints.map((ap) => ({ x: ap.x, y: ap.y, margin })),
+  ]
+  if (points.length === 0) {
     return { originX: 0, originY: 0, cellM, cols: 0, rows: 0 }
   }
-  const xs = floor.nodes.map((node) => node.x)
-  const ys = floor.nodes.map((node) => node.y)
-  const originX = Math.floor((Math.min(...xs) - MARGIN_M) / cellM) * cellM
-  const originY = Math.floor((Math.min(...ys) - MARGIN_M) / cellM) * cellM
-  const cols = Math.ceil((Math.max(...xs) + MARGIN_M - originX) / cellM)
-  const rows = Math.ceil((Math.max(...ys) + MARGIN_M - originY) / cellM)
+  const minX = Math.min(...points.map((p) => p.x - p.margin))
+  const minY = Math.min(...points.map((p) => p.y - p.margin))
+  const maxX = Math.max(...points.map((p) => p.x + p.margin))
+  const maxY = Math.max(...points.map((p) => p.y + p.margin))
+  const originX = Math.floor(minX / cellM) * cellM
+  const originY = Math.floor(minY / cellM) * cellM
+  const cols = Math.ceil((maxX - originX) / cellM)
+  const rows = Math.ceil((maxY - originY) / cellM)
   return { originX, originY, cellM, cols, rows }
 }
 
@@ -106,7 +124,8 @@ export function evaluateCoverage(
   const floor = plan.floors.find((f) => f.id === floorId)
   if (!floor) throw new RangeError(`No floor with id "${floorId}".`)
 
-  const grid = gridForFloor(floor, cellM)
+  const onFloor = plan.accessPoints.filter((ap) => ap.floorId === floorId)
+  const grid = gridForFloor(floor, cellM, onFloor)
   const segments = materialSegments(floor)
   const size = grid.cols * grid.rows
   const dbm = new Float32Array(size).fill(Number.NEGATIVE_INFINITY)

@@ -11,6 +11,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { fitCamera, panBy, toPlan, zoomAt, type Camera } from './camera.ts'
 import { useEditor, useEditorStore } from './context.ts'
 import { LengthInput } from './LengthInput.tsx'
+import { BLANK_BOUNDS } from './persistence.ts'
 import { draw, heatmapBitmap } from './render.ts'
 import {
   describeSelection,
@@ -135,18 +136,17 @@ export function EditorCanvas({ coverage }: { coverage: Coverage | undefined }) {
   useEffect(() => {
     if (camera || size.width === 0 || size.height === 0) return
     const grid = gridForFloor(floor, 1)
-    store.getState().setCamera(
-      fitCamera(
-        {
-          minX: grid.originX,
-          minY: grid.originY,
-          maxX: grid.originX + grid.cols,
-          maxY: grid.originY + grid.rows,
-        },
-        size.width,
-        size.height,
-      ),
-    )
+    // A floor with no walls yet opens on a room-sized view around the router.
+    const bounds =
+      floor.nodes.length === 0
+        ? BLANK_BOUNDS
+        : {
+            minX: grid.originX,
+            minY: grid.originY,
+            maxX: grid.originX + grid.cols,
+            maxY: grid.originY + grid.rows,
+          }
+    store.getState().setCamera(fitCamera(bounds, size.width, size.height))
   }, [camera, size, floor, store])
 
   // Space + drag pans, as in design tools.
