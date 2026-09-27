@@ -13,6 +13,7 @@ All notable changes to this project are documented here. The format follows [Kee
 - Engine: North American band profiles and wall-material losses computed from ITU-R P.2040-4 layered constructions, including low-E glass fitted to published measurements; `docs/MODEL.md`.
 - Floor plan: `low-e-glass` material; radio power is EIRP.
 - Engine: coverage grid for a floor and band (10 cm cells, strongest access point per cell) and a typed Web Worker message API.
+- Save and open: autosave in the browser with a status indicator, reopening the last plan, New plan, Open and Save to `.signalplan.json` files, confirmation before replacing an edited plan, and an editable plan name.
 - Doors and windows: Door and Window tools with slide-to-fit placement, dragging along walls, and a panel for kind, width and material (including open doorways).
 - Select and edit: click and Shift-click selection, drag corners (joining on drop) and walls (at right angles, stretching neighbours), arrow-key nudging, Delete with automatic merging, double-click to split, and a properties panel for wall material and length.
 - Wall tool: click-to-chain drawing with snapping (corners, walls, 15° steps, grid; Alt to bypass), T and X junctions, typed lengths and angles, per-material wall styles with a legend, and a material picker.

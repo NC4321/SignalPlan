@@ -1,6 +1,6 @@
 # Floor plan format
 
-A SignalPlan floor plan is a JSON document. The editor writes it, the engine reads it, and users save and load it as a file. The schema lives in [`packages/floorplan`](../packages/floorplan/src/schema.ts); this page explains its shape and rules.
+A SignalPlan floor plan is a JSON document. The editor writes it, the engine reads it, and users save and load it as a file named `<plan name>.signalplan.json`. The schema lives in [`packages/floorplan`](../packages/floorplan/src/schema.ts); this page explains its shape and rules.
 
 ## Conventions
 

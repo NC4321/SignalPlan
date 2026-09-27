@@ -539,6 +539,118 @@ dd {
   margin-top: 1rem;
 }
 
+.menu {
+  position: relative;
+}
+
+.menu summary {
+  list-style: none;
+  padding: 0.3rem 0.7rem;
+  border: 1px solid var(--border);
+  border-radius: 0.375rem;
+  cursor: pointer;
+}
+
+.menu summary::-webkit-details-marker {
+  display: none;
+}
+
+.menu summary::after {
+  content: ' ▾';
+  color: var(--muted);
+}
+
+.menu[open] summary {
+  border-color: var(--accent);
+}
+
+.menu-items {
+  position: absolute;
+  top: calc(100% + 0.25rem);
+  left: 0;
+  z-index: 20;
+  display: grid;
+  min-width: 14rem;
+  padding: 0.3rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.18);
+}
+
+.menu-items button {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  text-align: left;
+  border-color: transparent;
+}
+
+.menu-items button:hover {
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+
+kbd {
+  font: inherit;
+  color: var(--muted);
+}
+
+.dialog {
+  max-width: min(30rem, calc(100vw - 2rem));
+  padding: 1.25rem;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  box-shadow: 0 16px 48px rgb(0 0 0 / 0.3);
+}
+
+.dialog::backdrop {
+  background: rgb(0 0 0 / 0.35);
+}
+
+.dialog h2 {
+  margin: 0 0 0.5rem;
+  font-size: 1.1rem;
+}
+
+.dialog-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-top: 1.25rem;
+}
+
+button.primary {
+  color: var(--surface);
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.issues {
+  margin: 0.5rem 0 0;
+  padding-left: 1.1rem;
+}
+
+.issues code {
+  font-size: 0.8125rem;
+  color: var(--muted);
+}
+
+.save-status {
+  margin: 0 0 0 auto;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.save-status[data-problem] {
+  color: #d55e00;
+  font-weight: 600;
+}
+
 /* Narrow screens: tools along the bottom, properties as a drawer. */
 @media (max-width: 48rem) {
   .app {

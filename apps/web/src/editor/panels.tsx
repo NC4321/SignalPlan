@@ -23,6 +23,8 @@ import { deleteRecipe, describeSelection } from './selectTool.ts'
 import { bearingDeg } from './snap.ts'
 import { formatLength, parseLength, type Units } from './units.ts'
 import { DEFAULT_OPENING_WIDTH_M } from './store.ts'
+import { FileMenu } from './FileMenu.tsx'
+import type { SaveStatus } from './useAutosave.ts'
 import { MOD_KEY, signalAt } from './util.ts'
 import { drawWall, WALL_STYLES } from './wallStyles.ts'
 
@@ -53,6 +55,7 @@ export function TopBar({
     <header className="top-bar">
       <div className="brand">
         <strong>SignalPlan</strong>
+        <FileMenu />
         <span className="plan-name">{planName}</span>
       </div>
 
@@ -293,7 +296,21 @@ export function PropertiesPanel({ open }: { open: boolean }) {
   )
 }
 
-export function StatusBar({ coverage }: { coverage: Coverage | undefined }) {
+const SAVE_MESSAGES: Record<SaveStatus, string> = {
+  idle: '',
+  pending: 'Saving…',
+  saved: 'Saved in this browser',
+  full: 'Not saved: browser storage is full. Save to a file.',
+  unavailable: 'Not saved: this browser blocks storage. Save to a file.',
+}
+
+export function StatusBar({
+  coverage,
+  saveStatus,
+}: {
+  coverage: Coverage | undefined
+  saveStatus: SaveStatus
+}) {
   const store = useEditorStore()
   const pointer = useEditor((s) => s.pointer)
   const units = useEditor((s) => s.units)
@@ -326,6 +343,15 @@ export function StatusBar({ coverage }: { coverage: Coverage | undefined }) {
           : 'Point at the plan'}
         {signal !== undefined &&
           ` · ${signal.toFixed(0)} dBm · ${quality?.label ?? 'No signal'}`}
+      </p>
+      <p
+        className="save-status"
+        data-problem={
+          saveStatus === 'full' || saveStatus === 'unavailable' || undefined
+        }
+        role="status"
+      >
+        {SAVE_MESSAGES[saveStatus]}
       </p>
       <div className="zoom" role="group" aria-label="Zoom">
         <button
@@ -611,6 +637,11 @@ function PlanSection() {
     <section>
       <h2>{plan.name}</h2>
       <p className="kind">{floor?.name}</p>
+      <TextField
+        label="Plan name"
+        value={plan.name}
+        onCommit={(name) => store.getState().renamePlan(name)}
+      />
       <dl>
         <dt>Walls</dt>
         <dd>{floor?.walls.length ?? 0}</dd>
@@ -822,5 +853,40 @@ function OpeningSection({
         <DeleteButton />
       </div>
     </section>
+  )
+}
+
+/** A short text setting, applied on Enter or when leaving the field. */
+function TextField({
+  label,
+  value,
+  onCommit,
+}: {
+  label: string
+  value: string
+  onCommit: (value: string) => void
+}) {
+  const [draft, setDraft] = useState<string>()
+  const id = useId()
+  const commit = () => {
+    if (draft !== undefined) onCommit(draft)
+    setDraft(undefined)
+  }
+  return (
+    <div className="field">
+      <label htmlFor={id}>{label}</label>
+      <input
+        id={id}
+        value={draft ?? value}
+        maxLength={200}
+        onChange={(event) => setDraft(event.target.value)}
+        onBlur={commit}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter') commit()
+          if (event.key === 'Escape') setDraft(undefined)
+        }}
+        autoComplete="off"
+      />
+    </div>
   )
 }

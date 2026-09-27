@@ -125,3 +125,12 @@ A running log of project decisions, newest last. Each entry records what was dec
 - **Defaults:** doors 32″ (0.81 m) wood, windows 48″ (1.22 m) glass; each tool remembers the last material picked.
 - **Look:** openings draw in their material's style, thinner than walls, with end marks; an open doorway is just its end marks. No door swings.
 - **Editing:** switch door/window, type a width (it grows about its centre, up to the next corner or opening), pick a material including open, drag it along its wall (it stops at neighbours), or delete it.
+
+### D20. Saving and opening plans — 2026-09-27
+
+- **In the browser:** one current plan, autosaved to localStorage shortly after each change (and when the page is hidden). The units preference is kept too. The status bar says whether the plan is saved, and warns when storage is full or blocked.
+- **On reopening:** the last plan edited; the sample home appears only on a first visit. A saved plan that no longer loads falls back to the sample, with an offer to download the stored text first.
+- **Files:** plain JSON named after the plan, `<name>.signalplan.json`. File menu: New plan, Open file (Ctrl/⌘+O), Save to file (Ctrl/⌘+S), Open the sample home. Files that fail validation are refused with their first problems listed.
+- **Replacing:** since only one plan is kept, replacing an edited plan asks first and offers to download a copy; an untouched sample or blank plan is replaced without asking.
+- **New plan:** one empty floor and one dual-band router in the middle of a 10 m × 8 m starting view. The coverage grid now always covers access points (5 m around them on a floor with no walls), so a blank plan shows coverage straight away.
+- **Revisit when** traced floor-plan images (#19) arrive: localStorage's ~5 MB limit is too small to keep images, so they need their own storage decision.

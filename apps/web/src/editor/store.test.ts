@@ -122,6 +122,35 @@ describe('toggleSelected', () => {
   })
 })
 
+describe('pristine', () => {
+  it('starts pristine and stops being so after an edit', () => {
+    const store = createEditorStore(sample())
+    expect(store.getState().pristine).toBe(true)
+    store.getState().edit('a', moveRouterTo(1))
+    expect(store.getState().pristine).toBe(false)
+  })
+
+  it('is set by loadPlan only when asked', () => {
+    const store = createEditorStore(sample())
+    store.getState().loadPlan(sample())
+    expect(store.getState().pristine).toBe(false)
+    store.getState().loadPlan(sample(), true)
+    expect(store.getState().pristine).toBe(true)
+  })
+})
+
+describe('renamePlan', () => {
+  it('renames as an undoable edit, ignoring blank names', () => {
+    const store = createEditorStore(sample())
+    store.getState().renamePlan('  My house ')
+    expect(store.getState().plan.name).toBe('My house')
+    store.getState().renamePlan('   ')
+    expect(store.getState().plan.name).toBe('My house')
+    store.getState().undo()
+    expect(store.getState().plan.name).toBe('Sample bungalow')
+  })
+})
+
 describe('loadPlan', () => {
   it('replaces the plan and clears history', () => {
     const store = createEditorStore(sample())

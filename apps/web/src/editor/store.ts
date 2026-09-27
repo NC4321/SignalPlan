@@ -76,6 +76,8 @@ export interface EditorState {
   openingMaterial: { door: OpeningMaterial; window: OpeningMaterial }
   past: HistoryEntry[]
   future: HistoryEntry[]
+  /** True until the plan is changed after being opened or created. */
+  pristine: boolean
   /** An edit in progress, such as a drag: previews apply to `base`. */
   gesture: { base: Plan; recipe: Recipe | undefined } | undefined
 
@@ -91,8 +93,12 @@ export interface EditorState {
   cancelGesture: () => void
   undo: () => void
   redo: () => void
-  /** Replaces the plan and clears history, as when opening a file. */
-  loadPlan: (plan: Plan) => void
+  /**
+   * Replaces the plan and clears history, as when opening a file. A pristine
+   * plan (a fresh sample or blank plan) can be replaced without asking.
+   */
+  loadPlan: (plan: Plan, pristine?: boolean) => void
+  renamePlan: (name: string) => void
 
   setBand: (band: Band) => void
   setUnits: (units: Units) => void
@@ -147,12 +153,15 @@ function validSelection(plan: Plan, floorId: string, selection: Selection) {
   return kept.length === selection.length ? selection : kept
 }
 
-export function createEditorStore(plan: Plan): StoreApi<EditorState> {
+export function createEditorStore(
+  plan: Plan,
+  options: { units?: Units; pristine?: boolean } = {},
+): StoreApi<EditorState> {
   return createStore<EditorState>()((set, get) => ({
     plan,
     floorId: plan.floors[0]!.id,
     band: '5GHz',
-    units: 'metric',
+    units: options.units ?? 'metric',
     showHeatmap: true,
     tool: 'select',
     selection: [],
@@ -163,6 +172,7 @@ export function createEditorStore(plan: Plan): StoreApi<EditorState> {
     openingMaterial: { door: 'wood', window: 'glass' },
     past: [],
     future: [],
+    pristine: options.pristine ?? true,
     gesture: undefined,
 
     edit: (label, recipe) => {
@@ -174,6 +184,7 @@ export function createEditorStore(plan: Plan): StoreApi<EditorState> {
           -HISTORY_LIMIT,
         ),
         future: [],
+        pristine: false,
         selection: validSelection(next, state.floorId, state.selection),
       }))
     },
@@ -239,9 +250,10 @@ export function createEditorStore(plan: Plan): StoreApi<EditorState> {
       }))
     },
 
-    loadPlan: (next) => {
+    loadPlan: (next, pristine = false) => {
       set({
         plan: next,
+        pristine,
         floorId: next.floors[0]!.id,
         past: [],
         future: [],
@@ -249,6 +261,14 @@ export function createEditorStore(plan: Plan): StoreApi<EditorState> {
         selection: [],
         camera: undefined,
         chain: undefined,
+      })
+    },
+
+    renamePlan: (name) => {
+      const trimmed = name.trim()
+      if (trimmed === '' || trimmed === get().plan.name) return
+      get().edit('Rename plan', (draft) => {
+        draft.name = trimmed.slice(0, 200)
       })
     },
 
