@@ -8,4 +8,5 @@ All notable changes to this project are documented here. The format follows [Kee
 
 - Monorepo with `apps/web` (React + Vite) and `packages/engine` (TypeScript).
 - Free-space path loss function with unit tests.
+- Floor plan schema v1 (`@signalplan/floorplan`) with validation, migrations, a sample home, and a function that splits walls into material segments for the engine.
 - CI: typecheck, lint, format check, tests, build, and Cloudflare Pages deploys with pull request previews.
