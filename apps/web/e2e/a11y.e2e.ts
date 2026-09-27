@@ -60,7 +60,7 @@ test.describe('axe-core finds no serious problems', () => {
     await page.keyboard.press('Escape')
     await page.keyboard.press('Escape')
 
-    await page.locator('input[type=file]').setInputFiles({
+    await page.getByLabel('Open a plan file').setInputFiles({
       name: 'broken.json',
       mimeType: 'application/json',
       buffer: Buffer.from('{"schemaVersion": 1}'),
@@ -143,7 +143,8 @@ test('opens the File menu and a dialog from the keyboard, and returns focus', as
   // Tabbing away closes the menu.
   await page.keyboard.press('Enter')
   await expect(page.getByRole('button', { name: 'New plan' })).toBeFocused()
-  for (let i = 0; i < 5; i++) await page.keyboard.press('Tab')
+  const items = await page.locator('.menu-items button').count()
+  for (let i = 0; i < items; i++) await page.keyboard.press('Tab')
   await expect(page.getByRole('button', { name: 'New plan' })).toBeHidden()
 })
 
