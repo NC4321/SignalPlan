@@ -24,6 +24,7 @@ import { bearingDeg } from './snap.ts'
 import { formatLength, parseLength, type Units } from './units.ts'
 import { DEFAULT_OPENING_WIDTH_M } from './store.ts'
 import { FileMenu } from './FileMenu.tsx'
+import { TracingSection } from './TracingSection.tsx'
 import type { SaveStatus } from './autosave.ts'
 import { MOD_KEY, signalAt } from './util.ts'
 import { drawWall, WALL_STYLES } from './wallStyles.ts'
@@ -239,7 +240,13 @@ export function PropertiesPanel({ open }: { open: boolean }) {
   else if (wall) details = <WallSection wall={wall} floor={floor} />
   else if (node) details = <CornerSection node={node} floor={floor} />
   else if (selection.length > 1) details = <MultipleSection />
-  else details = <PlanSection />
+  else
+    details = (
+      <>
+        <PlanSection />
+        {floor.background && <TracingSection background={floor.background} />}
+      </>
+    )
 
   return (
     <aside

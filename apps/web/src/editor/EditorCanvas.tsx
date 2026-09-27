@@ -480,8 +480,15 @@ export function EditorCanvas({ coverage }: { coverage: Coverage | undefined }) {
           }
 
           if (tool === 'calibrate') {
-            if (state.calibrationPoints.length < 2) {
-              state.addCalibrationPoint(toPlan(camera, at))
+            const first = state.calibrationPoints[0]
+            const point = toPlan(camera, at)
+            // A second click on the first point would give no distance.
+            const tooClose =
+              first &&
+              Math.hypot(point.x - first.x, point.y - first.y) * camera.scale <
+                DRAG_THRESHOLD_PX
+            if (state.calibrationPoints.length < 2 && !tooClose) {
+              state.addCalibrationPoint(point)
             }
             return
           }

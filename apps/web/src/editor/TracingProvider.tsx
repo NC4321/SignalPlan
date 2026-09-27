@@ -9,11 +9,13 @@ import {
   blobToDataUrl,
   checkImageFile,
   initialPlacement,
+  replaceBackground,
 } from './tracing.ts'
 
 /**
  * Adding a tracing image (D22): check it, store it, place it to fill the
- * view, then start calibration so its scale can be set.
+ * view, then start calibration so its scale can be set. Replacing one keeps
+ * its place and scale when the new picture has the same proportions.
  */
 export function TracingProvider({ children }: { children: ReactNode }) {
   const store = useEditorStore()
@@ -21,8 +23,10 @@ export function TracingProvider({ children }: { children: ReactNode }) {
   const input = useRef<HTMLInputElement>(null)
   const [notice, setNotice] = useState<string>()
   const [error, setError] = useState<string>()
+  /** Whether the picker is choosing a replacement for the current image. */
+  const replacing = useRef(false)
 
-  const addImage = async (file: File) => {
+  const addImage = async (file: File, replace: boolean) => {
     const check = checkImageFile(file)
     if (!check.ok) {
       setError(check.reason)
@@ -50,20 +54,31 @@ export function TracingProvider({ children }: { children: ReactNode }) {
     rememberImage(source.imageId ?? source.dataUrl!, bitmap)
 
     const floorId = state.floorId
-    state.edit('Add tracing image', (plan) => {
-      const floor = plan.floors.find((f) => f.id === floorId)
-      if (!floor) return
-      floor.background = {
-        ...source,
-        ...placement,
-        ...size,
-        opacity: 0.5,
-        visible: true,
-        locked: false,
-      }
-    })
+    const current = state.plan.floors.find((f) => f.id === floorId)?.background
+    let calibrateNext = true
+    if (replace && current) {
+      const replaced = replaceBackground(current, source, size, placement)
+      calibrateNext = replaced.needsCalibration
+      state.edit('Replace tracing image', (plan) => {
+        const floor = plan.floors.find((f) => f.id === floorId)
+        if (floor) floor.background = replaced.background
+      })
+    } else {
+      state.edit('Add tracing image', (plan) => {
+        const floor = plan.floors.find((f) => f.id === floorId)
+        if (!floor) return
+        floor.background = {
+          ...source,
+          ...placement,
+          ...size,
+          opacity: 0.5,
+          visible: true,
+          locked: false,
+        }
+      })
+    }
     state.select([])
-    state.setTool('calibrate')
+    if (calibrateNext) state.setTool('calibrate')
     setNotice(
       check.large
         ? 'This image is over 10 MB, so plan files saved with it will be large.'
@@ -73,7 +88,17 @@ export function TracingProvider({ children }: { children: ReactNode }) {
 
   return (
     <TracingContext
-      value={{ chooseImage: () => input.current?.click(), notice }}
+      value={{
+        chooseImage: () => {
+          replacing.current = false
+          input.current?.click()
+        },
+        replaceImage: () => {
+          replacing.current = true
+          input.current?.click()
+        },
+        notice,
+      }}
     >
       {children}
       <input
@@ -85,7 +110,7 @@ export function TracingProvider({ children }: { children: ReactNode }) {
         onChange={(event) => {
           const file = event.target.files?.[0]
           event.target.value = ''
-          if (file) void addImage(file)
+          if (file) void addImage(file, replacing.current)
         }}
       />
       <Dialog

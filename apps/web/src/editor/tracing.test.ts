@@ -3,14 +3,19 @@ import type { Background } from '@signalplan/floorplan'
 import { describe, expect, it } from 'vitest'
 import { PlanLibrary } from './library.ts'
 import { blankPlan } from './persistence.ts'
+import { createEditorStore } from './store.ts'
 import {
+  backgroundRecipe,
   blobToDataUrl,
   calibrate,
+  calibrateRecipe,
   checkImageFile,
   dataUrlToBlob,
   embedImages,
   initialPlacement,
   onImage,
+  removeBackgroundRecipe,
+  replaceBackground,
   storeEmbeddedImages,
 } from './tracing.ts'
 
@@ -121,5 +126,137 @@ describe('embedding', () => {
     const blob = await library.image(stored.imageId!)
     expect([...new Uint8Array(await blob!.arrayBuffer())]).toEqual([7, 8, 9])
     library.close()
+  })
+})
+
+/** A store on a blank plan whose floor has a 200 × 100 px image at 1 cm/px. */
+function tracedStore() {
+  const plan = blankPlan()
+  plan.floors[0]!.background = {
+    imageId: 'first',
+    x: 1,
+    y: 2,
+    metresPerPixel: 0.01,
+    widthPx: 200,
+    heightPx: 100,
+    opacity: 0.5,
+    visible: true,
+    locked: false,
+  }
+  const store = createEditorStore(plan)
+  const floorId = plan.floors[0]!.id
+  const background = () => store.getState().plan.floors[0]!.background
+  return { store, floorId, background }
+}
+
+describe('tracing image edits', () => {
+  it('changes opacity, visibility and lock as undoable edits', () => {
+    const { store, floorId, background } = tracedStore()
+    const state = store.getState()
+    state.edit('Hide', backgroundRecipe(floorId, { visible: false }))
+    state.edit('Lock', backgroundRecipe(floorId, { locked: true }))
+    expect(background()).toMatchObject({ visible: false, locked: true })
+    store.getState().undo()
+    expect(background()).toMatchObject({ visible: false, locked: false })
+    store.getState().undo()
+    expect(background()).toMatchObject({ visible: true, locked: false })
+  })
+
+  it('makes one opacity drag a single undo step', () => {
+    const { store, floorId, background } = tracedStore()
+    const state = store.getState()
+    state.beginGesture()
+    for (const opacity of [0.6, 0.7, 0.8]) {
+      state.updateGesture(backgroundRecipe(floorId, { opacity }))
+    }
+    state.endGesture('Change tracing image opacity')
+    expect(background()?.opacity).toBe(0.8)
+    expect(store.getState().past).toHaveLength(1)
+    store.getState().undo()
+    expect(background()?.opacity).toBe(0.5)
+  })
+
+  it('calibrates in one step and locks the image', () => {
+    const { store, floorId, background } = tracedStore()
+    // Points 1 m apart on the image, really 3 m: the scale triples about a.
+    store
+      .getState()
+      .edit(
+        'Calibrate',
+        calibrateRecipe(floorId, { x: 2, y: 2 }, { x: 3, y: 2 }, 3),
+      )
+    expect(background()?.metresPerPixel).toBeCloseTo(0.03, 9)
+    expect(background()?.x).toBeCloseTo(-1, 9) // 1 m left of a becomes 3 m
+    expect(background()?.y).toBeCloseTo(2, 9)
+    expect(background()?.locked).toBe(true)
+    store.getState().undo()
+    expect(background()).toMatchObject({
+      x: 1,
+      metresPerPixel: 0.01,
+      locked: false,
+    })
+  })
+
+  it('removes the image, and undo brings it back', () => {
+    const { store, floorId, background } = tracedStore()
+    store.getState().edit('Remove', removeBackgroundRecipe(floorId))
+    expect(background()).toBeUndefined()
+    store.getState().undo()
+    expect(background()?.imageId).toBe('first')
+  })
+})
+
+describe('replaceBackground', () => {
+  const current: Background = {
+    imageId: 'first',
+    x: 1,
+    y: 2,
+    metresPerPixel: 0.01,
+    widthPx: 200,
+    heightPx: 100,
+    opacity: 0.3,
+    visible: false,
+    locked: true,
+  }
+  const fresh = { x: 5, y: 5, metresPerPixel: 0.02 }
+
+  it('keeps the place and real size of a picture with the same proportions', () => {
+    // Twice the resolution: 400 px must still cover 2 m, so 0.5 cm/px.
+    const result = replaceBackground(
+      current,
+      { imageId: 'second' },
+      { widthPx: 400, heightPx: 200 },
+      fresh,
+    )
+    expect(result.needsCalibration).toBe(false)
+    expect(result.background).toEqual({
+      imageId: 'second',
+      x: 1,
+      y: 2,
+      metresPerPixel: 0.005,
+      widthPx: 400,
+      heightPx: 200,
+      opacity: 0.3,
+      visible: true,
+      locked: true,
+    })
+  })
+
+  it('places a differently shaped picture afresh, unlocked, to calibrate', () => {
+    const result = replaceBackground(
+      current,
+      { imageId: 'second' },
+      { widthPx: 300, heightPx: 300 },
+      fresh,
+    )
+    expect(result.needsCalibration).toBe(true)
+    expect(result.background).toMatchObject({
+      imageId: 'second',
+      ...fresh,
+      opacity: 0.3,
+      visible: true,
+      locked: false,
+    })
+    expect(result.background.dataUrl).toBeUndefined()
   })
 })

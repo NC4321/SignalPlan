@@ -1,6 +1,6 @@
 import { useId, useState } from 'react'
 import { useEditor, useEditorStore } from './context.ts'
-import { calibrate } from './tracing.ts'
+import { calibrateRecipe } from './tracing.ts'
 import { parseLength } from './units.ts'
 
 /**
@@ -30,14 +30,10 @@ export function CalibrationBar() {
       setInvalid(true)
       return
     }
-    const floorId = state.floorId
-    state.edit('Calibrate tracing image', (plan) => {
-      const background = plan.floors.find((f) => f.id === floorId)?.background
-      if (!background) return
-      Object.assign(background, calibrate(background, a, b, metres), {
-        locked: true,
-      })
-    })
+    state.edit(
+      'Calibrate tracing image',
+      calibrateRecipe(state.floorId, a, b, metres),
+    )
     setText('')
     setInvalid(false)
     state.setTool('select')

@@ -1,6 +1,7 @@
 import type { Background, Plan, Point } from '@signalplan/floorplan'
 import type { Camera } from './camera.ts'
 import type { PlanLibrary } from './library.ts'
+import type { Recipe } from './store.ts'
 
 /** Tracing images (D22). */
 export const ACCEPTED_IMAGE_TYPES = ['image/png', 'image/jpeg', 'image/webp']
@@ -148,4 +149,83 @@ export async function storeEmbeddedImages(
     }),
   )
   return { ...plan, floors }
+}
+
+/** The settings of a tracing image that the properties panel changes. */
+export type BackgroundSettings = Partial<
+  Pick<Background, 'opacity' | 'visible' | 'locked'>
+>
+
+/** Changes a floor's tracing image settings, such as its opacity. */
+export function backgroundRecipe(
+  floorId: string,
+  settings: BackgroundSettings,
+): Recipe {
+  return (plan) => {
+    const background = plan.floors.find((f) => f.id === floorId)?.background
+    if (background) Object.assign(background, settings)
+  }
+}
+
+/** Removes a floor's tracing image. Its stored copy is tidied at startup. */
+export function removeBackgroundRecipe(floorId: string): Recipe {
+  return (plan) => {
+    const floor = plan.floors.find((f) => f.id === floorId)
+    if (floor) delete floor.background
+  }
+}
+
+/** Scales the floor's tracing image so `a` and `b` are `realMetres` apart. */
+export function calibrateRecipe(
+  floorId: string,
+  a: Point,
+  b: Point,
+  realMetres: number,
+): Recipe {
+  return (plan) => {
+    const background = plan.floors.find((f) => f.id === floorId)?.background
+    if (!background) return
+    Object.assign(background, calibrate(background, a, b, realMetres), {
+      locked: true,
+    })
+  }
+}
+
+/** Replacements whose proportions differ by less than this keep their place. */
+const SAME_ASPECT_TOLERANCE = 0.01
+
+/**
+ * The tracing image after replacing it with a new picture (D22). One with the
+ * same proportions, such as a re-export at another resolution, covers the same
+ * area, so its scale holds. Otherwise it's placed afresh and needs calibrating.
+ */
+export function replaceBackground(
+  current: Background,
+  source: Pick<Background, 'imageId' | 'dataUrl'>,
+  size: Pick<Background, 'widthPx' | 'heightPx'>,
+  fresh: Pick<Background, 'x' | 'y' | 'metresPerPixel'>,
+): { background: Background; needsCalibration: boolean } {
+  const before = current.widthPx / current.heightPx
+  const after = size.widthPx / size.heightPx
+  const sameAspect = Math.abs(after - before) / before <= SAME_ASPECT_TOLERANCE
+  const settings = { opacity: current.opacity, visible: true }
+  if (sameAspect) {
+    return {
+      background: {
+        ...source,
+        ...size,
+        ...settings,
+        x: current.x,
+        y: current.y,
+        metresPerPixel:
+          (current.metresPerPixel * current.widthPx) / size.widthPx,
+        locked: current.locked,
+      },
+      needsCalibration: false,
+    }
+  }
+  return {
+    background: { ...source, ...size, ...settings, ...fresh, locked: false },
+    needsCalibration: true,
+  }
 }
