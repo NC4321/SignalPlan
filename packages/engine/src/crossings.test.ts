@@ -14,6 +14,7 @@ const LOSS: Record<WallMaterial, number> = {
   brick: 10,
   concrete: 15,
   glass: 2,
+  'low-e-glass': 25,
   wood: 4,
   metal: 30,
 }

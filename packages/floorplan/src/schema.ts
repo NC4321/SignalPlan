@@ -20,6 +20,7 @@ export const WALL_MATERIALS = [
   'brick',
   'concrete',
   'glass',
+  'low-e-glass',
   'wood',
   'metal',
 ] as const
@@ -74,7 +75,10 @@ export const floorSchema = z.object({
 
 export const radioSchema = z.object({
   band: bandSchema,
-  /** Transmit power in dBm. Omitted means the engine's default for the band. */
+  /**
+   * Effective radiated power (EIRP) in dBm, antenna gain included. Omitted
+   * means the engine's default for the band.
+   */
   txPowerDbm: z.number().min(-10).max(40).optional(),
 })
 

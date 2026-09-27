@@ -10,4 +10,6 @@ All notable changes to this project are documented here. The format follows [Kee
 - Free-space path loss function with unit tests.
 - Floor plan schema v1 (`@signalplan/floorplan`) with validation, migrations, a sample home, and a function that splits walls into material segments for the engine.
 - Engine: wall crossings along a straight path and the total wall loss, counting corners and door edges once.
+- Engine: North American band profiles and wall-material losses computed from ITU-R P.2040-4 layered constructions, including low-E glass fitted to published measurements; `docs/MODEL.md`.
+- Floor plan: `low-e-glass` material; radio power is EIRP.
 - CI: typecheck, lint, format check, tests, build, and Cloudflare Pages deploys with pull request previews.
