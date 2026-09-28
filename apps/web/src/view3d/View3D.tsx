@@ -48,6 +48,10 @@ export default function View3D(props: View3DProps) {
   const host = useRef<HTMLDivElement>(null)
   const world = useRef<World>(undefined)
   const [supported] = useState(hasWebGL)
+  // With ?fps in the address, a button measures the frame rate (D58).
+  const [measuring] = useState(() =>
+    new URLSearchParams(window.location.search).has('fps'),
+  )
   const layouts = useMemo(
     () => floorLayouts(plan, hiddenFloors, spreadM),
     [plan, hiddenFloors, spreadM],
@@ -169,7 +173,32 @@ export default function View3D(props: View3DProps) {
           Reset
         </button>
       </div>
+      {measuring && <FrameRate world={world} />}
       <Description {...props} layouts={layouts} />
+    </div>
+  )
+}
+
+/** The ?fps readout: measures rotation frame times on this device (D58). */
+function FrameRate({ world }: { world: React.RefObject<World | undefined> }) {
+  const [result, setResult] = useState<string>()
+  return (
+    <div className="view3d-fps" role="status">
+      <button
+        type="button"
+        onClick={async () => {
+          setResult('Measuring…')
+          const measured = await world.current?.measure()
+          setResult(
+            measured
+              ? `Median ${measured.medianMs.toFixed(1)} ms (${(1000 / measured.medianMs).toFixed(0)} fps), 95th percentile ${measured.p95Ms.toFixed(1)} ms`
+              : 'Nothing to measure',
+          )
+        }}
+      >
+        Measure frame rate
+      </button>
+      {result && <span>{result}</span>}
     </div>
   )
 }
@@ -234,6 +263,11 @@ interface World {
   frame(bounds: Bounds): void
   orbit(azimuth: number, polar: number): void
   zoom(factor: number): void
+  /**
+   * Rotates a step on each of 180 animation frames and returns the median
+   * and 95th percentile time between frames, in ms (D58).
+   */
+  measure(): Promise<{ medianMs: number; p95Ms: number }>
   dispose(): void
 }
 
@@ -361,6 +395,19 @@ function createWorld(element: HTMLDivElement): World {
         .add(offset.setFromSpherical(spherical))
       controls.update()
       render()
+    },
+    async measure() {
+      const gaps: number[] = []
+      let last = performance.now()
+      for (let i = 0; i < 180; i++) {
+        await new Promise((resolve) => requestAnimationFrame(resolve))
+        const now = performance.now()
+        gaps.push(now - last)
+        last = now
+        this.orbit(Math.PI / 90, 0)
+      }
+      gaps.sort((a, b) => a - b)
+      return { medianMs: gaps[90]!, p95Ms: gaps[171]! }
     },
     zoom(factor) {
       const offset = camera.position.clone().sub(controls.target)

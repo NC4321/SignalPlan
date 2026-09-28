@@ -1,0 +1,755 @@
+{
+  "schemaVersion": 1,
+  "name": "Two-storey sample home",
+  "floors": [
+    {
+      "id": "main",
+      "name": "Main floor",
+      "elevationM": 0,
+      "heightM": 2.4,
+      "nodes": [
+        {
+          "id": "n1",
+          "x": 0,
+          "y": 0
+        },
+        {
+          "id": "n2",
+          "x": 5,
+          "y": 0
+        },
+        {
+          "id": "n3",
+          "x": 11,
+          "y": 0
+        },
+        {
+          "id": "n4",
+          "x": 15,
+          "y": 0
+        },
+        {
+          "id": "n5",
+          "x": 15,
+          "y": 4
+        },
+        {
+          "id": "n6",
+          "x": 15,
+          "y": 7
+        },
+        {
+          "id": "n7",
+          "x": 15,
+          "y": 10
+        },
+        {
+          "id": "n8",
+          "x": 11,
+          "y": 10
+        },
+        {
+          "id": "n9",
+          "x": 5,
+          "y": 10
+        },
+        {
+          "id": "n10",
+          "x": 0,
+          "y": 10
+        },
+        {
+          "id": "n11",
+          "x": 0,
+          "y": 6
+        },
+        {
+          "id": "n12",
+          "x": 0,
+          "y": 4
+        },
+        {
+          "id": "n13",
+          "x": 5,
+          "y": 4
+        },
+        {
+          "id": "n14",
+          "x": 5,
+          "y": 6
+        },
+        {
+          "id": "n15",
+          "x": 11,
+          "y": 4
+        },
+        {
+          "id": "n16",
+          "x": 11,
+          "y": 7
+        }
+      ],
+      "walls": [
+        {
+          "id": "ext-top-bed1",
+          "from": "n1",
+          "to": "n2",
+          "material": "brick"
+        },
+        {
+          "id": "ext-top-living",
+          "from": "n2",
+          "to": "n3",
+          "material": "brick"
+        },
+        {
+          "id": "ext-top-office",
+          "from": "n3",
+          "to": "n4",
+          "material": "brick"
+        },
+        {
+          "id": "ext-right-office",
+          "from": "n4",
+          "to": "n5",
+          "material": "brick"
+        },
+        {
+          "id": "ext-right-utility",
+          "from": "n5",
+          "to": "n6",
+          "material": "brick"
+        },
+        {
+          "id": "ext-right-primary",
+          "from": "n6",
+          "to": "n7",
+          "material": "brick"
+        },
+        {
+          "id": "ext-bottom-primary",
+          "from": "n7",
+          "to": "n8",
+          "material": "brick"
+        },
+        {
+          "id": "ext-bottom-kitchen",
+          "from": "n8",
+          "to": "n9",
+          "material": "brick"
+        },
+        {
+          "id": "ext-bottom-bed2",
+          "from": "n9",
+          "to": "n10",
+          "material": "brick"
+        },
+        {
+          "id": "ext-left-bed2",
+          "from": "n10",
+          "to": "n11",
+          "material": "brick"
+        },
+        {
+          "id": "ext-left-bath",
+          "from": "n11",
+          "to": "n12",
+          "material": "brick"
+        },
+        {
+          "id": "ext-left-bed1",
+          "from": "n12",
+          "to": "n1",
+          "material": "brick"
+        },
+        {
+          "id": "living-bed1",
+          "from": "n2",
+          "to": "n13",
+          "material": "drywall"
+        },
+        {
+          "id": "living-bath",
+          "from": "n13",
+          "to": "n14",
+          "material": "drywall"
+        },
+        {
+          "id": "living-bed2",
+          "from": "n14",
+          "to": "n9",
+          "material": "drywall"
+        },
+        {
+          "id": "bed1-bath",
+          "from": "n12",
+          "to": "n13",
+          "material": "drywall"
+        },
+        {
+          "id": "bath-bed2",
+          "from": "n11",
+          "to": "n14",
+          "material": "drywall"
+        },
+        {
+          "id": "living-office",
+          "from": "n3",
+          "to": "n15",
+          "material": "drywall"
+        },
+        {
+          "id": "living-utility",
+          "from": "n15",
+          "to": "n16",
+          "material": "concrete"
+        },
+        {
+          "id": "kitchen-primary",
+          "from": "n16",
+          "to": "n8",
+          "material": "drywall"
+        },
+        {
+          "id": "office-utility",
+          "from": "n15",
+          "to": "n5",
+          "material": "concrete"
+        },
+        {
+          "id": "utility-primary",
+          "from": "n16",
+          "to": "n6",
+          "material": "concrete"
+        }
+      ],
+      "openings": [
+        {
+          "id": "front-door",
+          "wallId": "ext-top-living",
+          "kind": "door",
+          "offsetM": 1.5,
+          "widthM": 0.9,
+          "material": "wood"
+        },
+        {
+          "id": "living-window",
+          "wallId": "ext-top-living",
+          "kind": "window",
+          "offsetM": 3.5,
+          "widthM": 2,
+          "material": "low-e-glass"
+        },
+        {
+          "id": "bed1-window",
+          "wallId": "ext-top-bed1",
+          "kind": "window",
+          "offsetM": 1.5,
+          "widthM": 1.5,
+          "material": "low-e-glass"
+        },
+        {
+          "id": "office-window",
+          "wallId": "ext-top-office",
+          "kind": "window",
+          "offsetM": 1.2,
+          "widthM": 1.5,
+          "material": "low-e-glass"
+        },
+        {
+          "id": "office-side-window",
+          "wallId": "ext-right-office",
+          "kind": "window",
+          "offsetM": 1.2,
+          "widthM": 1.5,
+          "material": "low-e-glass"
+        },
+        {
+          "id": "primary-side-window",
+          "wallId": "ext-right-primary",
+          "kind": "window",
+          "offsetM": 0.8,
+          "widthM": 1.4,
+          "material": "low-e-glass"
+        },
+        {
+          "id": "primary-window",
+          "wallId": "ext-bottom-primary",
+          "kind": "window",
+          "offsetM": 1.2,
+          "widthM": 1.5,
+          "material": "low-e-glass"
+        },
+        {
+          "id": "kitchen-window",
+          "wallId": "ext-bottom-kitchen",
+          "kind": "window",
+          "offsetM": 1,
+          "widthM": 1.8,
+          "material": "low-e-glass"
+        },
+        {
+          "id": "patio-door",
+          "wallId": "ext-bottom-kitchen",
+          "kind": "door",
+          "offsetM": 3.6,
+          "widthM": 1.6,
+          "material": "low-e-glass"
+        },
+        {
+          "id": "bed2-window",
+          "wallId": "ext-bottom-bed2",
+          "kind": "window",
+          "offsetM": 1.5,
+          "widthM": 1.5,
+          "material": "low-e-glass"
+        },
+        {
+          "id": "bath-window",
+          "wallId": "ext-left-bath",
+          "kind": "window",
+          "offsetM": 0.7,
+          "widthM": 0.6,
+          "material": "low-e-glass"
+        },
+        {
+          "id": "bed1-door",
+          "wallId": "living-bed1",
+          "kind": "door",
+          "offsetM": 2.9,
+          "widthM": 0.8,
+          "material": "wood"
+        },
+        {
+          "id": "bath-door",
+          "wallId": "living-bath",
+          "kind": "door",
+          "offsetM": 0.6,
+          "widthM": 0.8,
+          "material": "wood"
+        },
+        {
+          "id": "bed2-door",
+          "wallId": "living-bed2",
+          "kind": "door",
+          "offsetM": 0.3,
+          "widthM": 0.8,
+          "material": "wood"
+        },
+        {
+          "id": "office-door",
+          "wallId": "living-office",
+          "kind": "door",
+          "offsetM": 2.9,
+          "widthM": 0.8,
+          "material": "wood"
+        },
+        {
+          "id": "utility-door",
+          "wallId": "living-utility",
+          "kind": "door",
+          "offsetM": 1,
+          "widthM": 0.9,
+          "material": "metal"
+        },
+        {
+          "id": "primary-door",
+          "wallId": "kitchen-primary",
+          "kind": "door",
+          "offsetM": 0.3,
+          "widthM": 0.8,
+          "material": "wood"
+        }
+      ]
+    },
+    {
+      "id": "up",
+      "name": "Upstairs",
+      "elevationM": 2.666,
+      "heightM": 2.4,
+      "material": "timber-joist",
+      "nodes": [
+        {
+          "id": "u1",
+          "x": 0,
+          "y": 0
+        },
+        {
+          "id": "u2",
+          "x": 5,
+          "y": 0
+        },
+        {
+          "id": "u3",
+          "x": 8,
+          "y": 0
+        },
+        {
+          "id": "u4",
+          "x": 11,
+          "y": 0
+        },
+        {
+          "id": "u5",
+          "x": 15,
+          "y": 0
+        },
+        {
+          "id": "u6",
+          "x": 15,
+          "y": 6
+        },
+        {
+          "id": "u7",
+          "x": 15,
+          "y": 10
+        },
+        {
+          "id": "u8",
+          "x": 11,
+          "y": 10
+        },
+        {
+          "id": "u9",
+          "x": 5,
+          "y": 10
+        },
+        {
+          "id": "u10",
+          "x": 0,
+          "y": 10
+        },
+        {
+          "id": "u11",
+          "x": 0,
+          "y": 5
+        },
+        {
+          "id": "u12",
+          "x": 5,
+          "y": 3
+        },
+        {
+          "id": "u13",
+          "x": 5,
+          "y": 5
+        },
+        {
+          "id": "u14",
+          "x": 8,
+          "y": 3
+        },
+        {
+          "id": "u15",
+          "x": 11,
+          "y": 3
+        },
+        {
+          "id": "u16",
+          "x": 11,
+          "y": 6
+        }
+      ],
+      "walls": [
+        {
+          "id": "ext-top-bed-a",
+          "from": "u1",
+          "to": "u2",
+          "material": "brick"
+        },
+        {
+          "id": "ext-top-bath",
+          "from": "u2",
+          "to": "u3",
+          "material": "brick"
+        },
+        {
+          "id": "ext-top-laundry",
+          "from": "u3",
+          "to": "u4",
+          "material": "brick"
+        },
+        {
+          "id": "ext-top-primary",
+          "from": "u4",
+          "to": "u5",
+          "material": "brick"
+        },
+        {
+          "id": "ext-right-primary",
+          "from": "u5",
+          "to": "u6",
+          "material": "brick"
+        },
+        {
+          "id": "ext-right-ensuite",
+          "from": "u6",
+          "to": "u7",
+          "material": "brick"
+        },
+        {
+          "id": "ext-bottom-ensuite",
+          "from": "u7",
+          "to": "u8",
+          "material": "brick"
+        },
+        {
+          "id": "ext-bottom-landing",
+          "from": "u8",
+          "to": "u9",
+          "material": "brick"
+        },
+        {
+          "id": "ext-bottom-bed-b",
+          "from": "u9",
+          "to": "u10",
+          "material": "brick"
+        },
+        {
+          "id": "ext-left-bed-b",
+          "from": "u10",
+          "to": "u11",
+          "material": "brick"
+        },
+        {
+          "id": "ext-left-bed-a",
+          "from": "u11",
+          "to": "u1",
+          "material": "brick"
+        },
+        {
+          "id": "bed-a-landing",
+          "from": "u12",
+          "to": "u13",
+          "material": "drywall"
+        },
+        {
+          "id": "bed-a-bath",
+          "from": "u2",
+          "to": "u12",
+          "material": "drywall"
+        },
+        {
+          "id": "bed-b-landing",
+          "from": "u13",
+          "to": "u9",
+          "material": "drywall"
+        },
+        {
+          "id": "bed-a-bed-b",
+          "from": "u11",
+          "to": "u13",
+          "material": "drywall"
+        },
+        {
+          "id": "bath-landing",
+          "from": "u12",
+          "to": "u14",
+          "material": "drywall"
+        },
+        {
+          "id": "laundry-landing",
+          "from": "u14",
+          "to": "u15",
+          "material": "drywall"
+        },
+        {
+          "id": "bath-laundry",
+          "from": "u3",
+          "to": "u14",
+          "material": "drywall"
+        },
+        {
+          "id": "primary-laundry",
+          "from": "u4",
+          "to": "u15",
+          "material": "drywall"
+        },
+        {
+          "id": "primary-landing",
+          "from": "u15",
+          "to": "u16",
+          "material": "drywall"
+        },
+        {
+          "id": "ensuite-landing",
+          "from": "u16",
+          "to": "u8",
+          "material": "drywall"
+        },
+        {
+          "id": "primary-ensuite",
+          "from": "u16",
+          "to": "u6",
+          "material": "drywall"
+        }
+      ],
+      "openings": [
+        {
+          "id": "bed-a-window",
+          "wallId": "ext-top-bed-a",
+          "kind": "window",
+          "offsetM": 1.5,
+          "widthM": 1.5,
+          "material": "low-e-glass"
+        },
+        {
+          "id": "bath-window",
+          "wallId": "ext-top-bath",
+          "kind": "window",
+          "offsetM": 1.2,
+          "widthM": 0.6,
+          "material": "low-e-glass"
+        },
+        {
+          "id": "laundry-window",
+          "wallId": "ext-top-laundry",
+          "kind": "window",
+          "offsetM": 1.2,
+          "widthM": 0.6,
+          "material": "low-e-glass"
+        },
+        {
+          "id": "primary-window",
+          "wallId": "ext-top-primary",
+          "kind": "window",
+          "offsetM": 1.2,
+          "widthM": 1.5,
+          "material": "low-e-glass"
+        },
+        {
+          "id": "primary-side-window",
+          "wallId": "ext-right-primary",
+          "kind": "window",
+          "offsetM": 2,
+          "widthM": 1.5,
+          "material": "low-e-glass"
+        },
+        {
+          "id": "ensuite-window",
+          "wallId": "ext-right-ensuite",
+          "kind": "window",
+          "offsetM": 1.5,
+          "widthM": 0.6,
+          "material": "low-e-glass"
+        },
+        {
+          "id": "landing-window",
+          "wallId": "ext-bottom-landing",
+          "kind": "window",
+          "offsetM": 2.5,
+          "widthM": 1.2,
+          "material": "low-e-glass"
+        },
+        {
+          "id": "bed-b-window",
+          "wallId": "ext-bottom-bed-b",
+          "kind": "window",
+          "offsetM": 1.5,
+          "widthM": 1.5,
+          "material": "low-e-glass"
+        },
+        {
+          "id": "bed-a-side-window",
+          "wallId": "ext-left-bed-a",
+          "kind": "window",
+          "offsetM": 1.5,
+          "widthM": 1.2,
+          "material": "low-e-glass"
+        },
+        {
+          "id": "bed-a-door",
+          "wallId": "bed-a-landing",
+          "kind": "door",
+          "offsetM": 0.6,
+          "widthM": 0.8,
+          "material": "wood"
+        },
+        {
+          "id": "bed-b-door",
+          "wallId": "bed-b-landing",
+          "kind": "door",
+          "offsetM": 0.4,
+          "widthM": 0.8,
+          "material": "wood"
+        },
+        {
+          "id": "bath-door",
+          "wallId": "bath-landing",
+          "kind": "door",
+          "offsetM": 1.1,
+          "widthM": 0.8,
+          "material": "wood"
+        },
+        {
+          "id": "laundry-door",
+          "wallId": "laundry-landing",
+          "kind": "door",
+          "offsetM": 1.1,
+          "widthM": 0.8,
+          "material": "wood"
+        },
+        {
+          "id": "primary-door",
+          "wallId": "primary-landing",
+          "kind": "door",
+          "offsetM": 1.1,
+          "widthM": 0.8,
+          "material": "wood"
+        },
+        {
+          "id": "ensuite-door",
+          "wallId": "primary-ensuite",
+          "kind": "door",
+          "offsetM": 1.6,
+          "widthM": 0.8,
+          "material": "wood"
+        }
+      ],
+      "floorOpenings": [
+        {
+          "id": "stairs",
+          "points": [
+            {
+              "x": 5.1,
+              "y": 6.5
+            },
+            {
+              "x": 6.1,
+              "y": 6.5
+            },
+            {
+              "x": 6.1,
+              "y": 9.5
+            },
+            {
+              "x": 5.1,
+              "y": 9.5
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "accessPoints": [
+    {
+      "id": "router",
+      "name": "Wi-Fi 6E router",
+      "floorId": "main",
+      "x": 5.6,
+      "y": 1.2,
+      "heightM": 1,
+      "radios": [
+        {
+          "band": "2.4GHz"
+        },
+        {
+          "band": "5GHz"
+        },
+        {
+          "band": "6GHz"
+        }
+      ]
+    }
+  ]
+}

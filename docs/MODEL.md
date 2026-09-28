@@ -193,7 +193,7 @@ Loss per floor crossing (dB), at normal incidence:
 
 A floor that doesn't say what it's made of is taken as `timber-joist` (D50).
 
-**Against ITU-R P.1238-13.** The concrete slab is tested against the head-on measurement above, within 3 dB (2σ). P.1238-13 Table 5 also gives floor penetration loss factors for its site-general model: 5 dB (house) and 10 dB (apartment) at 2.4 GHz, and 7 dB (house) and 13 dB (apartment) at 5.2 GHz. These are fitted together with that model's distance coefficient and include everything else between floors, so they aren't a head-on slab loss and aren't tested. The timber floor is 2–4 dB below the house values; since those aren't head-on slab losses, the gap isn't tested, and a measured timber floor would be the first thing to add. The apartment values are below the slab's head-on loss, as expected when signals also find paths around a floor.
+**Against ITU-R P.1238-13.** The concrete slab is tested against the head-on measurement above, within 3 dB (2σ). P.1238-13 Table 5 also gives floor penetration loss factors, L_f: 5 dB (house) and 10 dB (apartment) at 2.4 GHz, and 7 dB (house, "wooden mortar") and 13 dB (apartment, per concrete wall) at 5.2 GHz. They belong to its eq. (2), L_total = L(d₀) + N·log10(d/d₀) + L_f(n), whose distance coefficients N (Table 4) aren't given at 2.4 or 5 GHz, not to the site-general eq. (1), which is for both ends on one floor. (This section said until D58 that they belonged to the site-general model; that was wrong.) They are empirical factors that include everything else between floors, so they aren't a head-on slab loss and aren't tested as one; the exit gate below compares with them another way. The timber floor is 2–4 dB below the house values; since those aren't head-on slab losses, the gap isn't tested, and a measured timber floor would be the first thing to add. The apartment values are below the slab's head-on loss, as expected when signals also find paths around a floor.
 
 ## Signal between floors
 
@@ -204,6 +204,28 @@ Walls count along the part of the path inside each storey, between that floor's 
 Every slab covers the whole plan, including outside the upper floor's walls, where the lower floor's roof or ceiling would be; roofs aren't modelled otherwise.
 
 **Stairwells and atriums (D54).** A floor can have openings: polygons cut out of its slab. A path skips a slab's loss if it passes through one of that slab's openings at the slab's middle height, halfway between the ceiling below and the floor's surface. So a phone straight above the router, over a stairwell, gets only the 3D distance, while a phone beside the stairwell pays the slab if the path meets the slab outside the opening. The path is still one straight line: signal doesn't bend round the edge of the opening, and a path that clips the slab near an edge counts as fully in or fully out. Walls on each floor count along their stretch as before, so a stairwell's own walls still cost what they're made of. An opening belongs to the floor it's cut from, the upper of the two, and only that slab is spared: a path to the floor above it still pays that floor's slab, unless that floor has an opening there too. Openings on the lowest floor change no signal, since its slab is never crossed; they only leave their area out of the floor's.
+
+### Floors and their limits
+
+Floors are flat and stacked (D49): each has one elevation and one floor-to-ceiling height, basements included (negative elevation). These aren't supported:
+
+- **Split levels and sloped ceilings.** A half-storey has to be drawn as a floor of its own at its own elevation, and a room under a sloping roof as if its ceiling were flat at the given height.
+- **Partial slabs.** Every slab covers the whole plan (D51), so outside a smaller upper floor, where a real house has a roof or open air, the path still pays a slab. Stairwells and atriums are the only holes (D54).
+- **Head-on slab loss.** A slab costs its loss at normal incidence however steep the path (D49, D50), as walls do (D30). Near the vertical that's right; for shallow paths it is optimistic, since loss through a slab grows with the angle.
+- **Paths around the floor.** Signal that leaves through a window and comes back in upstairs, or leaks round the slab's edge or down a stairwell at an angle, isn't modelled; P.1238-13 notes that such outside paths limit how much isolation floors give.
+- **Timber floor vs P.1238's house factor.** The timber joist floor loses 2.5 / 2.7 dB at 2.4 / 5 GHz (D50), against P.1238-13's empirical house factors of 5 / 7 dB, which include everything between two floors of a real house. Upstairs predictions are therefore somewhat optimistic; the exit gate below measures by how much.
+
+**Exit gate (D58).** `two-storey-home.json` is the sample bungalow with a 150 m² upper floor over a timber joist floor at 2.666 m (its 2.4 m ceiling plus the 0.266 m floor): two bedrooms, a bathroom, a laundry, a landing with a 1 × 3 m stairwell and a primary bedroom with an ensuite, in drywall inside brick outer walls with low-E windows. The router stays downstairs by the front door, 1 m up. `m3Gate.test.ts` checks two things:
+
+- **Coverage.** The router reaches Fair on at least 85% of each floor on 2.4 GHz. It reaches 93.4% of the main floor and 100% of the upper floor (86.9% and 100% on 5 GHz).
+- **Against P.1238-13.** P.1238-13 has no single model for a house across floors at these frequencies (see [Floor materials](#floor-materials)), so the reference combines two parts of it: eq. (1) with Table 2's office NLoS coefficients (α 2.39, β 30.13, γ 2.40, σ 5.01 dB), plus Table 5's house factor on the upper floor (5 dB at 2.4 GHz, 7 dB at 5.2 GHz, evaluated at 2.4 and 5.2 GHz). Over the cells of each floor 4–30 m from the router (Table 2's distance range), the median gap between this model's path loss and the reference must be within 2σ, 10 dB:
+
+| Band    | Main floor | Upper floor |
+| ------- | ---------- | ----------- |
+| 2.4 GHz | +0.7 dB    | −2.3 dB     |
+| 5 GHz   | −0.8 dB    | −5.5 dB     |
+
+A negative gap means this model predicts less loss than the reference. On the main floor it agrees within 1 dB. Upstairs it is optimistic: on 5 GHz by 5.5 dB, just past 1σ, of which 4.3 dB is the timber floor against the house factor and the rest steep paths crossing fewer walls upstairs. That is also why the upper floor gets 100% at Fair on 5 GHz, more than the floor the router is on. The test also records these four gaps, so a change to them shows up in review.
 
 Two consequences follow from the geometry. Adding floors between, or making a storey taller, never raises the signal on a plan with no walls (a property test checks this), since the path only gets longer and crosses more slabs. With walls it can: a steeper path spends less of its length in each storey and may pass fewer walls there. And the loss is the same in both directions (property tested).
 
@@ -330,7 +352,7 @@ A unit test keeps the Muqaibel door and glass within 1 dB in all three bands, ch
 
 ### Against the ITU-R P.1238-13 indoor model
 
-Recommendation ITU-R P.1238-13 gives an empirical site-general model for indoor path loss: L_b = 10α·log10(d) + β + 10γ·log10(f), with d in metres and f in GHz (eq. 1). It no longer publishes separate residential coefficients and advises using office values for homes. The office, no-line-of-sight coefficients (Table 2: α = 2.39, β = 30.13, γ = 2.40, σ = 5.01 dB) fold typical walls and clutter into the distance term.
+Recommendation ITU-R P.1238-13 gives an empirical site-general model for indoor path loss: L_b = 10α·log10(d) + β + 10γ·log10(f), with d in metres and f in GHz (eq. 1). Table 2 gives coefficients for offices, corridors, industrial sites and conference rooms, none for homes; for the power loss coefficient of its other form, eq. (2), it says office values could be used where residential ones aren't given. (Until D58 this section said P.1238 advises office values for homes in eq. (1); it only says so for eq. (2).) Office is the closest environment with walled rooms, and its no-line-of-sight coefficients (Table 2: α = 2.39, β = 30.13, γ = 2.40, σ = 5.01 dB) fold typical walls and clutter into the distance term.
 
 Path loss in dB (lower is stronger), comparing that median with this model's free-space term plus one or two `drywall` walls:
 
