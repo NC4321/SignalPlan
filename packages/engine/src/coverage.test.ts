@@ -210,18 +210,7 @@ describe('evaluateCoverage', () => {
     )
   })
 
-  it('computes a 100 m² floor at 10 cm in under 200 ms', () => {
-    const result = parsePlan(sampleHome)
-    if (!result.ok) throw new Error('fixture is invalid')
-    // The sample home is 150 m²; with the 1 m margin the grid covers 204 m².
-    evaluateCoverage(result.plan, 'main', '5GHz') // warm up
-    const started = Date.now()
-    const coverage = evaluateCoverage(result.plan, 'main', '5GHz')
-    const elapsed = Date.now() - started
-    const areaM2 = coverage.grid.cols * coverage.grid.rows * 0.01
-    expect(areaM2).toBeGreaterThanOrEqual(100)
-    expect(elapsed).toBeLessThan(200)
-  })
+  // Speed against the 200 ms budget is checked in coverage.speed.ts.
 })
 
 describe('worker protocol', () => {
