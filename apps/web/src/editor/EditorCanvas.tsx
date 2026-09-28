@@ -123,11 +123,13 @@ export function EditorCanvas({ coverage }: { coverage: Coverage | undefined }) {
   const calibrationPoints = useEditor((s) => s.calibrationPoints)
   const pointer = useEditor((s) => s.pointer)
   const optimizer = useEditor((s) => s.optimizer)
+  // A suggestion covers the whole home (D55): this floor shows its own spots.
   const suggestion =
-    optimizer?.status === 'suggestion' &&
-    optimizer.suggestion.floorId === floorId
-      ? optimizer.suggestion
-      : undefined
+    optimizer?.status === 'suggestion' ? optimizer.suggestion : undefined
+  const suggestedHere = useMemo(
+    () => suggestion?.moves.filter((move) => move.to.floorId === floorId),
+    [suggestion, floorId],
+  )
   const { library } = useServices()
   const anchor =
     tool === 'floorOpening' ? outline?.at(-1) : chain?.at(-1)?.point
@@ -319,7 +321,7 @@ export function EditorCanvas({ coverage }: { coverage: Coverage | undefined }) {
       // No ghost while over (or dragging) an existing access point.
       accessPointPreview:
         tool === 'accessPoint' && cursor === 'default' ? pointer : undefined,
-      suggestions: suggestion?.moves.map((move) => ({
+      suggestions: suggestedHere?.map((move) => ({
         apId: move.apId,
         from: move.from,
         to: move.to,
@@ -358,7 +360,7 @@ export function EditorCanvas({ coverage }: { coverage: Coverage | undefined }) {
     preview,
     anchor,
     wallMaterial,
-    suggestion,
+    suggestedHere,
     ghostScene,
   ])
 

@@ -1,4 +1,3 @@
-import type { Point } from '@signalplan/floorplan'
 import {
   betterScore,
   candidatePositions,
@@ -6,6 +5,7 @@ import {
   type PlacementProblem,
   type PlacementScore,
   type Scorer,
+  type Spot,
 } from './placement.ts'
 import { DEFAULT_CELL_M } from './coverage.ts'
 
@@ -26,15 +26,43 @@ export interface SearchOptions {
   now?: () => number
 }
 
+/** One floor's share at the target before and after (D55). */
+export interface FloorShare {
+  floorId: string
+  /** Undefined when there was no "before" layout to score. */
+  before: number | undefined
+  share: number
+}
+
+/** Each scored floor's share before and after, on the fine scorer. */
+export function floorShares(
+  fine: Scorer,
+  after: readonly Float32Array[],
+  before: readonly Float32Array[] | undefined,
+): FloorShare[] {
+  const shares = fine.floorShares(after)
+  const was = before && fine.floorShares(before)
+  return fine.floors.map(({ floorId }, i) => ({
+    floorId,
+    before: was?.[i],
+    share: shares[i]!,
+  }))
+}
+
 export type SearchResult =
   | {
       kind: 'found'
       /** Where the access point should go. */
-      position: Point
-      /** Share of the floor at the target with it there, on 10 cm cells. */
+      position: Spot
+      /**
+       * Share of the home's floor area at the target with it there, on
+       * 10 cm cells (D55).
+       */
       share: number
       /** The weakest signal inside the walls with it there, in dBm. */
       weakestDbm: number
+      /** The same share for each floor with floor area, from the lowest up. */
+      floors: FloorShare[]
       /** The same share with it at `problem.current`, if given. */
       before: number | undefined
       /** The weakest signal with it at `problem.current`, if given. */
@@ -46,8 +74,11 @@ export type SearchResult =
   | { kind: 'no-radio' }
 
 export interface SinglePlacementProblem extends PlacementProblem {
-  /** Where the access point being placed is now, for the before figure. */
-  current?: Point
+  /**
+   * Where the access point being placed is now, for the before figure. It
+   * stays on this floor (D55); without it, a new one may go on any floor.
+   */
+  current?: Spot
 }
 
 /**
@@ -74,7 +105,10 @@ export function searchSinglePlacement(
     return stoppedEarly
   }
 
-  const candidates = candidatePositions(coarse)
+  const floorId = problem.current?.floorId
+  const candidates = candidatePositions(coarse).filter(
+    (at) => floorId === undefined || at.floorId === floorId,
+  )
   // Rough work units: each lattice point, each refinement, the final check.
   const refineWork = REFINE_COUNT * REFINE_STEPS_M.length * 8
   const total = candidates.length + refineWork + REFINE_COUNT
@@ -118,21 +152,21 @@ export function searchSinglePlacement(
   options.onProgress?.(1)
 
   if (!winner) return { kind: 'no-floor-area' }
-  const before = problem.current
-    ? fine.score([fine.signal(problem.current)])
-    : undefined
+  const was = problem.current ? [fine.signal(problem.current)] : undefined
+  const before = was && fine.score(was)
   return {
     kind: 'found',
     position: winner.at,
     share: winner.share,
     weakestDbm: winner.weakestDbm,
+    floors: floorShares(fine, [fine.signal(winner.at)], was),
     before: before?.share,
     beforeWeakestDbm: before?.weakestDbm,
     stoppedEarly,
   }
 }
 
-type Scored = PlacementScore & { at: Point }
+type Scored = PlacementScore & { at: Spot }
 
 const DIRECTIONS = [
   [1, 0],
@@ -163,6 +197,7 @@ function patternSearch(
       const at = {
         x: round(best.at.x + dx * step),
         y: round(best.at.y + dy * step),
+        floorId: best.at.floorId,
       }
       if (!scorer.allows(at)) continue
       const score = { at, ...scorer.score([scorer.signal(at)]) }

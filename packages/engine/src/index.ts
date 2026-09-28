@@ -38,7 +38,9 @@ export {
   type AccessPointTemplate,
   type PlacementProblem,
   type PlacementScore,
+  type ScoredFloor,
   type Scorer,
+  type Spot,
 } from './placement.ts'
 export {
   FITTED_MATERIALS,
@@ -68,7 +70,9 @@ export {
   REFINE_COUNT,
   REFINE_STEPS_M,
   SEARCH_BUDGET_MS,
+  floorShares,
   searchSinglePlacement,
+  type FloorShare,
   type SearchOptions,
   type SearchResult,
   type SinglePlacementProblem,

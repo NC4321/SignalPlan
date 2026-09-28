@@ -24,7 +24,6 @@ function problem(
       floors: [floor],
       accessPoints: fixed,
     } as Plan,
-    floorId: 'f',
     band: '5GHz',
     minDbm,
     fixed,
@@ -74,7 +73,7 @@ describe('searchSinglePlacement', () => {
     const result = searchSinglePlacement(p)
     if (result.kind !== 'found') throw new Error(result.kind)
     const fine = createScorer({ ...p, cellM: 0.1 })!
-    const there = fine.score([fine.signal({ x: 1, y: 1 })])
+    const there = fine.score([fine.signal({ x: 1, y: 1, floorId: 'f' })])
     expect(result.before).toBe(there.share)
     expect(result.beforeWeakestDbm).toBe(there.weakestDbm)
     expect(result.before).toBeLessThan(result.share)
@@ -124,7 +123,6 @@ describe('searchSinglePlacement', () => {
       const router = plan.accessPoints[0]!
       const p: SinglePlacementProblem = {
         plan,
-        floorId: floor.id,
         band: '5GHz',
         minDbm: -67,
         fixed: [],
@@ -136,6 +134,7 @@ describe('searchSinglePlacement', () => {
       const centre = {
         x: (Math.min(...xs) + Math.max(...xs)) / 2,
         y: (Math.min(...ys) + Math.max(...ys)) / 2,
+        floorId: floor.id,
       }
       const found = searchSinglePlacement(
         { ...p, current: centre },
@@ -162,14 +161,19 @@ describe('handlePlacementRequest', () => {
     expect(last.kind).toBe('result')
   })
 
-  it('posts an error for a floor that is not there', () => {
+  it('posts an error when the search throws', () => {
     const messages: PlacementMessage[] = []
-    const p = { ...problem(room(3, 3), -67), floorId: 'missing' }
-    handlePlacementRequest({ id: 1, kind: 'place-one', problem: p }, (m) =>
+    const p = problem(room(3, 3), -67)
+    // A plan that never passed validation: it has no floors list.
+    const broken = {
+      ...p,
+      plan: { ...p.plan, floors: null } as unknown as typeof p.plan,
+    }
+    handlePlacementRequest({ id: 1, kind: 'place-one', problem: broken }, (m) =>
       messages.push(m),
     )
     expect(messages).toEqual([
-      { id: 1, kind: 'error', message: 'No floor with id "missing".' },
+      expect.objectContaining({ id: 1, kind: 'error' }),
     ])
   })
 })

@@ -1033,3 +1033,7 @@ button.danger-fill {
     min-width: 0;
   }
 }
+
+.floor-suggested {
+  color: var(--accent);
+}

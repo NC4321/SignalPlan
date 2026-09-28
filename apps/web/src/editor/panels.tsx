@@ -64,7 +64,9 @@ import {
   COVERAGE_GOALS,
   goalText,
   planSearch,
+  suggestionFloorLines,
   suggestionSummary,
+  areaWord,
   type CoverageGoal,
 } from './optimizer.ts'
 import { useOptimizer } from './optimizerContext.ts'
@@ -507,21 +509,36 @@ function OptimizerSection() {
       </>
     )
   } else if (state?.status === 'suggestion') {
-    statusText = suggestionSummary(state.suggestion, plan.coverageTarget, units)
+    statusText = suggestionSummary(
+      state.suggestion,
+      plan.coverageTarget,
+      units,
+      plan,
+    )
+    const floorLines = suggestionFloorLines(state.suggestion, plan)
     body = (
-      <div className="actions">
-        <button
-          ref={primary}
-          type="button"
-          className="primary"
-          onClick={() => store.getState().applySuggestion()}
-        >
-          Apply
-        </button>
-        <button type="button" onClick={() => optimizer.cancel()}>
-          Dismiss
-        </button>
-      </div>
+      <>
+        {floorLines.length > 0 && (
+          <ul className="hint floor-shares" aria-label="By floor">
+            {floorLines.map((line) => (
+              <li key={line}>{line}</li>
+            ))}
+          </ul>
+        )}
+        <div className="actions">
+          <button
+            ref={primary}
+            type="button"
+            className="primary"
+            onClick={() => store.getState().applySuggestion()}
+          >
+            Apply
+          </button>
+          <button type="button" onClick={() => optimizer.cancel()}>
+            Dismiss
+          </button>
+        </div>
+      </>
     )
   } else {
     if (state?.status === 'message') statusText = state.text
@@ -565,7 +582,7 @@ function OptimizerSection() {
               >
                 {COVERAGE_GOALS.map((g) => (
                   <option key={g} value={g}>
-                    {`${goalText(g)} of the floor`}
+                    {`${goalText(g)} of the ${areaWord(plan)}`}
                   </option>
                 ))}
               </select>
@@ -598,9 +615,11 @@ function OptimizerSection() {
       </p>
       {body}
       <p className="hint">
-        Maximises the share of the floor at the coverage target on the band on
-        show. “How many” adds up to {MAX_ADDED} access points, as few as reach
-        the goal. Locked access points stay put, and a new one copies the first
+        {plan.floors.length > 1
+          ? 'Maximises the share of the whole home, every floor by its area, at the coverage target on the band on show. Access points move within their own floor; new ones can go on any floor.'
+          : 'Maximises the share of the floor at the coverage target on the band on show.'}{' '}
+        “How many” adds up to {MAX_ADDED} access points, as few as reach the
+        goal. Locked access points stay put, and a new one copies the first
         one’s bands, power and height. It assumes a good link back to the
         router: mesh backhaul isn’t modelled.
       </p>

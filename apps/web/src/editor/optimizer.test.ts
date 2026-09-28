@@ -1,5 +1,6 @@
 import {
   handlePlacementRequest,
+  type FloorShare,
   type PlacementMessage,
   type PlacementRequest,
 } from '@signalplan/engine'
@@ -11,6 +12,7 @@ import {
   newNames,
   planSearch,
   searchOutcome,
+  suggestionFloorLines,
   suggestionSummary,
   suggestionText,
   withSuggestion,
@@ -43,18 +45,18 @@ const ALL_BANDS = BANDS.map((band) => ({ band }))
 const move = (overrides: Partial<SuggestedMove> = {}): SuggestedMove => ({
   apId: 'router',
   name: 'Wi-Fi 6E router',
-  from: { x: 5.6, y: 1.2 },
-  to: { x: 4, y: 3 },
+  from: { x: 5.6, y: 1.2, floorId: 'main' },
+  to: { x: 4, y: 3, floorId: 'main' },
   template: { heightM: 1, radios: [{ band: '5GHz' }] },
   ...overrides,
 })
 
 const suggestion = (overrides: Partial<Suggestion> = {}): Suggestion => ({
   moves: [move()],
-  floorId: 'main',
   band: '5GHz',
   before: 0.729,
   after: 0.915,
+  floors: [{ floorId: 'main', before: 0.729, share: 0.915 }],
   beforeWeakestDbm: -80.4,
   weakestDbm: -70.2,
   stoppedEarly: false,
@@ -67,7 +69,7 @@ function ready(job: SearchJob | undefined) {
 }
 
 describe('planSearch: find the best spots', () => {
-  it('keeps access points on other floors fixed, and only moves this floor’s (D52)', () => {
+  it('moves unlocked access points on every floor together (D55)', () => {
     const plan = sample()
     plan.floors.push({
       ...plan.floors[0]!,
@@ -81,13 +83,28 @@ describe('planSearch: find the best spots', () => {
     plan.accessPoints.push({
       ...plan.accessPoints[0]!,
       id: 'up-ap',
+      name: 'Landing',
       floorId: 'up',
     })
-    const job = ready(planSearch(plan, 'main', '5GHz', []))
-    expect(job.movers.map((m) => m.apId)).toEqual(['router'])
-    expect(job.request.problem.fixed.map((ap) => ap.id)).toEqual(['up-ap'])
-    const howMany = ready(planSearch(plan, 'main', '5GHz', [], 'how-many'))
-    expect(howMany.request.problem.fixed.map((ap) => ap.id)).toEqual(['up-ap'])
+    // Shown from the upper floor, which makes no difference.
+    const job = ready(planSearch(plan, 'up', '5GHz', []))
+    expect(job.label).toBe('Find better spots for 2 access points')
+    expect(job.movers.map((m) => [m.apId, m.from?.floorId])).toEqual([
+      ['router', 'main'],
+      ['up-ap', 'up'],
+    ])
+    expect(job.request.problem.fixed).toEqual([])
+    const howMany = ready(planSearch(plan, 'up', '5GHz', [], 'how-many'))
+    expect(howMany.what).toBe('how many access points cover 90% of the home')
+    // New ones copy the access point on the floor on show.
+    expect(howMany.request.problem.template).toMatchObject({
+      heightM: plan.accessPoints[1]!.heightM,
+    })
+    // Locked upstairs, it stays put and counts.
+    plan.accessPoints[1]!.locked = true
+    const one = ready(planSearch(plan, 'up', '5GHz', []))
+    expect(one.request.kind).toBe('place-one')
+    expect(one.request.problem.fixed.map((ap) => ap.id)).toEqual(['up-ap'])
   })
 
   it('moves the selected access point', () => {
@@ -95,7 +112,7 @@ describe('planSearch: find the best spots', () => {
     expect(job.label).toBe('Find a better spot for Wi-Fi 6E router')
     expect(job.request).toMatchObject({
       kind: 'place-one',
-      problem: { current: { x: 5.6, y: 1.2 }, minDbm: -67 },
+      problem: { current: { x: 5.6, y: 1.2, floorId: 'main' }, minDbm: -67 },
     })
     // The other one stays put.
     expect(job.request.problem.fixed.map((ap) => ap.id)).toEqual(['ap2'])
@@ -282,7 +299,8 @@ describe('searchOutcome', () => {
       kind: 'result',
       result: {
         kind: 'found',
-        position: { x, y },
+        position: { x, y, floorId: 'main' },
+        floors: [{ floorId: 'main', before: 0.8, share: 0.9 }] as FloorShare[],
         share: 0.9,
         weakestDbm: -70,
         before: 0.8,
@@ -298,6 +316,7 @@ describe('searchOutcome', () => {
         moves: [move({ template: { heightM: 1, radios: ALL_BANDS } })],
         before: 0.8,
         after: 0.9,
+        floors: [{ floorId: 'main', before: 0.8, share: 0.9 }],
         beforeWeakestDbm: -75,
         weakestDbm: -70,
       }),
@@ -321,13 +340,14 @@ describe('searchOutcome', () => {
         result: {
           kind: 'found',
           positions: [
-            { x: 1, y: 2 },
-            { x: 6, y: 2 },
+            { x: 1, y: 2, floorId: 'main' },
+            { x: 6, y: 2, floorId: 'main' },
           ],
           share: 1,
           weakestDbm: -60,
           before: 0.86,
           beforeWeakestDbm: -110,
+          floors: [],
           stoppedEarly: false,
         },
       },
@@ -335,8 +355,12 @@ describe('searchOutcome', () => {
     )
     if (state.status !== 'suggestion') throw new Error(state.status)
     expect(state.suggestion.moves).toMatchObject([
-      { apId: 'router', to: { x: 1, y: 2 } },
-      { apId: undefined, name: 'Access point 1', to: { x: 6, y: 2 } },
+      { apId: 'router', to: { x: 1, y: 2, floorId: 'main' } },
+      {
+        apId: undefined,
+        name: 'Access point 1',
+        to: { x: 6, y: 2, floorId: 'main' },
+      },
     ])
     // Adding one isn't compared by the weakest spot.
     expect(state.suggestion.beforeWeakestDbm).toBeUndefined()
@@ -351,13 +375,14 @@ describe('searchOutcome', () => {
         result: {
           kind: 'found',
           positions: [
-            { x: 5.6, y: 1.2 },
-            { x: 5.62, y: 1.2 },
+            { x: 5.6, y: 1.2, floorId: 'main' },
+            { x: 5.62, y: 1.2, floorId: 'main' },
           ],
           share: 0.9,
           weakestDbm: -70,
           before: 0.9,
           beforeWeakestDbm: -70,
+          floors: [],
           stoppedEarly: false,
         },
       },
@@ -373,7 +398,7 @@ describe('searchOutcome', () => {
     const job = ready(planSearch(sample(), 'main', '5GHz', [], 'how-many'))
     const answer = (
       overrides: Partial<{ added: number; reached: boolean }> & {
-        positions: { x: number; y: number }[]
+        positions: { x: number; y: number; floorId: string }[]
       },
     ) =>
       ({
@@ -387,6 +412,7 @@ describe('searchOutcome', () => {
           weakestDbm: -60,
           before: 0.8,
           beforeWeakestDbm: -75,
+          floors: [] as FloorShare[],
           stoppedEarly: false,
           ...overrides,
         },
@@ -397,9 +423,9 @@ describe('searchOutcome', () => {
         answer({
           added: 2,
           positions: [
-            { x: 1, y: 1 },
-            { x: 6, y: 2 },
-            { x: 9, y: 2 },
+            { x: 1, y: 1, floorId: 'main' },
+            { x: 6, y: 2, floorId: 'main' },
+            { x: 9, y: 2, floorId: 'main' },
           ],
         }),
         job,
@@ -418,7 +444,10 @@ describe('searchOutcome', () => {
 
     it('says when none are needed and nothing has to move', () => {
       expect(
-        searchOutcome(answer({ positions: [{ x: 5.6, y: 1.2 }] }), job),
+        searchOutcome(
+          answer({ positions: [{ x: 5.6, y: 1.2, floorId: 'main' }] }),
+          job,
+        ),
       ).toEqual({
         status: 'message',
         text: 'No more access points needed: 80% of the floor is already at Fair or better on 5 GHz, which meets the 90% goal.',
@@ -467,12 +496,12 @@ describe('suggestionText and suggestionSummary', () => {
     )
     const two = suggestion({
       moves: [
-        move({ to: { x: 1, y: 2 } }),
+        move({ to: { x: 1, y: 2, floorId: 'main' } }),
         move({
           apId: undefined,
           name: 'Access point 1',
           from: undefined,
-          to: { x: 6, y: 2 },
+          to: { x: 6, y: 2, floorId: 'main' },
         }),
       ],
       stoppedEarly: true,
@@ -487,8 +516,12 @@ describe('withSuggestion', () => {
   it('moves or adds access points without changing the plan', () => {
     const plan = sample()
     const moved = withSuggestion(plan, suggestion())
-    expect(moved.accessPoints[0]).toMatchObject({ x: 4, y: 3 })
-    expect(plan.accessPoints[0]).toMatchObject({ x: 5.6, y: 1.2 })
+    expect(moved.accessPoints[0]).toMatchObject({ x: 4, y: 3, floorId: 'main' })
+    expect(plan.accessPoints[0]).toMatchObject({
+      x: 5.6,
+      y: 1.2,
+      floorId: 'main',
+    })
 
     const template = { heightM: 2.1, radios: [{ band: '5GHz' as const }] }
     const added = withSuggestion(
@@ -542,7 +575,7 @@ describe('suggestionSummary for how many (D46)', () => {
     apId: undefined,
     name: 'Access point 1',
     from: undefined,
-    to: { x: 6, y: 2 },
+    to: { x: 6, y: 2, floorId: 'main' },
   })
   const summary = (
     howMany: Suggestion['howMany'],
@@ -707,7 +740,11 @@ describe('store with a suggestion', () => {
     const store = withWaiting()
     store.getState().applySuggestion()
     const state = store.getState()
-    expect(state.plan.accessPoints[0]).toMatchObject({ x: 4, y: 3 })
+    expect(state.plan.accessPoints[0]).toMatchObject({
+      x: 4,
+      y: 3,
+      floorId: 'main',
+    })
     expect(state.past.map((e) => e.label)).toEqual([
       'Move Wi-Fi 6E router to the suggested spot',
     ])
@@ -777,5 +814,73 @@ describe('store with a suggestion', () => {
       plan.accessPoints[0]!.x = 2
     })
     expect(store.getState().optimizer).toBeUndefined()
+  })
+})
+
+describe('suggestions across floors (D55)', () => {
+  /** The sample home with an empty upper floor. */
+  function twoStoreys(): Plan {
+    const plan = sample()
+    plan.floors.push({
+      ...plan.floors[0]!,
+      id: 'up',
+      name: 'Upstairs',
+      elevationM: 2.7,
+      nodes: [],
+      walls: [],
+      openings: [],
+    })
+    return plan
+  }
+  const acrossFloors = suggestion({
+    moves: [
+      move(),
+      move({
+        apId: undefined,
+        name: 'Access point 1',
+        from: undefined,
+        to: { x: 6, y: 2, floorId: 'up' },
+      }),
+    ],
+    before: 0.43,
+    after: 0.955,
+    floors: [
+      { floorId: 'main', before: 0.86, share: 0.97 },
+      { floorId: 'up', before: 0, share: 0.94 },
+    ],
+  })
+
+  it('gives the whole home and one line per floor, top first', () => {
+    const plan = twoStoreys()
+    expect(suggestionText(acrossFloors, undefined)).toBe(
+      '43% → 95% of the home at Fair or better on 5 GHz.',
+    )
+    expect(suggestionFloorLines(acrossFloors, plan)).toEqual([
+      'Upstairs: 0% → 94%',
+      'Main floor: 86% → 97%',
+    ])
+    expect(suggestionFloorLines(suggestion(), plan)).toEqual([])
+    expect(suggestionSummary(acrossFloors, undefined, 'metric', plan)).toBe(
+      'Move Wi-Fi 6E router to 4.00 m, 3.00 m on Main floor and add Access point 1 at 6.00 m, 2.00 m on Upstairs: 43% → 95% of the home at Fair or better on 5 GHz.',
+    )
+  })
+
+  it('adds a new access point on the floor it was suggested for', () => {
+    const after = withSuggestion(twoStoreys(), acrossFloors)
+    const added = after.accessPoints.find((ap) => ap.name === 'Access point 1')
+    expect(added).toMatchObject({ floorId: 'up', x: 6, y: 2 })
+    expect(after.accessPoints[0]).toMatchObject({ floorId: 'main', x: 4, y: 3 })
+  })
+
+  it('selects only what moved or was added on the floor on show', () => {
+    const store = createEditorStore(twoStoreys())
+    store
+      .getState()
+      .setOptimizer({ status: 'suggestion', suggestion: acrossFloors })
+    store.getState().applySuggestion()
+    expect(store.getState().selection).toEqual([router])
+    expect(store.getState().past.at(-1)!.label).toBe(
+      'Apply the suggested spots',
+    )
   })
 })
