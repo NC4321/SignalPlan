@@ -9,6 +9,8 @@ A free, browser-based Wi-Fi coverage planner. Draw your home to scale, place acc
 
 **Live demo:** <https://signalplan.pages.dev>
 
+![Drawing a brick room with a concrete wall across it in SignalPlan, placing an access point, then dragging it around while the coverage heatmap updates and shows the shadow behind the concrete wall](docs/demo.gif)
+
 ## Architecture
 
 The propagation engine is plain TypeScript with no DOM or React dependency. The editor writes a versioned JSON floor plan; the engine turns it into a coverage grid inside a Web Worker; every view reads that grid.
