@@ -41,6 +41,17 @@ test.describe('axe-core finds no serious problems', () => {
     await expectNoSeriousViolations(page)
   })
 
+  test('in the optimizer panel with a suggestion (D44)', async ({ page }) => {
+    await openEditor(page)
+    await panel(page)
+      .getByRole('button', { name: 'Find a better spot for Wi-Fi 6E router' })
+      .click()
+    await expect(
+      panel(page).getByRole('button', { name: 'Apply' }),
+    ).toBeVisible()
+    await expectNoSeriousViolations(page)
+  })
+
   test('in the File menu and every dialog', async ({ page }) => {
     await openEditor(page)
     await page.getByText('File', { exact: true }).click()
@@ -60,7 +71,9 @@ test.describe('axe-core finds no serious problems', () => {
     await exporter.getByRole('button', { name: 'Cancel' }).click()
 
     // Editing the sample puts it in the list, so it can be deleted.
-    await panel(page).getByRole('button', { name: 'Wi-Fi 6E router' }).click()
+    await panel(page)
+      .getByRole('button', { name: 'Wi-Fi 6E router', exact: true })
+      .click()
     await canvas(page).focus()
     await page.keyboard.press('ArrowRight')
     await page.getByText('File', { exact: true }).click()

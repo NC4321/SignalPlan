@@ -133,13 +133,16 @@ describe('searchSinglePlacement', () => {
     expect(result.share).toBe(1)
   })
 
-  it('reports the share at the current spot too', () => {
+  it('reports the share and weakest spot at the current spot too', () => {
     const p = { ...problem(room(4, 4), freeSpaceDbm(2.2)), current: ap(1, 1) }
     const result = searchSinglePlacement(p)
     if (result.kind !== 'found') throw new Error(result.kind)
     const fine = createScorer({ ...p, cellM: 0.1 })!
-    expect(result.before).toBe(fine.share([fine.signal({ x: 1, y: 1 })]))
+    const there = fine.score([fine.signal({ x: 1, y: 1 })])
+    expect(result.before).toBe(there.share)
+    expect(result.beforeWeakestDbm).toBe(there.weakestDbm)
     expect(result.before).toBeLessThan(result.share)
+    expect(result.beforeWeakestDbm).toBeLessThan(result.weakestDbm)
   })
 
   it('stops at the time budget with the best so far', () => {

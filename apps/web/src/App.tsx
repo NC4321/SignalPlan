@@ -1,5 +1,5 @@
 import type { PlanIssue } from '@signalplan/floorplan'
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useEditor, useEditorStore } from './editor/context.ts'
 import { EditorCanvas } from './editor/EditorCanvas.tsx'
 import { useSaveStatus } from './editor/autosave.ts'
@@ -17,6 +17,12 @@ import {
 import { useCoverageMessage } from './editor/useCoverageMessage.ts'
 import { deleteRecipe, describeSelection } from './editor/selectTool.ts'
 import { isTyping } from './editor/util.ts'
+import {
+  createOptimizer,
+  withSuggestion,
+  type SearchWorker,
+} from './editor/optimizer.ts'
+import { OptimizerContext } from './editor/optimizerContext.ts'
 import { useCoverage } from './useCoverage.ts'
 
 function App({
@@ -33,15 +39,42 @@ function App({
   const floorId = useEditor((s) => s.floorId)
   const band = useEditor((s) => s.band)
   const [panelOpen, setPanelOpen] = useState(false)
+  const optimizerState = useEditor((s) => s.optimizer)
+  const suggestion =
+    optimizerState?.status === 'suggestion'
+      ? optimizerState.suggestion
+      : undefined
 
-  const hasAccessPoint = plan.accessPoints.some((ap) => ap.floorId === floorId)
-  const broadcasting = plan.accessPoints.some(
+  const optimizer = useMemo(
+    () =>
+      createOptimizer(
+        store,
+        () =>
+          new Worker(new URL('./placement.worker.ts', import.meta.url), {
+            type: 'module',
+          }) as SearchWorker,
+      ),
+    [store],
+  )
+  useEffect(() => optimizer.dispose, [optimizer])
+
+  // While a suggestion waits, the heatmap shows the plan with it applied.
+  const shownPlan = useMemo(
+    () => (suggestion ? withSuggestion(plan, suggestion) : plan),
+    [plan, suggestion],
+  )
+  const hasAccessPoint = shownPlan.accessPoints.some(
+    (ap) => ap.floorId === floorId,
+  )
+  const broadcasting = shownPlan.accessPoints.some(
     (ap) =>
       ap.floorId === floorId && ap.radios.some((radio) => radio.band === band),
   )
-  const { coverage, error } = useCoverage(plan, floorId, band)
+  const { coverage, error } = useCoverage(shownPlan, floorId, band)
   const shown = broadcasting ? coverage : undefined
-  const coverageText = useCoverageMessage(shown)
+  const summary = useCoverageMessage(shown)
+  const coverageText =
+    suggestion && summary ? `With the suggestion: ${summary}` : summary
 
   // Global shortcuts: undo, redo and tools.
   useEffect(() => {
@@ -78,7 +111,9 @@ function App({
         )
       } else if (key === 'escape') {
         // Esc finishes the chain; pressed again, it returns to Select (D16).
+        // It also stops a search or dismisses a suggestion (D44).
         if (state.chain) state.endChain()
+        else if (state.optimizer) state.setOptimizer(undefined)
         else if (state.tool !== 'select') state.setTool('select')
         else state.select([])
       }
@@ -91,62 +126,64 @@ function App({
 
   return (
     <TracingProvider>
-      <div className="app">
-        <TopBar
-          panelOpen={panelOpen}
-          onTogglePanel={() => setPanelOpen((open) => !open)}
-        />
-        <Toolbar />
-        <main className="stage">
-          <h1 className="visually-hidden">SignalPlan editor</h1>
-          <EditorCanvas coverage={shown} />
-          {tool === 'calibrate' && <CalibrationBar />}
-          {!broadcasting && (
-            <p className="notice">
-              {hasAccessPoint
-                ? 'No access point on this floor broadcasts on this band. Select one and turn the band on under Bands.'
-                : 'No access points on this floor. Add one with the Access point tool.'}
+      <OptimizerContext value={optimizer}>
+        <div className="app">
+          <TopBar
+            panelOpen={panelOpen}
+            onTogglePanel={() => setPanelOpen((open) => !open)}
+          />
+          <Toolbar />
+          <main className="stage">
+            <h1 className="visually-hidden">SignalPlan editor</h1>
+            <EditorCanvas coverage={shown} />
+            {tool === 'calibrate' && <CalibrationBar />}
+            {!broadcasting && (
+              <p className="notice">
+                {hasAccessPoint
+                  ? 'No access point on this floor broadcasts on this band. Select one and turn the band on under Bands.'
+                  : 'No access points on this floor. Add one with the Access point tool.'}
+              </p>
+            )}
+            {error && (
+              <p className="notice">Couldn’t compute coverage: {error}</p>
+            )}
+          </main>
+          <PropertiesPanel open={panelOpen} coverageText={coverageText} />
+          <StatusBar
+            coverage={shown}
+            coverageText={coverageText}
+            saveStatus={saveStatus}
+          />
+          <Dialog
+            open={problemOpen}
+            title="Your saved plan couldn’t be opened"
+            onClose={() => setProblemOpen(false)}
+            actions={
+              <>
+                <button
+                  type="button"
+                  onClick={() => rescuePlan(savedPlanProblem?.raw)}
+                >
+                  Download it
+                </button>
+                <button
+                  type="button"
+                  className="primary"
+                  onClick={() => setProblemOpen(false)}
+                >
+                  Continue with the sample
+                </button>
+              </>
+            }
+          >
+            <p>
+              The sample home is open instead. The plan is still in My plans;
+              download it to keep a copy of what was stored.
             </p>
-          )}
-          {error && (
-            <p className="notice">Couldn’t compute coverage: {error}</p>
-          )}
-        </main>
-        <PropertiesPanel open={panelOpen} coverageText={coverageText} />
-        <StatusBar
-          coverage={shown}
-          coverageText={coverageText}
-          saveStatus={saveStatus}
-        />
-        <Dialog
-          open={problemOpen}
-          title="Your saved plan couldn’t be opened"
-          onClose={() => setProblemOpen(false)}
-          actions={
-            <>
-              <button
-                type="button"
-                onClick={() => rescuePlan(savedPlanProblem?.raw)}
-              >
-                Download it
-              </button>
-              <button
-                type="button"
-                className="primary"
-                onClick={() => setProblemOpen(false)}
-              >
-                Continue with the sample
-              </button>
-            </>
-          }
-        >
-          <p>
-            The sample home is open instead. The plan is still in My plans;
-            download it to keep a copy of what was stored.
-          </p>
-          <PlanIssues issues={savedPlanProblem?.issues ?? []} />
-        </Dialog>
-      </div>
+            <PlanIssues issues={savedPlanProblem?.issues ?? []} />
+          </Dialog>
+        </div>
+      </OptimizerContext>
     </TracingProvider>
   )
 }

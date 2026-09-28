@@ -185,7 +185,9 @@ test('deletes access points with the Delete key or the panel', async ({
 test('explains an empty floor after deleting the last access point', async ({
   page,
 }) => {
-  await panel(page).getByRole('button', { name: 'Wi-Fi 6E router' }).click()
+  await panel(page)
+    .getByRole('button', { name: 'Wi-Fi 6E router', exact: true })
+    .click()
   await panel(page).getByRole('button', { name: 'Delete' }).click()
   const notice = page.getByText(
     'No access points on this floor. Add one with the Access point tool.',
@@ -194,7 +196,7 @@ test('explains an empty floor after deleting the last access point', async ({
   await page.keyboard.press('ControlOrMeta+z')
   await expect(notice).toBeHidden()
   await expect(
-    panel(page).getByRole('button', { name: 'Wi-Fi 6E router' }),
+    panel(page).getByRole('button', { name: 'Wi-Fi 6E router', exact: true }),
   ).toBeVisible()
 })
 

@@ -239,7 +239,7 @@ test('hides the heatmap while tracing, and brings it back on selection', async (
   await page.mouse.move(x + 61, y + 61)
   await expect(readout).toContainText('Heatmap hidden while tracing')
 
-  await panel(page).getByRole('button', { name: 'Router' }).click()
+  await panel(page).getByRole('button', { name: 'Router', exact: true }).click()
   await page.mouse.move(x + 60, y + 60)
   await expect(readout).toContainText('dBm')
   await expect(readout).not.toContainText('hidden')

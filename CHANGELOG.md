@@ -6,6 +6,7 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ### Added
 
+- Suggest a spot: a panel section that finds the best spot for the selected access point (or the only unlocked one, or a new one on an empty floor), with a progress bar and Cancel. The suggestion appears as a ghost access point, the heatmap and status bar show coverage with it in place, and the panel gives the before → after share (e.g. 86% → 92%). Apply moves or adds the access point as one undo step; Dismiss or Esc discards it, and any edit or band change drops it with a note (D44).
 - Lock access points in place: a Locked checkbox in the access point panel. A locked access point can't be dragged or nudged (the status bar says why), shows a padlock by its name, and will be left alone by the placement optimizer. It's saved as the optional `locked` field (D43).
 - Engine: placement scoring for the upcoming optimizer (`createScorer`, `candidatePositions`). It gives the share of the floor at the coverage target for any access point layout, works on 25 cm cells from a 0.5 m lattice of candidate positions clear of the walls, and agrees exactly with the coverage summary on the same grid (D41).
 - Engine: single access point search (`searchSinglePlacement`). It refines the best candidates to 10 cm, breaks ties by the strongest weakest spot, reports progress, stops within 10 s, and runs in its own worker so it can be cancelled (D42). On the sample home it finds a spot covering 92% at Fair on 5 GHz, against 87% for the router's current spot.

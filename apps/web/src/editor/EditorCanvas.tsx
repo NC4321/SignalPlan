@@ -106,6 +106,12 @@ export function EditorCanvas({ coverage }: { coverage: Coverage | undefined }) {
   }>()
   const calibrationPoints = useEditor((s) => s.calibrationPoints)
   const pointer = useEditor((s) => s.pointer)
+  const optimizer = useEditor((s) => s.optimizer)
+  const suggestion =
+    optimizer?.status === 'suggestion' &&
+    optimizer.suggestion.floorId === floorId
+      ? optimizer.suggestion
+      : undefined
   const { library } = useServices()
   const anchor = chain?.at(-1)?.point
   /** Wall tool: where the next click would land. */
@@ -277,6 +283,11 @@ export function EditorCanvas({ coverage }: { coverage: Coverage | undefined }) {
       // No ghost while over (or dragging) an existing access point.
       accessPointPreview:
         tool === 'accessPoint' && cursor === 'default' ? pointer : undefined,
+      suggestion: suggestion && {
+        apId: suggestion.apId,
+        from: suggestion.from,
+        to: suggestion.position,
+      },
       corners: floor.nodes,
       drawing:
         tool === 'wall' && preview
@@ -308,6 +319,7 @@ export function EditorCanvas({ coverage }: { coverage: Coverage | undefined }) {
     preview,
     anchor,
     wallMaterial,
+    suggestion,
   ])
 
   const snapForWallTool = (screen: Point, altKey: boolean) => {

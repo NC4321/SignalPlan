@@ -39,7 +39,9 @@ test('moves an access point with the keyboard, then undoes it', async ({
   page,
 }) => {
   const properties = page.getByRole('complementary', { name: 'Properties' })
-  await properties.getByRole('button', { name: 'Wi-Fi 6E router' }).click()
+  await properties
+    .getByRole('button', { name: 'Wi-Fi 6E router', exact: true })
+    .click()
   const position = properties.locator('dd').first()
   await expect(position).toHaveText('5.60 m, 1.20 m')
 
@@ -60,7 +62,9 @@ test('moves an access point with the keyboard, then undoes it', async ({
 
 test('switches display units', async ({ page }) => {
   const properties = page.getByRole('complementary', { name: 'Properties' })
-  await properties.getByRole('button', { name: 'Wi-Fi 6E router' }).click()
+  await properties
+    .getByRole('button', { name: 'Wi-Fi 6E router', exact: true })
+    .click()
   await page.getByText('Imperial', { exact: true }).click()
   await expect(properties.locator('dd').first()).toHaveText('18′ 4½″, 3′ 11″')
 })
