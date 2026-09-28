@@ -38,13 +38,13 @@ This is a **multi-wall model**, as in the COST 231 final report. Because walls a
 
 North American channel ranges. The reference loss is free-space loss at 1 m, computed at the band's midpoint (`freeSpacePathLoss` in [`pathLoss.ts`](../packages/engine/src/pathLoss.ts)).
 
-| Band    | Channels (GHz)             | Midpoint (GHz) | PL(1 m) | Default EIRP | Regulatory limit (FCC / ISED)          |
-| ------- | -------------------------- | -------------- | ------- | ------------ | -------------------------------------- |
-| 2.4 GHz | 2.401–2.473 (ch. 1–11)     | 2.437          | 40.2 dB | 20 dBm       | 36 dBm EIRP (47 CFR § 15.247)          |
-| 5 GHz   | 5.150–5.895 (U-NII-1 to 4) | 5.523          | 47.3 dB | 23 dBm       | Set per U-NII sub-band (§ 15.407)      |
-| 6 GHz   | 5.925–7.125 (U-NII-5 to 8) | 6.525          | 48.7 dB | 18 dBm       | Low-power indoor: 5 dBm/MHz (§ 15.407) |
+| Band    | Channels (GHz)             | Midpoint (GHz) | PL(1 m) | Default EIRP | Regulatory limit (FCC / ISED)                                               |
+| ------- | -------------------------- | -------------- | ------- | ------------ | --------------------------------------------------------------------------- |
+| 2.4 GHz | 2.401–2.473 (ch. 1–11)     | 2.437          | 40.2 dB | 20 dBm       | 36 dBm EIRP: 1 W with antennas up to 6 dBi (47 CFR § 15.247(b)(3), (b)(4))  |
+| 5 GHz   | 5.150–5.895 (U-NII-1 to 4) | 5.523          | 47.3 dB | 23 dBm       | 36 dBm EIRP on U-NII-1, 3 and 4; 30 dBm on U-NII-2A/2C (§ 15.407(a)(1)–(3)) |
+| 6 GHz   | 5.925–7.125 (U-NII-5 to 8) | 6.525          | 48.7 dB | 18 dBm       | Low-power indoor: 5 dBm/MHz, at most 30 dBm EIRP (§ 15.407(a)(5))           |
 
-The 2.4 and 5 GHz defaults are **assumptions**: typical consumer router output, well below the legal limits. The 6 GHz default is the low-power indoor limit applied to a 20 MHz channel, which is what beacons (and so a phone's signal reading) use. Users can set any radio's EIRP in the plan.
+The 2.4 and 5 GHz defaults are **assumptions**: typical consumer router output, well below the legal limits. The 6 GHz default is the low-power indoor limit applied to a 20 MHz channel, which is what beacons (and so a phone's signal reading) use. Users can set any radio's EIRP in the plan. The editor accepts −10 to 40 dBm and notes when a value is above the band's highest FCC limit (36, 36 and 30 dBm); the 5 GHz limit depends on the channel, so values between 30 and 36 dBm are legal only on U-NII-1, 3 and 4 ([D25](DECISIONS.md#d25-access-point-tool--2026-09-27)).
 
 ## Wall materials
 

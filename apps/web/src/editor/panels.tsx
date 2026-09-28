@@ -1,7 +1,12 @@
 import { BAND_PROFILES, type Coverage } from '@signalplan/engine'
 import {
   BANDS,
+  EIRP_RANGE_DBM,
   MIN_WALL_LENGTH_M,
+  NEW_ACCESS_POINT_HEIGHT_M,
+  setRadioOn,
+  setRadioPower,
+  type Plan,
   setWallLength,
   splitWall,
   WALL_MATERIALS,
@@ -15,6 +20,7 @@ import {
   type PlanNode,
   type Wall,
 } from '@signalplan/floorplan'
+import type { Draft } from 'immer'
 import { useEffect, useId, useRef, useState } from 'react'
 import { cssColour, QUALITY_BANDS, qualityOf } from '../quality.ts'
 import { zoomAt } from './camera.ts'
@@ -175,6 +181,14 @@ const TOOLS = [
   { tool: 'wall', name: 'Wall', icon: '▭', key: 'W', title: 'Draw walls' },
   { tool: 'door', name: 'Door', icon: '⌷', key: 'D', title: 'Add doors' },
   { tool: 'window', name: 'Window', icon: '▤', key: 'N', title: 'Add windows' },
+  {
+    tool: 'accessPoint',
+    name: 'AP',
+    label: 'Access point',
+    icon: '◉',
+    key: 'A',
+    title: 'Add access points',
+  },
 ] as const
 
 /**
@@ -223,6 +237,7 @@ export function Toolbar() {
           tabIndex={i === current ? 0 : -1}
           aria-pressed={tool === t.tool}
           aria-keyshortcuts={t.key}
+          aria-label={'label' in t ? t.label : undefined}
           onClick={() => store.getState().setTool(t.tool)}
           title={`${t.title} (${t.key})`}
         >
@@ -261,11 +276,13 @@ export function PropertiesPanel({ open }: { open: boolean }) {
 
   let details
   if (tool === 'wall' && selection.length === 0) details = <WallToolSection />
-  else if ((tool === 'door' || tool === 'window') && selection.length === 0) {
+  else if (tool === 'accessPoint' && selection.length === 0) {
+    details = <AccessPointToolSection />
+  } else if ((tool === 'door' || tool === 'window') && selection.length === 0) {
     details = <OpeningToolSection kind={tool} />
   } else if (opening)
     details = <OpeningSection opening={opening} floor={floor} />
-  else if (ap) details = <AccessPointSection ap={ap} />
+  else if (ap) details = <AccessPointSection key={ap.id} ap={ap} />
   else if (wall) details = <WallSection wall={wall} floor={floor} />
   else if (node) details = <CornerSection node={node} floor={floor} />
   else if (selection.length > 1) details = <MultipleSection />
@@ -522,33 +539,206 @@ function MaterialPicker<M extends OpeningMaterial>({
   )
 }
 
-function AccessPointSection({ ap }: { ap: AccessPoint }) {
+function AccessPointToolSection() {
   const units = useEditor((s) => s.units)
+  return (
+    <section>
+      <h2>Access point tool</h2>
+      <p className="kind">Click the plan to add an access point</p>
+      <ul className="hint tips">
+        <li>
+          New access points broadcast on 2.4, 5 and 6 GHz at typical power,
+          mounted {formatLength(NEW_ACCESS_POINT_HEIGHT_M, units)} above the
+          floor; change them after placing.
+        </li>
+        <li>Esc returns to Select.</li>
+      </ul>
+    </section>
+  )
+}
+
+function AccessPointSection({ ap }: { ap: AccessPoint }) {
+  const store = useEditorStore()
+  const units = useEditor((s) => s.units)
+  const floorHeight = useEditor(
+    (s) => s.plan.floors.find((f) => f.id === ap.floorId)?.heightM,
+  )
+  const edit = (label: string, change: (plan: Draft<Plan>) => void) =>
+    store.getState().edit(label, change)
+  const target = (plan: Draft<Plan>) =>
+    plan.accessPoints.find((a) => a.id === ap.id)
+
   return (
     <section>
       <h2>{ap.name}</h2>
       <p className="kind">Access point</p>
+      <TextField
+        label="Name"
+        value={ap.name}
+        maxLength={100}
+        onCommit={(name) => {
+          const trimmed = name.trim()
+          if (!trimmed || trimmed === ap.name) return
+          edit(`Rename ${ap.name}`, (plan) => {
+            const a = target(plan)
+            if (a) a.name = trimmed
+          })
+        }}
+      />
+      <LengthField
+        label="Mounted at"
+        metres={ap.heightM}
+        units={units}
+        min={0}
+        max={floorHeight}
+        onCommit={(metres) =>
+          edit(`Change ${ap.name} height`, (plan) => {
+            const a = target(plan)
+            if (a) a.heightM = metres
+          })
+        }
+      />
       <dl>
         <dt>Position</dt>
         <dd>
           {formatLength(ap.x, units)}, {formatLength(ap.y, units)}
         </dd>
-        <dt>Mounted at</dt>
-        <dd>{formatLength(ap.heightM, units)} above the floor</dd>
-        {ap.radios.map((radio) => (
-          <div key={radio.band} className="dl-row">
-            <dt>{BAND_LABELS[radio.band]}</dt>
-            <dd>
-              {radio.txPowerDbm ?? BAND_PROFILES[radio.band].defaultTxPowerDbm}{' '}
-              dBm EIRP{radio.txPowerDbm === undefined ? ' (default)' : ''}
-            </dd>
-          </div>
-        ))}
       </dl>
+      <fieldset className="radios">
+        <legend>Bands</legend>
+        {BANDS.map((band) => {
+          const radio = ap.radios.find((r) => r.band === band)
+          const last = radio !== undefined && ap.radios.length === 1
+          return (
+            <div key={band} className="radio-row">
+              <label
+                title={
+                  last ? 'An access point needs at least one band' : undefined
+                }
+              >
+                <input
+                  type="checkbox"
+                  checked={radio !== undefined}
+                  disabled={last}
+                  onChange={(event) => {
+                    const on = event.target.checked
+                    edit(
+                      `Turn ${BAND_LABELS[band]} ${on ? 'on' : 'off'}`,
+                      (plan) => {
+                        setRadioOn(plan, ap.id, band, on)
+                      },
+                    )
+                  }}
+                />
+                {BAND_LABELS[band]}
+              </label>
+              {radio && (
+                <PowerField
+                  band={band}
+                  dbm={radio.txPowerDbm}
+                  onCommit={(dbm) =>
+                    edit(`Change ${BAND_LABELS[band]} power`, (plan) => {
+                      setRadioPower(plan, ap.id, band, dbm)
+                    })
+                  }
+                />
+              )}
+            </div>
+          )
+        })}
+      </fieldset>
       <p className="hint">
-        Drag it, or use the arrow keys (Shift for bigger steps).
+        Power is EIRP, antenna gain included. Drag the access point, or use the
+        arrow keys (Shift for bigger steps).
       </p>
+      <div className="actions">
+        <DeleteButton />
+      </div>
     </section>
+  )
+}
+
+/**
+ * A radio's EIRP in dBm. Empty means the band's default; above the FCC limit
+ * a note says so, but the value is kept (D25).
+ */
+function PowerField({
+  band,
+  dbm,
+  onCommit,
+}: {
+  band: Band
+  dbm: number | undefined
+  onCommit: (dbm: number | undefined) => void
+}) {
+  const profile = BAND_PROFILES[band]
+  const [draft, setDraft] = useState<string>()
+  const [invalid, setInvalid] = useState(false)
+  const id = useId()
+  const noteId = useId()
+  const current = dbm === undefined ? '' : String(dbm)
+  const text = draft ?? current
+
+  const reset = () => {
+    setDraft(undefined)
+    setInvalid(false)
+  }
+  const commit = () => {
+    if (draft === undefined || draft.trim() === current) return reset()
+    if (draft.trim() === '') {
+      reset()
+      onCommit(undefined)
+      return
+    }
+    const value = Number(draft.trim().replace(',', '.'))
+    if (
+      !Number.isFinite(value) ||
+      value < EIRP_RANGE_DBM.min ||
+      value > EIRP_RANGE_DBM.max
+    ) {
+      setInvalid(true)
+      return
+    }
+    reset()
+    onCommit(value)
+  }
+  const shown = invalid ? undefined : draft === undefined ? dbm : Number(draft)
+  const overLimit =
+    shown !== undefined && Number.isFinite(shown) && shown > profile.maxEirpDbm
+
+  return (
+    <div className="field power-field">
+      <label htmlFor={id}>{BAND_LABELS[band]} power (dBm EIRP)</label>
+      <input
+        id={id}
+        value={text}
+        placeholder={`${profile.defaultTxPowerDbm} (typical)`}
+        aria-invalid={invalid}
+        aria-describedby={overLimit ? noteId : undefined}
+        onChange={(event) => {
+          setDraft(event.target.value)
+          setInvalid(false)
+        }}
+        onBlur={commit}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter') commit()
+          if (event.key === 'Escape') reset()
+        }}
+        autoComplete="off"
+        inputMode="decimal"
+      />
+      {invalid && (
+        <p className="field-error" role="alert">
+          Use a number from {EIRP_RANGE_DBM.min} to {EIRP_RANGE_DBM.max}, or
+          leave it empty for the typical {profile.defaultTxPowerDbm} dBm.
+        </p>
+      )}
+      {overLimit && (
+        <p id={noteId} className="field-note">
+          Above the legal limit in the US. {profile.maxEirpNote}
+        </p>
+      )}
+    </div>
   )
 }
 
@@ -710,22 +900,21 @@ function PlanSection() {
   )
 }
 
-/** Deletes the selected walls and corners. */
+/** Deletes everything selected. */
 function DeleteButton() {
   const store = useEditorStore()
   const selection = useEditor((s) => s.selection)
-  const removable = selection.filter((i) => i.kind !== 'accessPoint')
   return (
     <button
       type="button"
       className="danger"
-      disabled={removable.length === 0}
+      disabled={selection.length === 0}
       title="Delete (Delete key)"
       onClick={() => {
         const state = store.getState()
         state.edit(
-          `Delete ${describeSelection(removable)}`,
-          deleteRecipe(state.floorId, removable),
+          `Delete ${describeSelection(selection)}`,
+          deleteRecipe(state.floorId, selection),
         )
       }}
     >
@@ -742,11 +931,16 @@ function LengthField({
   label,
   metres,
   units,
+  min = MIN_WALL_LENGTH_M,
+  max,
   onCommit,
 }: {
   label: string
   metres: number
   units: Units
+  /** Smallest value accepted, in metres; a wall's minimum length by default. */
+  min?: number
+  max?: number | undefined
   onCommit: (metres: number) => void
 }) {
   const formatted = formatLength(metres, units)
@@ -763,7 +957,11 @@ function LengthField({
   const commit = () => {
     if (draft === undefined || draft === formatted) return reset()
     const value = parseLength(draft, units)
-    if (value === undefined || value < MIN_WALL_LENGTH_M) {
+    if (
+      value === undefined ||
+      value < min ||
+      (max !== undefined && value > max)
+    ) {
       setInvalid(true)
       return
     }
@@ -789,7 +987,11 @@ function LengthField({
       />
       {invalid && (
         <p className="field-error" role="alert">
-          {units === 'metric' ? 'Try 3.5 or 350 cm' : `Try 12'6" or 12.5`}
+          {max !== undefined
+            ? `Use ${formatLength(min, units)} to ${formatLength(max, units)}`
+            : units === 'metric'
+              ? 'Try 3.5 or 350 cm'
+              : `Try 12'6" or 12.5`}
         </p>
       )}
     </div>
@@ -901,10 +1103,12 @@ function OpeningSection({
 function TextField({
   label,
   value,
+  maxLength = 200,
   onCommit,
 }: {
   label: string
   value: string
+  maxLength?: number
   onCommit: (value: string) => void
 }) {
   const [draft, setDraft] = useState<string>()
@@ -919,7 +1123,7 @@ function TextField({
       <input
         id={id}
         value={draft ?? value}
-        maxLength={200}
+        maxLength={maxLength}
         onChange={(event) => setDraft(event.target.value)}
         onBlur={commit}
         onKeyDown={(event) => {

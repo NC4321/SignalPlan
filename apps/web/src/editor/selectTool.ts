@@ -1,4 +1,5 @@
 import {
+  deleteAccessPoint,
   alongWall,
   collapseShortWalls,
   deleteNode,
@@ -244,14 +245,13 @@ export function nudgeRecipe(
 }
 
 /**
- * Deletes the selected walls and corners (D18). Access points are not
- * deleted here: until the access point tool exists there would be no way to
- * add one back.
+ * Deletes the selected access points, openings, walls and corners (D18, D25).
  */
 export function deleteRecipe(floorId: string, selection: Selection): Recipe {
   return (plan) => {
     const floor = floorOf(plan, floorId)
     for (const item of selection) {
+      if (item.kind === 'accessPoint') deleteAccessPoint(plan, item.id)
       if (item.kind === 'opening') deleteOpening(floor, item.id)
     }
     for (const item of selection) {

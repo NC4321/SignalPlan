@@ -1,6 +1,6 @@
 import { AxeBuilder } from '@axe-core/playwright'
 import { expect, test, type Page } from '@playwright/test'
-import { openEditor, summaryCount } from './helpers.ts'
+import { clickPlan, openEditor, summaryCount } from './helpers.ts'
 
 const panel = (page: Page) =>
   page.getByRole('complementary', { name: 'Properties' })
@@ -32,6 +32,12 @@ test.describe('axe-core finds no serious problems', () => {
     ).toBeVisible()
     await expectNoSeriousViolations(page)
     await page.keyboard.press('W')
+    await expectNoSeriousViolations(page)
+    await page.keyboard.press('A')
+    await clickPlan(page, 3, 2)
+    await expect(
+      panel(page).getByRole('heading', { name: 'Access point 1' }),
+    ).toBeVisible()
     await expectNoSeriousViolations(page)
   })
 
@@ -91,7 +97,9 @@ test('switches tools from the keyboard', async ({ page }) => {
     'true',
   )
   await page.keyboard.press('End')
-  await expect(tools.getByRole('button', { name: 'Window' })).toBeFocused()
+  await expect(
+    tools.getByRole('button', { name: 'Access point' }),
+  ).toBeFocused()
   await page.keyboard.press('ArrowDown')
   await expect(tools.getByRole('button', { name: 'Select' })).toBeFocused()
   await page.keyboard.press('Enter')
