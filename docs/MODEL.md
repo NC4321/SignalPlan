@@ -160,7 +160,46 @@ Lumber is dry spruce-pine-fir. Concrete rows span NIST's mixes. Only fits that r
 
 A unit test copies NIST's coefficients, checks each curve against the report's plot at 5 GHz, and keeps the drywall, glass and lumber samples within 5 dB in both bands. The 75 mm lumber is 4.97 dB under at 5 GHz, just inside that limit. A panel listed as 16 mm drywall (D625H) is left out, because the report's measured drywall panels are 6.94, 9.44 and 12.52 mm and it's unclear which one it is.
 
-NIST's measurements skip 2 to 3 GHz, so **2.4 GHz is still unvalidated** ([#56](https://github.com/NC4321/SignalPlan/issues/56)), as are real homes (Phase 7).
+NIST's measurements skip 2 to 3 GHz, so the 2.4 GHz band is checked separately below.
+
+### Near 2.4 GHz: NIST at 2.0 GHz and Anderson and Rappaport at 2.5 GHz
+
+No primary lab measurement of these materials inside the 2.4 GHz band was found that could be read in full (see [D32](DECISIONS.md#d32-validation-at-24-ghz--2026-09-27)). The closest are NIST's low range, 0.5 to 2.0 GHz, compared here at its top end, and in-building measurements at 2.5 GHz. The model is evaluated at the same single frequency. P.2040's properties change smoothly with frequency: for the drywall, glass and lumber samples below, the model's value at 2.0 GHz is within about 1 dB of its 2.4 GHz band average.
+
+**NIST at 2.0 GHz.** Same report and method as above (Tables 4.1b, 4.4b–4.11b and 4.13b–4.15b). Loss in dB:
+
+| Sample (NIST name)        | Measured  | Model | Difference |
+| ------------------------- | --------- | ----- | ---------- |
+| Drywall, 12.52 mm (D50L)  | 0.6       | 0.9   | +0.3       |
+| Glass, 5.68 mm (G25L)     | 1.4       | 1.4   | −0.1       |
+| Glass, 12.52 mm (G50L)    | 3.3       | 3.2   | −0.2       |
+| Glass, 18.60 mm (G75L)    | 3.9       | 3.0   | −0.9       |
+| Lumber, 36.95 mm (L15DL)  | 3.3       | 0.7   | −2.6       |
+| Lumber, 75.42 mm (L30DL)  | 4.8       | 1.3   | −3.5       |
+| **Brick, 90.4 mm (B1L)**  | 5.4       | 3.5   | −2.0       |
+| **Brick, 178 mm (B2L)**   | 7.6       | 5.0   | −2.6       |
+| **Concrete, 102 mm (×8)** | 12.6–18.0 | 7.0   | −6 to −11  |
+| **Concrete, 203 mm (×8)** | 28.6–34.9 | 13.0  | −16 to −22 |
+
+The fits checked against their plots (brick, drywall, glass, lumber, and concrete mixes 1, 2 and 6, which include both ends of each concrete range) reproduce them, with one exception: the printed drywall table gives nearly the same curve in all three columns while the plot shows three different ones. Only D50L matches, so the other two are left out.
+
+- **Drywall and glass** agree within 1 dB.
+- **Wood** is under-predicted by 2.6–3.5 dB, the same direction as at 5, 6 and 6.75 GHz. In every source so far, P.2040's wood class is less lossy than the measured lumber and doors.
+- **Brick** is within 2.6 dB here, unlike the 12 dB gap in NIST's own 3–8 GHz data for the same brick. NIST's two ranges jump from 5.4 dB at 2.0 GHz to 15.1 dB at 3.0 GHz for that brick, far more than P.2040's brick properties allow for a solid slab. The brick's cores or the change of antennas between ranges may explain it; this is noted for [#55](https://github.com/NC4321/SignalPlan/issues/55).
+- **Concrete** is again much lossier than predicted, by 6–22 dB ([#55](https://github.com/NC4321/SignalPlan/issues/55)).
+
+A unit test copies the six drywall, glass and lumber curves, checks each against its plot at 2.0 GHz, and keeps each within 4 dB of the model. The worst is the 75 mm lumber at 3.5 dB.
+
+**Anderson and Rappaport at 2.5 GHz.** Partition losses measured in a working office building at Virginia Tech (Table III), each the mean over several links through that kind of partition, in excess of free space:
+
+| Partition                                    | Measured (± s.d.) | Model | Difference |
+| -------------------------------------------- | ----------------- | ----- | ---------- |
+| Drywall: two 12.7 mm sheets, 7 links         | 5.4 ± 2.1         | 3.3   | −2.1       |
+| Clear glass, single 3.2 mm (1/8 in), 4 links | 6.4 ± 1.9         | 0.8   | −5.6       |
+
+The paper doesn't give the stud cavity, so the drywall row uses the `drywall` construction (89 mm cavity); that agrees within one standard deviation. The glass doesn't: a single thin pane can't absorb 6 dB at 2.5 GHz, so the measurement likely includes frames or multipath around the partition. The authors also note they can't explain why their clear glass loses less at 60 GHz than at 2.5 GHz. These are in-building averages rather than samples of known construction, so they are shown here but not tested. The Magis Networks white paper (R. Wilson, 2002) also covers 2.4 and 5 GHz but isn't peer-reviewed and isn't used.
+
+Real homes are still unvalidated in every band until Phase 7.
 
 ### Against the ITU-R P.1238-13 indoor model
 
@@ -194,6 +233,7 @@ With the one or two interior walls a path typically crosses at these distances, 
 - Recommendation ITU-R P.1238-13 (09/2025), _Propagation data and prediction methods for the planning of indoor radiocommunication systems and radio local area networks in the frequency range from 300 MHz to 450 GHz_. International Telecommunication Union. Eq. 1, Table 2.
 - Recommendation ITU-R P.2040-4 (09/2025), _Effects of building materials and structures on radiowave propagation above about 100 MHz_. International Telecommunication Union. Table 3; eqs. 27a, 39–44, 57–59.
 - D. Shakya, M. Ying, T. S. Rappaport, H. Poddar, P. Ma, Y. Wang and I. Al-Wazani, "Wideband Penetration Loss through Building Materials and Partitions at 6.75 GHz in FR1(C) and 16.95 GHz in the FR3 Upper Mid-band spectrum", IEEE GLOBECOM 2024. [arXiv:2405.01362](https://arxiv.org/abs/2405.01362). Table II.
-- W. C. Stone, _Electromagnetic Signal Attenuation in Construction Materials_, NIST Construction Automation Program Report No. 3, NISTIR 6055, National Institute of Standards and Technology, 1997. [doi:10.6028/NIST.IR.6055](https://doi.org/10.6028/NIST.IR.6055). Tables 3.5.3, 3.6.2, 3.8.2, 4.1d, 4.4d–4.11d and 4.13d–4.15d.
+- W. C. Stone, _Electromagnetic Signal Attenuation in Construction Materials_, NIST Construction Automation Program Report No. 3, NISTIR 6055, National Institute of Standards and Technology, 1997. [doi:10.6028/NIST.IR.6055](https://doi.org/10.6028/NIST.IR.6055). Tables 3.5.3, 3.6.2, 3.8.2, 4.1b, 4.1d, 4.4b–4.11b, 4.4d–4.11d, 4.13b–4.15b and 4.13d–4.15d.
+- C. R. Anderson and T. S. Rappaport, "In-building wideband partition loss measurements at 2.5 and 60 GHz", _IEEE Transactions on Wireless Communications_, vol. 3, no. 3, pp. 922–928, May 2004. [arXiv:1701.03415](https://arxiv.org/abs/1701.03415). Table III.
 - COST Action 231, _Digital mobile radio towards future generation systems: final report_, European Commission, 1999. Indoor multi-wall model.
 - 47 CFR §§ 15.247 and 15.407 (FCC Part 15), and the matching ISED rules RSS-247 and RSS-248.

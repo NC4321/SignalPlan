@@ -216,3 +216,73 @@ describe('validation against NIST measurements at 5 and 6 GHz', () => {
     })
   }
 })
+
+/**
+ * Model against NIST's low-range measurements at 2.0 GHz, the top of their
+ * 0.5–2.0 GHz range and the closest lab data to the 2.4 GHz band: NISTIR 6055,
+ * Tables 4.13b, 4.14b and 4.15b, in the same polynomial form as above. The
+ * printed drywall table gives nearly the same curve in all three columns, and
+ * only D50L matches its plot, so the others are left out. Thicknesses are the
+ * measured ones (Tables 3.5.3, 3.6.2 and 3.8.2). Brick and concrete are in
+ * MODEL.md.
+ */
+describe('validation against NIST measurements at 2.0 GHz', () => {
+  const specimens: {
+    name: string
+    layers: Layer[]
+    /** M0…M6 of the dB curve. */
+    fit: number[]
+    /** The curve at 2.0 GHz as read from the report's plot, for transcription. */
+    plotAt2GHz: number
+  }[] = [
+    {
+      name: 'drywall, 12.52 mm (D50L)',
+      layers: [{ material: 'plasterboard', thicknessM: mm(12.52) }],
+      fit: [0.11164, -0.37506, -0.36647, 0.63649, -0.48783, 0.18759, -0.028084],
+      plotAt2GHz: -0.63,
+    },
+    {
+      name: 'glass, 5.68 mm (G25L)',
+      layers: [{ material: 'glass', thicknessM: mm(5.68) }],
+      fit: [1.1444, -4.1804, 4.6468, -3.8722, 1.8625, -0.41623, 0.026245],
+      plotAt2GHz: -1.45,
+    },
+    {
+      name: 'glass, 12.52 mm (G50L)',
+      layers: [{ material: 'glass', thicknessM: mm(12.52) }],
+      fit: [0.55734, -6.1539, 7.5398, -6.7859, 3.3498, -0.76848, 0.05514],
+      plotAt2GHz: -3.3,
+    },
+    {
+      name: 'glass, 18.60 mm (G75L)',
+      layers: [{ material: 'glass', thicknessM: mm(18.6) }],
+      fit: [-0.48576, -6.0418, 7.8315, -7.5311, 4.1246, -1.1108, 0.11126],
+      plotAt2GHz: -3.9,
+    },
+    {
+      name: 'dry spruce-pine-fir, 36.95 mm (L15DL)',
+      layers: [{ material: 'wood', thicknessM: mm(36.95) }],
+      fit: [-0.037815, -8.4443, 16.274, -20.175, 13.042, -4.0665, 0.4902],
+      plotAt2GHz: -3.35,
+    },
+    {
+      name: 'dry spruce-pine-fir, 75.42 mm (L30DL)',
+      layers: [{ material: 'wood', thicknessM: mm(75.42) }],
+      fit: [1.34, -12.841, 26.101, -30.397, 16.748, -4.1246, 0.34943],
+      plotAt2GHz: -4.8,
+    },
+  ]
+
+  const curveDb = (fit: number[], f: number) =>
+    fit.reduce((sum, m, i) => sum + m * f ** i, 0)
+
+  it.each(specimens)('copies the curve for $name', ({ fit, plotAt2GHz }) => {
+    expect(Math.abs(curveDb(fit, 2) - plotAt2GHz)).toBeLessThan(0.2)
+  })
+
+  it.each(specimens)('is within 4 dB at 2.0 GHz for $name', (specimen) => {
+    const model = slabLossDb(specimen.layers, [2])
+    const measured = -curveDb(specimen.fit, 2)
+    expect(Math.abs(model - measured)).toBeLessThan(4)
+  })
+})
