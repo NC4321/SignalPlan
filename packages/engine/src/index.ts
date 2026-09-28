@@ -25,12 +25,14 @@ export {
 } from './materials.ts'
 export { freeSpacePathLoss, SPEED_OF_LIGHT } from './pathLoss.ts'
 export {
+  betterScore,
   CANDIDATE_SPACING_M,
   candidatePositions,
   createScorer,
   SEARCH_CELL_M,
   WALL_CLEARANCE_M,
   type PlacementProblem,
+  type PlacementScore,
   type Scorer,
 } from './placement.ts'
 export {
@@ -44,8 +46,20 @@ export {
   type Polarisation,
 } from './slab.ts'
 export {
+  REFINE_COUNT,
+  REFINE_STEPS_M,
+  SEARCH_BUDGET_MS,
+  searchSinglePlacement,
+  type SearchOptions,
+  type SearchResult,
+  type SinglePlacementProblem,
+} from './search.ts'
+export {
+  handlePlacementRequest,
   handleRequest,
   transferables,
   type EngineRequest,
   type EngineResponse,
+  type PlacementMessage,
+  type PlacementRequest,
 } from './worker.ts'

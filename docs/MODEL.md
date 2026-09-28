@@ -38,7 +38,7 @@ The editor reports the share of the **floor area** at or above a target level (D
 
 ### Placement scoring
 
-The placement optimizer (M2, D40 and D41) scores a layout with the same model and floor area as the coverage summary. The score is the share of floor-area cells whose strongest signal reaches the target. While searching, cells are 25 cm, and at that size the score matches the coverage summary exactly on the same grid. Candidate positions start on a 0.5 m lattice inside the outer walls, at least 10 cm from any wall, and the best are refined to 10 cm. Signals from access points that stay put are worked out once, and only cells inside the walls are evaluated. Backhaul between access points isn't modelled (D40).
+The placement optimizer (M2, D40 and D41) scores a layout with the same model and floor area as the coverage summary. The score is the share of floor-area cells whose strongest signal reaches the target. While searching, cells are 25 cm, and at that size the score matches the coverage summary exactly on the same grid. Candidate positions start on a 0.5 m lattice inside the outer walls, at least 10 cm from any wall, and the best are refined to 10 cm. Signals from access points that stay put are worked out once, and only cells inside the walls are evaluated. For one access point, the best 5 lattice spots are refined to 0.25 m and then 0.1 m steps, and the winner is picked on the 10 cm grid (D42). Ties in share go to the spot whose weakest cell is strongest. Backhaul between access points isn't modelled (D40).
 
 ### Speed
 
