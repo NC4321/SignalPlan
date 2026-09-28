@@ -107,7 +107,7 @@ test('works from the keyboard, keeping focus in the panel', async ({
   await expect(coverageStatus(page)).toHaveText(/^92% of/)
 })
 
-test('explains which access point to pick when there are several', async ({
+test('moves several unlocked access points together (D45)', async ({
   page,
 }) => {
   await openEditor(page)
@@ -115,12 +115,41 @@ test('explains which access point to pick when there are several', async ({
   await page.locator('.editor-canvas').click({ position: { x: 40, y: 40 } })
   await page.keyboard.press('Escape')
   await page.keyboard.press('Escape')
-  await expect(panel(page)).toContainText(
-    'Select the access point to move; the others stay where they are.',
+  await panel(page)
+    .getByRole('button', { name: 'Find better spots for 2 access points' })
+    .click()
+  await expect(optimizerStatus(page)).toContainText(
+    /^Move Wi-Fi 6E router to .* and move Access point 1 to .*: \d+% → \d+% of the floor/,
   )
-  await expect(panel(page).getByRole('button', { name: /^Find/ })).toHaveCount(
-    0,
+  await panel(page).getByRole('button', { name: 'Apply' }).click()
+  await expect(
+    panel(page).getByRole('heading', { name: '2 selected' }),
+  ).toBeVisible()
+})
+
+test('suggests one more access point and applies both (D45)', async ({
+  page,
+}) => {
+  await openEditor(page)
+  await panel(page)
+    .getByRole('button', { name: 'Suggest one more access point' })
+    .click()
+  await expect(optimizerStatus(page)).toContainText(
+    /^Move Wi-Fi 6E router to .* and add Access point 1 at .*: 86% → 100% of the floor at Fair or better on 5 GHz\.$/,
   )
+  await expect(coverageStatus(page)).toHaveText(/^With the suggestion: 100% of/)
+  await panel(page).getByRole('button', { name: 'Apply' }).click()
+  await expect(coverageStatus(page)).toHaveText(/^100% of/)
+  await expect(
+    panel(page).getByRole('heading', { name: '2 selected' }),
+  ).toBeVisible()
+
+  // One undo step takes both back.
+  await page.keyboard.press('Control+z')
+  await expect(coverageStatus(page)).toHaveText(/^86% of/)
+  await expect(
+    panel(page).getByRole('button', { name: 'Access point 1', exact: true }),
+  ).toHaveCount(0)
 })
 
 test('adds an access point to a floor without one', async ({ page }) => {
@@ -133,7 +162,7 @@ test('adds an access point to a floor without one', async ({ page }) => {
   await panel(page)
     .getByRole('button', { name: 'Find the best spot for an access point' })
     .click()
-  await expect(optimizerStatus(page)).toContainText('Add Access point 1 to')
+  await expect(optimizerStatus(page)).toContainText('Add Access point 1 at')
   await expect(optimizerStatus(page)).toContainText('0% →')
   await panel(page).getByRole('button', { name: 'Apply' }).click()
   await expect(

@@ -31,6 +31,7 @@ export {
   createScorer,
   SEARCH_CELL_M,
   WALL_CLEARANCE_M,
+  type AccessPointTemplate,
   type PlacementProblem,
   type PlacementScore,
   type Scorer,
@@ -45,6 +46,16 @@ export {
   type P2040Material,
   type Polarisation,
 } from './slab.ts'
+export {
+  ANNEAL_SEED,
+  ANNEAL_START_STEP_M,
+  ANNEAL_STEPS_PER_AP,
+  JUMP_CHANCE,
+  mulberry32,
+  searchMultiPlacement,
+  type MultiPlacementProblem,
+  type MultiSearchResult,
+} from './multiSearch.ts'
 export {
   REFINE_COUNT,
   REFINE_STEPS_M,

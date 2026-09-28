@@ -32,9 +32,12 @@ export interface PlacementProblem {
   /** Access points that stay where they are (locked, or not being moved). */
   fixed: readonly AccessPoint[]
   /** What a moving access point is like: its height and its radio's power. */
-  template: Pick<AccessPoint, 'heightM' | 'radios'>
+  template: AccessPointTemplate
   cellM?: number
 }
+
+/** What an access point is like, wherever it goes. */
+export type AccessPointTemplate = Pick<AccessPoint, 'heightM' | 'radios'>
 
 /**
  * Scores placements of moving access points against a fixed floor (D40,
@@ -51,9 +54,10 @@ export interface Scorer {
   allows(at: Point): boolean
   /**
    * Signal in dBm at each floor-area cell, in order, from a moving access
-   * point at this position. Empty if the template has no radio in the band.
+   * point at this position: one like `template`, or like the problem's
+   * template if none is given. Empty if it has no radio in the band.
    */
-  signal(at: Point): Float32Array
+  signal(at: Point, template?: AccessPointTemplate): Float32Array
   /**
    * Share of the floor area at or above the target, from 0 to 1, with the
    * fixed access points plus moving ones with these signals.
@@ -149,9 +153,11 @@ export function createScorer(problem: PlacementProblem): Scorer | undefined {
         ({ a, b }) => distanceToSegment(at, a, b) >= WALL_CLEARANCE_M,
       )
     },
-    signal(at) {
-      if (!radio) return new Float32Array(0)
-      return signalFrom({ x: at.x, y: at.y, heightM: template.heightM }, radio)
+    signal(at, like) {
+      const r = like ? like.radios.find((x) => x.band === band) : radio
+      if (!r) return new Float32Array(0)
+      const heightM = (like ?? template).heightM
+      return signalFrom({ x: at.x, y: at.y, heightM }, r)
     },
     share(signals) {
       return this.score(signals).share

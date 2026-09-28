@@ -3,77 +3,13 @@ import {
   type AccessPoint,
   type Floor,
   type Plan,
-  type WallMaterial,
 } from '@signalplan/floorplan'
 import sampleHome from '@signalplan/floorplan/fixtures/sample-home.json' with { type: 'json' }
 import { describe, expect, it } from 'vitest'
-import { BAND_PROFILES } from './bands.ts'
 import { createScorer } from './placement.ts'
 import { searchSinglePlacement, type SinglePlacementProblem } from './search.ts'
-import { bigHouse, roomGrid } from './testPlans.ts'
+import { ap, bigHouse, freeSpaceDbm, room, roomGrid } from './testPlans.ts'
 import { handlePlacementRequest, type PlacementMessage } from './worker.ts'
-
-/** A drywall outline of a w × h room, optionally split at x = splitX. */
-function room(
-  w: number,
-  h: number,
-  split?: { x: number; material: WallMaterial },
-): Floor {
-  const corners = split
-    ? [
-        [0, 0],
-        [split.x, 0],
-        [w, 0],
-        [w, h],
-        [split.x, h],
-        [0, h],
-      ]
-    : [
-        [0, 0],
-        [w, 0],
-        [w, h],
-        [0, h],
-      ]
-  const walls = corners.map((_, i) => ({
-    id: `w${i}`,
-    from: `n${i}`,
-    to: `n${(i + 1) % corners.length}`,
-    material: 'drywall' as WallMaterial,
-  }))
-  if (split) {
-    walls.push({ id: 'split', from: 'n1', to: 'n4', material: split.material })
-  }
-  return {
-    id: 'f',
-    name: 'Floor',
-    elevationM: 0,
-    heightM: 2.5,
-    nodes: corners.map(([x, y], i) => ({ id: `n${i}`, x: x!, y: y! })),
-    walls,
-    openings: [],
-  }
-}
-
-/** An access point at receiver height, so distances are flat. */
-const ap = (x: number, y: number): AccessPoint => ({
-  id: `ap-${x}-${y}`,
-  name: 'AP',
-  floorId: 'f',
-  x,
-  y,
-  heightM: 1,
-  radios: [{ band: '5GHz' }],
-})
-
-/** Free-space signal at distance d on 5 GHz at the default power. */
-function freeSpaceDbm(d: number): number {
-  const p = BAND_PROFILES['5GHz']
-  return (
-    p.defaultTxPowerDbm -
-    p.referenceLossDb -
-    10 * p.pathLossExponent * Math.log10(Math.max(d, 1))
-  )
-}
 
 function problem(
   floor: Floor,

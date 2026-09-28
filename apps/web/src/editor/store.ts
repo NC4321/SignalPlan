@@ -375,19 +375,26 @@ export function createEditorStore(
       const { optimizer, plan } = get()
       if (optimizer?.status !== 'suggestion') return
       const { suggestion } = optimizer
+      const only =
+        suggestion.moves.length === 1 ? suggestion.moves[0] : undefined
       set({ optimizer: undefined })
       get().edit(
-        suggestion.apId === undefined
-          ? `Add ${suggestion.name} at the suggested spot`
-          : `Move ${suggestion.name} to the suggested spot`,
+        !only
+          ? 'Apply the suggested spots'
+          : only.apId === undefined
+            ? `Add ${only.name} at the suggested spot`
+            : `Move ${only.name} to the suggested spot`,
         suggestionRecipe(suggestion),
       )
-      const id =
-        suggestion.apId ??
-        get().plan.accessPoints.find(
-          (ap) => !plan.accessPoints.some((old) => old.id === ap.id),
-        )?.id
-      if (id) get().select([{ kind: 'accessPoint', id }])
+      // Select everything that moved or was added.
+      const added = get().plan.accessPoints.filter(
+        (ap) => !plan.accessPoints.some((old) => old.id === ap.id),
+      )
+      const ids = [
+        ...suggestion.moves.flatMap((m) => (m.apId ? [m.apId] : [])),
+        ...added.map((ap) => ap.id),
+      ]
+      get().select(ids.map((id) => ({ kind: 'accessPoint', id })))
     },
     setWallMaterial: (wallMaterial) => set({ wallMaterial }),
     setOpeningMaterial: (kind, material) =>

@@ -1,6 +1,11 @@
 import type { Band, Plan } from '@signalplan/floorplan'
 import { evaluateCoverage, type Coverage } from './coverage.ts'
 import {
+  searchMultiPlacement,
+  type MultiPlacementProblem,
+  type MultiSearchResult,
+} from './multiSearch.ts'
+import {
   searchSinglePlacement,
   type SearchResult,
   type SinglePlacementProblem,
@@ -56,15 +61,14 @@ export function transferables(response: EngineResponse): ArrayBuffer[] {
  * The placement optimizer runs in its own worker, so the heatmap keeps
  * updating meanwhile. Cancelling terminates that worker (D42).
  */
-export type PlacementRequest = {
-  id: number
-  kind: 'place-one'
-  problem: SinglePlacementProblem
-}
+export type PlacementRequest =
+  | { id: number; kind: 'place-one'; problem: SinglePlacementProblem }
+  | { id: number; kind: 'place-many'; problem: MultiPlacementProblem }
 
 export type PlacementMessage =
   | { id: number; kind: 'progress'; fraction: number }
   | { id: number; kind: 'result'; result: SearchResult }
+  | { id: number; kind: 'result-many'; result: MultiSearchResult }
   | { id: number; kind: 'error'; message: string }
 
 /** Progress is posted at most this often, in milliseconds. */
@@ -78,16 +82,22 @@ export function handlePlacementRequest(
   const { id } = request
   try {
     let last = Number.NEGATIVE_INFINITY
-    const result = searchSinglePlacement(request.problem, {
+    const options = {
       now,
-      onProgress: (fraction) => {
+      onProgress: (fraction: number) => {
         const t = now()
         if (fraction < 1 && t - last < PROGRESS_INTERVAL_MS) return
         last = t
         post({ id, kind: 'progress', fraction })
       },
-    })
-    post({ id, kind: 'result', result })
+    }
+    if (request.kind === 'place-many') {
+      const result = searchMultiPlacement(request.problem, options)
+      post({ id, kind: 'result-many', result })
+    } else {
+      const result = searchSinglePlacement(request.problem, options)
+      post({ id, kind: 'result', result })
+    }
   } catch (error) {
     post({
       id,
