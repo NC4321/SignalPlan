@@ -169,3 +169,39 @@ test('adds an access point to a floor without one', async ({ page }) => {
     panel(page).getByRole('heading', { name: 'Access point 1' }),
   ).toBeVisible()
 })
+
+test('counts the access points needed for the coverage goal (D46)', async ({
+  page,
+}) => {
+  await openEditor(page)
+  const howMany = panel(page).getByRole('button', {
+    name: 'How many access points do I need?',
+  })
+  const goal = panel(page).getByLabel('Coverage goal')
+  await expect(goal).toHaveValue('0.9')
+
+  // Moving the router alone reaches 92% (D42), which meets 90%.
+  await howMany.click()
+  await expect(optimizerStatus(page)).toContainText(
+    /^No more access points needed for 90% of the floor\. Move Wi-Fi 6E router to .*: 86% → 92% of the floor/,
+  )
+  await panel(page).getByRole('button', { name: 'Dismiss' }).click()
+
+  // The whole floor takes one more (D45).
+  await goal.selectOption({ label: '100% of the floor' })
+  await howMany.click()
+  await expect(optimizerStatus(page)).toContainText(
+    /^You need 1 more access point for 100% of the floor\. Move Wi-Fi 6E router to .* and add Access point 1 at .*: 86% → 100% of the floor at Fair or better on 5 GHz\.$/,
+  )
+  await expect(coverageStatus(page)).toHaveText(/^With the suggestion: 100% of/)
+  await panel(page).getByRole('button', { name: 'Apply' }).click()
+  await expect(coverageStatus(page)).toHaveText(/^100% of/)
+  await page.keyboard.press('Control+z')
+  await expect(coverageStatus(page)).toHaveText(/^86% of/)
+
+  // The goal isn't saved in the plan, and resets on reload.
+  await page.keyboard.press('Escape')
+  await expect(goal).toHaveValue('1')
+  await page.reload()
+  await expect(panel(page).getByLabel('Coverage goal')).toHaveValue('0.9')
+})

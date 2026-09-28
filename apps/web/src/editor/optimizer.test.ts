@@ -197,6 +197,51 @@ describe('planSearch: one more access point (D45)', () => {
   })
 })
 
+describe('planSearch: how many access points (D46)', () => {
+  it('asks for the goal with the unlocked ones moving', () => {
+    const job = ready(
+      planSearch(
+        twoAccessPoints([false, true]),
+        'main',
+        '5GHz',
+        [],
+        'how-many',
+        0.95,
+      ),
+    )
+    expect(job.label).toBe('How many access points do I need?')
+    expect(job.what).toBe('how many access points cover 95% of the floor')
+    if (job.request.kind !== 'how-many') throw new Error()
+    expect(job.request.problem.goal).toBe(0.95)
+    expect(job.request.problem.moving.map((ap) => ap.id)).toEqual(['router'])
+    expect(job.request.problem.fixed.map((ap) => ap.id)).toEqual(['ap2'])
+    // New ones are only named once the search says how many.
+    expect(job.movers.map((m) => m.apId)).toEqual(['router'])
+  })
+
+  it('works on an empty floor and with every access point locked', () => {
+    const empty = sample()
+    empty.accessPoints = []
+    const fresh = ready(planSearch(empty, 'main', '5GHz', [], 'how-many'))
+    if (fresh.request.kind !== 'how-many') throw new Error()
+    expect(fresh.request.problem).toMatchObject({ moving: [], goal: 0.9 })
+    expect(fresh.request.problem.template.radios).toEqual(ALL_BANDS)
+
+    const locked = ready(
+      planSearch(twoAccessPoints([true, true]), 'main', '5GHz', [], 'how-many'),
+    )
+    if (locked.request.kind !== 'how-many') throw new Error()
+    expect(locked.request.problem.moving).toEqual([])
+    expect(locked.request.problem.fixed).toHaveLength(2)
+  })
+
+  it('isn’t offered with a selection', () => {
+    expect(planSearch(sample(), 'main', '5GHz', [router], 'how-many')).toBe(
+      undefined,
+    )
+  })
+})
+
 describe('newNames', () => {
   it('numbers new access points in turn, without changing the plan', () => {
     const plan = sample()
@@ -298,6 +343,63 @@ describe('searchOutcome', () => {
     expect(state).toEqual({
       status: 'message',
       text: 'The access points are already in the best spots found.',
+    })
+  })
+
+  describe('for how many access points', () => {
+    const job = ready(planSearch(sample(), 'main', '5GHz', [], 'how-many'))
+    const answer = (
+      overrides: Partial<{ added: number; reached: boolean }> & {
+        positions: { x: number; y: number }[]
+      },
+    ) =>
+      ({
+        id: 0,
+        kind: 'result-how-many',
+        result: {
+          kind: 'found',
+          added: 0,
+          reached: true,
+          share: 1,
+          weakestDbm: -60,
+          before: 0.8,
+          beforeWeakestDbm: -75,
+          stoppedEarly: false,
+          ...overrides,
+        },
+      }) as const
+
+    it('names and places the access points it adds', () => {
+      const outcome = searchOutcome(
+        answer({
+          added: 2,
+          positions: [
+            { x: 1, y: 1 },
+            { x: 6, y: 2 },
+            { x: 9, y: 2 },
+          ],
+        }),
+        job,
+      )
+      if (outcome.status !== 'suggestion') throw new Error(outcome.status)
+      const { moves, howMany } = outcome.suggestion
+      expect(moves.map((m) => [m.apId, m.name, m.to.x])).toEqual([
+        ['router', 'Wi-Fi 6E router', 1],
+        [undefined, 'Access point 1', 6],
+        [undefined, 'Access point 2', 9],
+      ])
+      // New ones copy the first access point on the band.
+      expect(moves[1]!.template).toEqual(moves[0]!.template)
+      expect(howMany).toEqual({ goal: 0.9, added: 2, reached: true })
+    })
+
+    it('says when none are needed and nothing has to move', () => {
+      expect(
+        searchOutcome(answer({ positions: [{ x: 5.6, y: 1.2 }] }), job),
+      ).toEqual({
+        status: 'message',
+        text: 'No more access points needed: 80% of the floor is already at Fair or better on 5 GHz, which meets the 90% goal.',
+      })
     })
   })
 
@@ -412,6 +514,50 @@ function realOptimizer(plan: Plan) {
   return { store, optimizer }
 }
 
+describe('suggestionSummary for how many (D46)', () => {
+  const added = move({
+    apId: undefined,
+    name: 'Access point 1',
+    from: undefined,
+    to: { x: 6, y: 2 },
+  })
+  const summary = (
+    howMany: Suggestion['howMany'],
+    overrides: Partial<Suggestion> = {},
+  ) =>
+    suggestionSummary(
+      suggestion({ moves: [added], ...(howMany && { howMany }), ...overrides }),
+      undefined,
+      'metric',
+    )
+
+  it('says how many more are needed', () => {
+    expect(summary({ goal: 0.9, added: 1, reached: true })).toBe(
+      'You need 1 more access point for 90% of the floor. Add Access point 1 at 6.00 m, 2.00 m: 72% → 91% of the floor at Fair or better on 5 GHz.',
+    )
+    expect(summary({ goal: 1, added: 3, reached: true })).toMatch(
+      /^You need 3 more access points for 100% of the floor\. /,
+    )
+  })
+
+  it('says when moving is enough', () => {
+    expect(
+      summary({ goal: 0.9, added: 0, reached: true }, { moves: [move()] }),
+    ).toMatch(/^No more access points needed for 90% of the floor\. Move /)
+  })
+
+  it('says when the goal is out of reach, or wasn’t reached in time', () => {
+    expect(summary({ goal: 1, added: 4, reached: false })).toMatch(
+      /^Even 4 more access points don’t cover 100% of the floor\. The best found: Add /,
+    )
+    expect(
+      summary({ goal: 1, added: 2, reached: false }, { stoppedEarly: true }),
+    ).toMatch(
+      /^No layout found in time covers 100% of the floor\. The best found: .* The search hit its 10 second limit/,
+    )
+  })
+})
+
 describe('createOptimizer', () => {
   function setup(plan = sample()) {
     const store = createEditorStore(plan)
@@ -485,6 +631,33 @@ describe('createOptimizer', () => {
     // D42: 86.9% → 92.0% at Fair on 5 GHz.
     expect(suggestionText(state.suggestion, undefined)).toBe(
       '86% → 92% of the floor at Fair or better on 5 GHz.',
+    )
+  })
+
+  it('counts access points for the goal set in the store', () => {
+    const { store, optimizer } = realOptimizer(sample())
+    // Moving the router alone reaches 92% (D42): enough for 90%.
+    optimizer.start('how-many')
+    let state = store.getState().optimizer
+    if (state?.status !== 'suggestion') throw new Error(state?.status)
+    expect(state.suggestion.howMany).toEqual({
+      goal: 0.9,
+      added: 0,
+      reached: true,
+    })
+    expect(state.suggestion.moves).toHaveLength(1)
+
+    store.getState().setCoverageGoal(1)
+    optimizer.start('how-many')
+    state = store.getState().optimizer
+    if (state?.status !== 'suggestion') throw new Error(state?.status)
+    expect(state.suggestion.howMany).toEqual({
+      goal: 1,
+      added: 1,
+      reached: true,
+    })
+    expect(suggestionText(state.suggestion, undefined)).toBe(
+      '86% → 100% of the floor at Fair or better on 5 GHz.',
     )
   })
 

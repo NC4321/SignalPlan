@@ -369,6 +369,10 @@ dd {
   display: none;
 }
 
+.how-many {
+  margin-top: 1rem;
+}
+
 .optimizer-progress {
   width: 100%;
   margin-top: 0.75rem;

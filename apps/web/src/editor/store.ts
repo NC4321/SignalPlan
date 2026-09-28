@@ -19,7 +19,12 @@ import {
 import { createStore, type StoreApi } from 'zustand/vanilla'
 import { DEFAULT_TARGET } from '../quality.ts'
 import type { Camera } from './camera.ts'
-import { suggestionRecipe, type OptimizerState } from './optimizer.ts'
+import {
+  DEFAULT_COVERAGE_GOAL,
+  suggestionRecipe,
+  type CoverageGoal,
+  type OptimizerState,
+} from './optimizer.ts'
 import type { Units } from './units.ts'
 
 enablePatches()
@@ -96,6 +101,11 @@ export interface EditorState {
   notice: string | undefined
   /** The optimizer's search, its suggestion, or why it has none (D44). */
   optimizer: OptimizerState | undefined
+  /**
+   * Share of the floor, from 0 to 1, that "How many access points do I
+   * need?" aims for (D46). Not saved: it resets when the page reloads.
+   */
+  coverageGoal: CoverageGoal
 
   /** Applies one undoable edit. */
   edit: (label: string, recipe: Recipe) => void
@@ -130,6 +140,7 @@ export interface EditorState {
   setPointer: (pointer: Point | undefined) => void
   setNotice: (notice: string | undefined) => void
   setOptimizer: (optimizer: OptimizerState | undefined) => void
+  setCoverageGoal: (goal: CoverageGoal) => void
   /** Moves or adds the suggested access point as one edit, and selects it. */
   applySuggestion: () => void
   setWallMaterial: (material: WallMaterial) => void
@@ -224,6 +235,7 @@ export function createEditorStore(
     gesture: undefined,
     notice: undefined,
     optimizer: undefined,
+    coverageGoal: DEFAULT_COVERAGE_GOAL,
 
     edit: (label, recipe) => {
       const [next, patches, inverse] = produceWithPatches(get().plan, recipe)
@@ -371,6 +383,7 @@ export function createEditorStore(
     setPointer: (pointer) => set({ pointer }),
     setNotice: (notice) => set({ notice }),
     setOptimizer: (optimizer) => set({ optimizer }),
+    setCoverageGoal: (coverageGoal) => set({ coverageGoal }),
     applySuggestion: () => {
       const { optimizer, plan } = get()
       if (optimizer?.status !== 'suggestion') return
