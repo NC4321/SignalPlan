@@ -94,3 +94,71 @@ test('undo mid-chain steps back one corner', async ({ page }) => {
   await page.keyboard.press('Escape')
   expect(await walls(page)).toBe(before + 2)
 })
+
+test('drags the router with the wall tool between chains (D38)', async ({
+  page,
+}) => {
+  const before = await walls(page)
+  const wallTool = page.getByRole('button', { name: 'Wall' })
+  const undo = page.getByRole('button', { name: 'Undo' })
+  await wallTool.click()
+  for (const [x, y] of [
+    [17, 2],
+    [19, 2],
+    [19, 4],
+    [17, 4],
+    [17, 2],
+  ] as const) {
+    await clickPlan(page, x, y)
+  }
+  await expect(wallTool).toHaveAttribute('aria-pressed', 'true')
+
+  // With the room closed, a press on the router grabs it, in the wall tool.
+  const router = await screenPoint(page, 5.6, 1.2)
+  const to = await screenPoint(page, 7.6, 2.2)
+  await page.mouse.move(router.x, router.y)
+  await page.mouse.down()
+  await page.mouse.move(to.x, to.y, { steps: 8 })
+  await page.mouse.up()
+  await expect(undo).toHaveAttribute('title', /Undo Move Wi-Fi 6E router/)
+  await expect(wallTool).toHaveAttribute('aria-pressed', 'true')
+
+  // Undo puts it back in one step, and no wall was started from it.
+  await undo.click()
+  await expect(undo).toHaveAttribute('title', /Undo Draw wall/)
+  // Esc leaves the wall tool, and again clears the router's selection.
+  await page.keyboard.press('Escape')
+  await page.keyboard.press('Escape')
+  expect(await walls(page)).toBe(before + 4)
+  await page.mouse.click(router.x, router.y)
+  const panel = page.getByRole('complementary', { name: 'Properties' })
+  await expect(panel.locator('dd').first()).toHaveText('5.60 m, 1.20 m')
+})
+
+test('mid-chain, or with Alt, a press on the router places a corner', async ({
+  page,
+}) => {
+  const undo = page.getByRole('button', { name: 'Undo' })
+  const router = await screenPoint(page, 5.6, 1.2)
+  await page.keyboard.press('w')
+
+  // Mid-chain: the click on the router places the wall's end.
+  await clickPlan(page, 3, 2)
+  await page.mouse.click(router.x, router.y)
+  await expect(undo).toHaveAttribute('title', /Undo Draw wall/)
+  await page.keyboard.press('Escape')
+
+  // Between chains, Alt starts a wall at the router instead of grabbing it.
+  await undo.click()
+  await expect(undo).toBeDisabled()
+  await page.keyboard.down('Alt')
+  await page.mouse.click(router.x, router.y)
+  await page.keyboard.up('Alt')
+  await clickPlan(page, 3, 3)
+  await expect(undo).toHaveAttribute('title', /Undo Draw wall/)
+  await page.keyboard.press('Escape')
+  await page.keyboard.press('Escape')
+  await page.mouse.click(router.x, router.y)
+  const panel = page.getByRole('complementary', { name: 'Properties' })
+  await expect(panel.locator('dd').first()).toHaveText('5.60 m, 1.20 m')
+})

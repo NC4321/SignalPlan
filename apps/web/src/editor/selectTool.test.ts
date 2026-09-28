@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import {
   accessPointAt,
   hitTest,
+  pressGrabsAccessPoint,
   snapDraggedNode,
   wallDragDelta,
 } from './selectTool.ts'
@@ -64,6 +65,25 @@ describe('accessPointAt', () => {
   it('ignores points just out of reach', () => {
     expect(accessPointAt(camera, [ap], { x: 218, y: 200 })).toBeUndefined()
     expect(accessPointAt(camera, [], { x: 200, y: 200 })).toBeUndefined()
+  })
+})
+
+describe('pressGrabsAccessPoint', () => {
+  it('grabs with the wall tool only between chains, and not with Alt', () => {
+    expect(pressGrabsAccessPoint('wall', false, false)).toBe(true)
+    expect(pressGrabsAccessPoint('wall', true, false)).toBe(false)
+    expect(pressGrabsAccessPoint('wall', false, true)).toBe(false)
+  })
+
+  it('grabs with the access point, door and window tools', () => {
+    for (const tool of ['accessPoint', 'door', 'window'] as const) {
+      expect(pressGrabsAccessPoint(tool, false, false)).toBe(true)
+      expect(pressGrabsAccessPoint(tool, false, true)).toBe(true)
+    }
+  })
+
+  it('never grabs while calibrating a tracing image', () => {
+    expect(pressGrabsAccessPoint('calibrate', false, false)).toBe(false)
   })
 })
 

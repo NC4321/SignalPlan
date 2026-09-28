@@ -19,7 +19,7 @@ import type { Draft } from 'immer'
 import { toScreen, type Camera } from './camera.ts'
 import { AP_RADIUS_PX, baseWallWidth } from './render.ts'
 import { nearestOnSegment, snapPoint } from './snap.ts'
-import type { Recipe, Selection, SelectionItem } from './store.ts'
+import type { Recipe, Selection, SelectionItem, Tool } from './store.ts'
 import { snapStep, type Units } from './units.ts'
 
 const AP_GRAB_PX = AP_RADIUS_PX + 8
@@ -40,6 +40,21 @@ export function accessPointAt(
   return accessPoints.find(
     (a) => distance(toScreen(camera, a), screen) <= AP_GRAB_PX,
   )
+}
+
+/**
+ * Whether a press on an access point grabs it (select, and drag to move)
+ * under this tool, instead of doing the tool's own action (D34, D38). The
+ * wall tool grabs only between chains, and Alt still places a corner there,
+ * as Alt already means "place freely"; mid-chain, clicks always place corners.
+ */
+export function pressGrabsAccessPoint(
+  tool: Tool,
+  drawingChain: boolean,
+  altKey: boolean,
+): boolean {
+  if (tool === 'wall') return !drawingChain && !altKey
+  return tool !== 'calibrate'
 }
 
 /**

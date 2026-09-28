@@ -42,4 +42,5 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ### Fixed
 
+- Wall tool: between chains, pressing on an access point now selects or drags it instead of starting a wall (hold Alt to start a wall there). Door and Window tools grab access points the same way.
 - Access point tool: pressing on an existing access point now grabs it to move it, instead of stacking a new one on top.
