@@ -24,11 +24,13 @@ import {
   accessPointAt,
   describeSelection,
   hitTest,
+  LOCKED_NOTICE,
   moveNodeRecipe,
   pressGrabsAccessPoint,
   moveOpeningRecipe,
   moveWallRecipe,
   nudgeRecipe,
+  selectionHasLocked,
   snapDraggedNode,
   splitRecipe,
   wallAt,
@@ -63,8 +65,11 @@ type Drag =
       origin: Point
       moved: boolean
     }
+  /** A press on a locked access point: it selects, but won't move (D43). */
+  | { kind: 'locked'; startScreen: Point }
 
-type Cursor = 'default' | 'grab' | 'grabbing' | 'move' | 'not-allowed'
+type Cursor =
+  'default' | 'pointer' | 'grab' | 'grabbing' | 'move' | 'not-allowed'
 
 /** The point `d` metres along a wall from its start corner. */
 function pointAlong(floor: Floor, wallId: string, d: number): Point {
@@ -345,9 +350,17 @@ export function EditorCanvas({ coverage }: { coverage: Coverage | undefined }) {
     pressGrabsAccessPoint(tool, !!store.getState().chain, altKey) &&
     !!accessPointAt(camera, accessPoints, screen)
 
+  /** Whether this hit is an access point that is locked in place (D43). */
+  const isLocked = (item: SelectionItem | undefined) =>
+    item?.kind === 'accessPoint' &&
+    accessPoints.some((a) => a.id === item.id && a.locked)
+
   const hoverCursor = (screen: Point, altKey: boolean): Cursor => {
     if (!camera) return 'default'
-    if (tool !== 'select' && grabsAccessPoint(screen, altKey)) return 'grab'
+    if (tool !== 'select' && grabsAccessPoint(screen, altKey)) {
+      const ap = accessPointAt(camera, accessPoints, screen)
+      return ap?.locked ? 'pointer' : 'grab'
+    }
     if (openingTool) {
       if (placementAt(screen)) return 'default'
       return wallAt(camera, floor, screen) ? 'not-allowed' : 'default'
@@ -355,6 +368,7 @@ export function EditorCanvas({ coverage }: { coverage: Coverage | undefined }) {
     if (tool !== 'select') return 'default'
     const hit = hitTest(camera, floor, accessPoints, openings, screen)
     if (!hit) return draggableImageAt(screen) ? 'move' : 'default'
+    if (isLocked(hit)) return 'pointer'
     return hit.kind === 'wall' ? 'move' : 'grab'
   }
 
@@ -590,6 +604,10 @@ export function EditorCanvas({ coverage }: { coverage: Coverage | undefined }) {
           if (!state.selection.some((s) => sameItem(s, hit))) {
             state.select([hit])
           }
+          if (isLocked(hit)) {
+            drag.current = { kind: 'locked', startScreen: at }
+            return
+          }
           const origin = originOf(hit)
           if (!origin) return
           drag.current = {
@@ -652,6 +670,16 @@ export function EditorCanvas({ coverage }: { coverage: Coverage | undefined }) {
               const bg = draft.floors.find((f) => f.id === floorId)?.background
               if (bg) Object.assign(bg, { x, y })
             })
+          } else if (active?.kind === 'locked') {
+            const travelled = Math.hypot(
+              at.x - active.startScreen.x,
+              at.y - active.startScreen.y,
+            )
+            if (travelled < DRAG_THRESHOLD_PX) return
+            setCursor('not-allowed')
+            if (store.getState().notice !== LOCKED_NOTICE) {
+              store.getState().setNotice(LOCKED_NOTICE)
+            }
           } else if (active?.kind === 'item') {
             const travelled = Math.hypot(
               at.x - active.startScreen.x,
@@ -750,6 +778,10 @@ export function EditorCanvas({ coverage }: { coverage: Coverage | undefined }) {
             `Move ${name ?? describeSelection(state.selection)}`,
             nudgeRecipe(floorId, state.selection, delta),
           )
+          // The rest of the selection moved; say why a locked one didn't.
+          if (selectionHasLocked(state.plan, state.selection)) {
+            state.setNotice(LOCKED_NOTICE)
+          }
         }}
       />
       <p id={hintId} className="visually-hidden">

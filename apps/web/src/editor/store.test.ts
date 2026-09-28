@@ -279,3 +279,23 @@ describe('wall chain', () => {
     expect(store.getState().chain).toBeUndefined()
   })
 })
+
+describe('notice', () => {
+  it('clears on the next edit or a new selection, not a repeat one', () => {
+    const store = createEditorStore(sample())
+    const router = {
+      kind: 'accessPoint',
+      id: sample().accessPoints[0]!.id,
+    } as const
+    store.getState().select([router])
+    store.getState().setNotice('Locked')
+    store.getState().select([router])
+    expect(store.getState().notice).toBe('Locked')
+    store.getState().select([])
+    expect(store.getState().notice).toBeUndefined()
+
+    store.getState().setNotice('Locked')
+    store.getState().edit('Move router', moveRouterTo(3))
+    expect(store.getState().notice).toBeUndefined()
+  })
+})

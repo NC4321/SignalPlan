@@ -1,9 +1,11 @@
-import type { Floor } from '@signalplan/floorplan'
+import type { Floor, Plan } from '@signalplan/floorplan'
 import { describe, expect, it } from 'vitest'
 import {
   accessPointAt,
   hitTest,
+  nudgeRecipe,
   pressGrabsAccessPoint,
+  selectionHasLocked,
   snapDraggedNode,
   wallDragDelta,
 } from './selectTool.ts'
@@ -136,5 +138,46 @@ describe('snapDraggedNode', () => {
       },
     )
     expect(to).toEqual({ x: 4, y: 0 })
+  })
+})
+
+describe('locked access points (D43)', () => {
+  const plan = (): Plan =>
+    ({
+      schemaVersion: 1,
+      name: 'Plan',
+      floors: [structuredClone(floor)],
+      accessPoints: [
+        { ...ap, id: 'free', x: 1, y: 1 },
+        { ...ap, id: 'fixed', x: 2, y: 2, locked: true },
+      ],
+    }) as Plan
+
+  it('nudges the rest of the selection but not a locked one', () => {
+    const p = plan()
+    nudgeRecipe(
+      'f',
+      [
+        { kind: 'accessPoint', id: 'free' },
+        { kind: 'accessPoint', id: 'fixed' },
+        { kind: 'node', id: 'a' },
+      ],
+      { x: 0.5, y: 0 },
+    )(p)
+    expect(p.accessPoints.map((a) => a.x)).toEqual([1.5, 2])
+    expect(p.floors[0]!.nodes[0]).toMatchObject({ x: 0.5, y: 0 })
+  })
+
+  it('finds a locked access point in the selection', () => {
+    const p = plan()
+    expect(selectionHasLocked(p, [{ kind: 'accessPoint', id: 'fixed' }])).toBe(
+      true,
+    )
+    expect(
+      selectionHasLocked(p, [
+        { kind: 'accessPoint', id: 'free' },
+        { kind: 'wall', id: 'fixed' },
+      ]),
+    ).toBe(false)
   })
 })

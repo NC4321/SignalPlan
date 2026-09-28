@@ -197,3 +197,65 @@ test('explains an empty floor after deleting the last access point', async ({
     panel(page).getByRole('button', { name: 'Wi-Fi 6E router' }),
   ).toBeVisible()
 })
+
+test('a locked access point stays put when dragged or nudged (D43)', async ({
+  page,
+}) => {
+  const router = await screenPoint(page, 5.6, 1.2)
+  const position = panel(page).locator('dd').first()
+  const notice = page.locator('.status-notice')
+  await page.mouse.click(router.x, router.y)
+  await expect(heading(page, 'Wi-Fi 6E router')).toBeVisible()
+
+  const locked = panel(page).getByRole('checkbox', { name: /Locked/ })
+  await locked.check()
+  await expect(undoButton(page)).toHaveAttribute(
+    'title',
+    /Undo Lock Wi-Fi 6E router/,
+  )
+  await expect(panel(page)).toContainText('Locked, so it can’t be moved')
+
+  // A drag selects it but doesn't move it, and says why.
+  const to = await screenPoint(page, 7.6, 2.2)
+  await page.mouse.move(router.x, router.y)
+  await page.mouse.down()
+  await page.mouse.move(to.x, to.y, { steps: 8 })
+  await expect(notice).toHaveText('Locked: unlock it in the panel to move it')
+  await page.mouse.up()
+  await expect(position).toHaveText('5.60 m, 1.20 m')
+  await expect(undoButton(page)).toHaveAttribute('title', /Undo Lock/)
+
+  // So do the arrow keys.
+  await page.locator('.editor-canvas').focus()
+  await page.keyboard.press('ArrowRight')
+  await expect(position).toHaveText('5.60 m, 1.20 m')
+
+  // Unlocked, it drags again; the notice goes with the edit.
+  await locked.uncheck()
+  await expect(notice).toBeHidden()
+  await page.mouse.move(router.x, router.y)
+  await page.mouse.down()
+  await page.mouse.move(to.x, to.y, { steps: 8 })
+  await page.mouse.up()
+  await expect(position).not.toHaveText('5.60 m, 1.20 m')
+  await expect(undoButton(page)).toHaveAttribute(
+    'title',
+    /Undo Move Wi-Fi 6E router/,
+  )
+})
+
+test('a locked access point can still be deleted (D43)', async ({ page }) => {
+  const router = await screenPoint(page, 5.6, 1.2)
+  await page.mouse.click(router.x, router.y)
+  await panel(page)
+    .getByRole('checkbox', { name: /Locked/ })
+    .check()
+  await page.locator('.editor-canvas').focus()
+  await page.keyboard.press('Delete')
+  await expect(heading(page, 'Wi-Fi 6E router')).toBeHidden()
+  await page.keyboard.press('ControlOrMeta+z')
+  await page.mouse.click(router.x, router.y)
+  await expect(
+    panel(page).getByRole('checkbox', { name: /Locked/ }),
+  ).toBeChecked()
+})

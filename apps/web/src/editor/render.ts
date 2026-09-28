@@ -239,7 +239,11 @@ export function draw(
     context.strokeStyle = colour(selected ? '--accent' : '--ap-ring')
     context.stroke()
 
-    const x = at.x + AP_RADIUS_PX + 6
+    let x = at.x + AP_RADIUS_PX + 6
+    if (ap.locked) {
+      drawPadlock(context, colour, x, at.y)
+      x += PADLOCK_WIDTH_PX + 4
+    }
     context.lineWidth = 4
     context.lineJoin = 'round'
     context.strokeStyle = colour('--canvas')
@@ -247,6 +251,44 @@ export function draw(
     context.fillStyle = colour('--text')
     context.fillText(ap.name, x, at.y)
   }
+}
+
+const PADLOCK_WIDTH_PX = 9
+
+/**
+ * A small padlock before a locked access point's name (D43), with its left
+ * edge at x and centred on y. Outlined in the canvas colour like the label.
+ */
+function drawPadlock(
+  context: CanvasRenderingContext2D,
+  colour: (name: string) => string,
+  x: number,
+  y: number,
+) {
+  const w = PADLOCK_WIDTH_PX
+  const bodyTop = y - 1
+  const shackle = () => {
+    context.beginPath()
+    context.moveTo(x + 2, bodyTop)
+    context.lineTo(x + 2, y - 4)
+    context.arc(x + w / 2, y - 4, w / 2 - 2, Math.PI, 0)
+    context.lineTo(x + w - 2, bodyTop)
+  }
+  context.save()
+  context.lineJoin = 'round'
+  // Halo, so it reads over any heatmap colour.
+  context.strokeStyle = colour('--canvas')
+  context.lineWidth = 5
+  shackle()
+  context.stroke()
+  context.strokeRect(x, bodyTop, w, 7)
+  context.strokeStyle = colour('--text')
+  context.lineWidth = 1.5
+  shackle()
+  context.stroke()
+  context.fillStyle = colour('--text')
+  context.fillRect(x, bodyTop, w, 7)
+  context.restore()
 }
 
 /** The calibration points as crosses, joined by a dashed line. */

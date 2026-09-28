@@ -106,6 +106,30 @@ describe('parsePlan', () => {
     ).toBe('coverageTarget')
   })
 
+  it('accepts an optional locked flag on access points', () => {
+    const plan: Plan = {
+      ...box(),
+      accessPoints: [
+        {
+          id: 'ap',
+          name: 'Router',
+          floorId: box().floors[0]!.id,
+          x: 1,
+          y: 1,
+          heightM: 1,
+          radios: [{ band: '5GHz' }],
+          locked: true,
+        },
+      ],
+    }
+    expect(parsePlan(plan)).toEqual({ ok: true, plan })
+    const bad = {
+      ...plan,
+      accessPoints: [{ ...plan.accessPoints[0]!, locked: 'yes' }],
+    }
+    expect(issuesOf(parsePlan(bad))[0]?.path).toBe('accessPoints[0].locked')
+  })
+
   it('rejects a plan with no floors', () => {
     expect(issuesOf(parsePlan({ ...box(), floors: [] }))[0]?.path).toBe(
       'floors',

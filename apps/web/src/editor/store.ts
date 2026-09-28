@@ -88,6 +88,11 @@ export interface EditorState {
   planId: string | undefined
   /** An edit in progress, such as a drag: previews apply to `base`. */
   gesture: { base: Plan; recipe: Recipe | undefined } | undefined
+  /**
+   * A short note for the status bar, such as why a locked access point
+   * didn't move (D43). Cleared by the next edit or selection change.
+   */
+  notice: string | undefined
 
   /** Applies one undoable edit. */
   edit: (label: string, recipe: Recipe) => void
@@ -120,6 +125,7 @@ export interface EditorState {
   toggleSelected: (item: SelectionItem) => void
   setCamera: (camera: Camera | undefined) => void
   setPointer: (pointer: Point | undefined) => void
+  setNotice: (notice: string | undefined) => void
   setWallMaterial: (material: WallMaterial) => void
   addCalibrationPoint: (point: Point) => void
   setOpeningMaterial: (
@@ -144,6 +150,9 @@ function wouldAddWall(
 ) {
   return addWall(structuredClone(floor), a, b, material).length > 0
 }
+
+const sameSelection = (a: Selection, b: Selection) =>
+  a.length === b.length && a.every((item, i) => sameItem(item, b[i]!))
 
 /** Drops selected items that no longer exist. */
 function validSelection(plan: Plan, floorId: string, selection: Selection) {
@@ -187,6 +196,7 @@ export function createEditorStore(
     pristine: options.pristine ?? true,
     planId: options.id,
     gesture: undefined,
+    notice: undefined,
 
     edit: (label, recipe) => {
       const [next, patches, inverse] = produceWithPatches(get().plan, recipe)
@@ -199,6 +209,7 @@ export function createEditorStore(
         future: [],
         pristine: false,
         selection: validSelection(next, state.floorId, state.selection),
+        notice: undefined,
       }))
     },
 
@@ -303,7 +314,13 @@ export function createEditorStore(
       set((state) => ({
         calibrationPoints: [...state.calibrationPoints, point].slice(-2),
       })),
-    select: (selection) => set({ selection }),
+    select: (selection) =>
+      set((state) => ({
+        selection,
+        notice: sameSelection(state.selection, selection)
+          ? state.notice
+          : undefined,
+      })),
     toggleSelected: (item) =>
       set((state) => ({
         selection: state.selection.some((s) => sameItem(s, item))
@@ -312,6 +329,7 @@ export function createEditorStore(
       })),
     setCamera: (camera) => set({ camera }),
     setPointer: (pointer) => set({ pointer }),
+    setNotice: (notice) => set({ notice }),
     setWallMaterial: (wallMaterial) => set({ wallMaterial }),
     setOpeningMaterial: (kind, material) =>
       set((state) => ({

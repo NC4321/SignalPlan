@@ -403,6 +403,24 @@ dd {
   text-overflow: ellipsis;
 }
 
+.status-notice {
+  flex: none;
+  margin: 0;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.status-notice:empty {
+  display: none;
+}
+
+.check-field {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0.5rem 0;
+}
+
 .zoom {
   display: flex;
   gap: 0.25rem;

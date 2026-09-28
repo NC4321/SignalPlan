@@ -120,6 +120,11 @@ export const accessPointSchema = z.object({
   /** Mounting height above this floor's surface. */
   heightM: z.number().nonnegative(),
   radios: z.array(radioSchema).min(1),
+  /**
+   * Locked access points can't be moved, by hand or by the optimizer (D40,
+   * D43). Omitted means unlocked.
+   */
+  locked: z.boolean().optional(),
 })
 
 export const planSchema = z.object({
