@@ -1,5 +1,5 @@
 import { adjacentFloorId, type PlanIssue } from '@signalplan/floorplan'
-import { useEffect, useMemo, useState } from 'react'
+import { lazy, Suspense, useEffect, useMemo, useState } from 'react'
 import { useEditor, useEditorStore } from './editor/context.ts'
 import { EditorCanvas } from './editor/EditorCanvas.tsx'
 import { FloorStack } from './editor/FloorStack.tsx'
@@ -25,6 +25,11 @@ import {
 } from './editor/optimizer.ts'
 import { OptimizerContext } from './editor/optimizerContext.ts'
 import { useCoverage } from './useCoverage.ts'
+import { useFloorsCoverage } from './useFloorsCoverage.ts'
+import { DEFAULT_TARGET } from './quality.ts'
+
+// three.js loads only when the 3D view first opens (D57).
+const View3D = lazy(() => import('./view3d/View3D.tsx'))
 
 function App({
   savedPlanProblem,
@@ -74,6 +79,11 @@ function App({
   const broadcasting = onBand.length > 0
   const broadcastingHere = onBand.some((ap) => ap.floorId === floorId)
   const { coverage, error } = useCoverage(shownPlan, floorId, band)
+  const view = useEditor((s) => s.view)
+  const view3d = useEditor((s) => s.view3d)
+  const showHeatmap = useEditor((s) => s.showHeatmap)
+  const units = useEditor((s) => s.units)
+  const floorsCoverage = useFloorsCoverage(shownPlan, band, view === '3d')
   const shown = broadcasting ? coverage : undefined
   const summary = useCoverageMessage(shown)
   const coverageText =
@@ -93,6 +103,13 @@ function App({
       } else if (mod && key === 'y') {
         event.preventDefault()
         state.redo()
+      } else if (
+        state.view === '3d' &&
+        !mod &&
+        (/^[vwdnoa]$/.test(key) || key === 'delete' || key === 'backspace')
+      ) {
+        // The 3D view is for looking: tools and deleting are in 2D (D57).
+        return
       } else if (!mod && !event.altKey && key === 'v') {
         state.setTool('select')
       } else if (!mod && !event.altKey && key === 'w') {
@@ -157,10 +174,29 @@ function App({
           <Toolbar />
           <main className="stage">
             <h1 className="visually-hidden">SignalPlan editor</h1>
-            <EditorCanvas coverage={shown} />
-            {tool === 'calibrate' && <CalibrationBar />}
-            <FloorStack />
-            {!broadcastingHere && (
+            {view === '3d' ? (
+              <Suspense
+                fallback={<p className="notice">Loading the 3D view…</p>}
+              >
+                <View3D
+                  plan={shownPlan}
+                  coverages={floorsCoverage}
+                  hiddenFloors={view3d.hiddenFloors}
+                  spreadM={view3d.spreadM}
+                  fullWalls={view3d.fullWalls}
+                  showHeatmap={showHeatmap}
+                  units={units}
+                  target={plan.coverageTarget ?? DEFAULT_TARGET}
+                />
+              </Suspense>
+            ) : (
+              <>
+                <EditorCanvas coverage={shown} />
+                {tool === 'calibrate' && <CalibrationBar />}
+                <FloorStack />
+              </>
+            )}
+            {view === '2d' && !broadcastingHere && (
               <p className="notice">
                 {(hasAccessPoint
                   ? 'No access point on this floor broadcasts on this band.'

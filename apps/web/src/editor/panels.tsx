@@ -87,6 +87,7 @@ export function TopBar({
   const units = useEditor((s) => s.units)
   const band = useEditor((s) => s.band)
   const showHeatmap = useEditor((s) => s.showHeatmap)
+  const view = useEditor((s) => s.view)
 
   return (
     <header className="top-bar">
@@ -120,6 +121,17 @@ export function TopBar({
           Redo
         </button>
       </div>
+
+      <Segmented
+        label="View"
+        name="view"
+        value={view}
+        options={[
+          { value: '2d', label: '2D' },
+          { value: '3d', label: '3D' },
+        ]}
+        onChange={(v) => store.getState().setView(v)}
+      />
 
       <Segmented
         label="Band"
@@ -234,6 +246,8 @@ export function Toolbar() {
   const tool = useEditor((s) => s.tool)
   // The lowest floor has no slab to cut (D54).
   const canCut = useEditor((s) => canCutFloor(s.plan, s.floorId))
+  // The 3D view is for looking; editing is in 2D (D57).
+  const in3d = useEditor((s) => s.view === '3d')
   const buttons = useRef<(HTMLButtonElement | null)[]>([])
   const current = Math.max(
     0,
@@ -264,7 +278,7 @@ export function Toolbar() {
       }}
     >
       {TOOLS.map((t, i) => {
-        const unavailable = t.tool === 'floorOpening' && !canCut
+        const unavailable = in3d || (t.tool === 'floorOpening' && !canCut)
         return (
           <button
             key={t.tool}
@@ -277,11 +291,15 @@ export function Toolbar() {
             aria-keyshortcuts={t.key}
             aria-label={'label' in t ? t.label : undefined}
             aria-disabled={unavailable || undefined}
-            onClick={() => store.getState().setTool(t.tool)}
+            onClick={() => {
+              if (!in3d) store.getState().setTool(t.tool)
+            }}
             title={
-              unavailable
-                ? 'The lowest floor has nothing below to open onto: pick or add a floor above'
-                : `${t.title} (${t.key})`
+              in3d
+                ? 'Switch to 2D to edit'
+                : unavailable
+                  ? 'The lowest floor has nothing below to open onto: pick or add a floor above'
+                  : `${t.title} (${t.key})`
             }
           >
             <span aria-hidden="true">{t.icon}</span>
@@ -306,6 +324,7 @@ export function PropertiesPanel({
   const selection = useEditor((s) => s.selection)
   const tool = useEditor((s) => s.tool)
   const optimizing = useEditor((s) => s.optimizer !== undefined)
+  const in3d = useEditor((s) => s.view === '3d')
   const floor = plan.floors.find((f) => f.id === floorId)!
 
   const only = selection.length === 1 ? selection[0] : undefined
@@ -331,8 +350,10 @@ export function PropertiesPanel({
       : undefined
 
   let details
-  if (tool === 'wall' && selection.length === 0) details = <WallToolSection />
-  else if (tool === 'accessPoint' && selection.length === 0) {
+  if (in3d) details = <View3DSection />
+  else if (tool === 'wall' && selection.length === 0) {
+    details = <WallToolSection />
+  } else if (tool === 'accessPoint' && selection.length === 0) {
     details = <AccessPointToolSection />
   } else if ((tool === 'door' || tool === 'window') && selection.length === 0) {
     details = <OpeningToolSection kind={tool} />
@@ -364,9 +385,10 @@ export function PropertiesPanel({
     >
       {details}
 
-      {(optimizing || ap || (tool === 'select' && selection.length === 0)) && (
-        <OptimizerSection />
-      )}
+      {!in3d &&
+        (optimizing || ap || (tool === 'select' && selection.length === 0)) && (
+          <OptimizerSection />
+        )}
 
       {tool !== 'wall' && (
         <section>
@@ -655,6 +677,8 @@ export function StatusBar({
   const units = useEditor((s) => s.units)
   const showHeatmap = useEditor(heatmapShown)
   const tracing = useEditor((s) => s.showHeatmap && tracingHidesHeatmap(s))
+  // The 3D view has its own camera buttons (D57).
+  const in3d = useEditor((s) => s.view === '3d')
   const signal =
     pointer && coverage && showHeatmap ? signalAt(coverage, pointer) : undefined
   const quality = signal === undefined ? undefined : qualityOf(signal)
@@ -709,27 +733,29 @@ export function StatusBar({
       >
         {SAVE_MESSAGES[saveStatus]}
       </p>
-      <div className="zoom" role="group" aria-label="Zoom">
-        <button
-          type="button"
-          onClick={() => zoomBy(1 / 1.25)}
-          title="Zoom out"
-          aria-label="Zoom out"
-        >
-          −
-        </button>
-        <button
-          type="button"
-          onClick={() => zoomBy(1.25)}
-          title="Zoom in"
-          aria-label="Zoom in"
-        >
-          +
-        </button>
-        <button type="button" onClick={fit} title="Fit plan to window">
-          Fit
-        </button>
-      </div>
+      {!in3d && (
+        <div className="zoom" role="group" aria-label="Zoom">
+          <button
+            type="button"
+            onClick={() => zoomBy(1 / 1.25)}
+            title="Zoom out"
+            aria-label="Zoom out"
+          >
+            −
+          </button>
+          <button
+            type="button"
+            onClick={() => zoomBy(1.25)}
+            title="Zoom in"
+            aria-label="Zoom in"
+          >
+            +
+          </button>
+          <button type="button" onClick={fit} title="Fit plan to window">
+            Fit
+          </button>
+        </div>
+      )}
     </footer>
   )
 }
@@ -1475,6 +1501,80 @@ function OpeningToolSection({ kind }: { kind: 'door' | 'window' }) {
         </li>
         <li>Near a corner or another opening, it slides to fit.</li>
         <li>Esc returns to Select.</li>
+      </ul>
+    </section>
+  )
+}
+
+/**
+ * The 3D view's settings (D57): which floors show, how far apart, and how
+ * tall the walls are. None of them is saved.
+ */
+function View3DSection() {
+  const store = useEditorStore()
+  const floors = useEditor((s) => s.plan.floors)
+  const settings = useEditor((s) => s.view3d)
+  const units = useEditor((s) => s.units)
+  const spreadId = useId()
+  const topDown = stackedFloors(floors).reverse()
+  const set = (change: Partial<typeof settings>) =>
+    store.getState().setView3d(change)
+  return (
+    <section>
+      <h2>3D view</h2>
+      <p className="kind">For looking around; editing is in 2D</p>
+      <fieldset className="view3d-floors">
+        <legend>Floors shown</legend>
+        {topDown.map((floor) => (
+          <label key={floor.id}>
+            <input
+              type="checkbox"
+              checked={!settings.hiddenFloors.includes(floor.id)}
+              onChange={(event) =>
+                set({
+                  hiddenFloors: event.target.checked
+                    ? settings.hiddenFloors.filter((id) => id !== floor.id)
+                    : [...settings.hiddenFloors, floor.id],
+                })
+              }
+            />
+            {floor.name || 'Unnamed floor'}
+          </label>
+        ))}
+      </fieldset>
+      <div className="field">
+        <label htmlFor={spreadId}>Spread floors apart</label>
+        <input
+          id={spreadId}
+          type="range"
+          min={0}
+          max={6}
+          step={0.5}
+          value={settings.spreadM}
+          aria-valuetext={formatLength(settings.spreadM, units)}
+          onChange={(event) => set({ spreadM: Number(event.target.value) })}
+        />
+        <span className="range-value">
+          {formatLength(settings.spreadM, units)}
+        </span>
+      </div>
+      <label className="toggle">
+        <input
+          type="checkbox"
+          checked={settings.fullWalls}
+          onChange={(event) => set({ fullWalls: event.target.checked })}
+        />
+        Full-height walls
+      </label>
+      <ul className="hint tips">
+        <li>
+          Drag to rotate, scroll or pinch to zoom, right-drag or two fingers to
+          move. The buttons do the same from the keyboard.
+        </li>
+        <li>
+          Walls are cut away at 1 m so the heatmap on each floor shows; the
+          heatmap is for the band on show.
+        </li>
       </ul>
     </section>
   )

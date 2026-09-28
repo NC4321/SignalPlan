@@ -78,9 +78,22 @@ export const sameItem = (a: SelectionItem, b: SelectionItem) =>
  */
 export type Chain = { point: Point; drew: boolean }[]
 
+/** Settings of the 3D view (D57). Not saved: they reset on reload. */
+export interface View3dSettings {
+  /** Floors left out of the view. */
+  hiddenFloors: readonly string[]
+  /** Extra height added between floors, in metres, to see into lower ones. */
+  spreadM: number
+  /** Walls to the ceiling instead of cut away at 1 m. */
+  fullWalls: boolean
+}
+
 export interface EditorState {
   plan: Plan
   floorId: string
+  /** The 2D editor or the view-only 3D view (D57). Not saved. */
+  view: '2d' | '3d'
+  view3d: View3dSettings
   band: Band
   units: Units
   showHeatmap: boolean
@@ -159,6 +172,9 @@ export interface EditorState {
   /** Swaps a floor with the one above or below it. */
   moveFloor: (floorId: string, direction: 'up' | 'down') => void
 
+  /** Switches between the 2D editor and the 3D view (D57). */
+  setView: (view: '2d' | '3d') => void
+  setView3d: (settings: Partial<View3dSettings>) => void
   setBand: (band: Band) => void
   setUnits: (units: Units) => void
   setShowHeatmap: (show: boolean) => void
@@ -299,6 +315,8 @@ export function createEditorStore(
   return createStore<EditorState>()((set, get) => ({
     plan,
     floorId: plan.floors[0]!.id,
+    view: '2d',
+    view3d: { hiddenFloors: [], spreadM: 0, fullWalls: false },
     band: '5GHz',
     units: options.units ?? 'metric',
     showHeatmap: true,
@@ -493,6 +511,21 @@ export function createEditorStore(
       )
     },
 
+    setView: (view) =>
+      set((state) =>
+        view === state.view || state.gesture
+          ? {}
+          : {
+              view,
+              // The 3D view is for looking, so drawing in progress ends.
+              chain: undefined,
+              outline: undefined,
+              calibrationPoints: [],
+              tool: state.tool === 'calibrate' ? 'select' : state.tool,
+            },
+      ),
+    setView3d: (settings) =>
+      set((state) => ({ view3d: { ...state.view3d, ...settings } })),
     setBand: (band) =>
       set((state) =>
         band === state.band

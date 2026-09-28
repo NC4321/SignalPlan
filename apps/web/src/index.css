@@ -1037,3 +1037,48 @@ button.danger-fill {
 .floor-suggested {
   color: var(--accent);
 }
+
+/* The 3D view (D57). */
+.view3d {
+  position: absolute;
+  inset: 0;
+}
+
+.view3d-canvas {
+  position: absolute;
+  inset: 0;
+  touch-action: none;
+}
+
+.view3d-canvas canvas {
+  display: block;
+}
+
+.view3d-controls {
+  position: absolute;
+  left: 0.75rem;
+  bottom: 0.75rem;
+  display: flex;
+  gap: 0.25rem;
+  padding: 0.35rem;
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  background: var(--surface);
+}
+
+.view3d-failed {
+  display: grid;
+  place-items: center;
+  padding: 2rem;
+  text-align: center;
+}
+
+.view3d-floors label {
+  display: flex;
+  gap: 0.4rem;
+  align-items: center;
+}
+
+.range-value {
+  font-variant-numeric: tabular-nums;
+}
