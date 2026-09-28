@@ -1,4 +1,4 @@
-import type { Floor, Point } from '@signalplan/floorplan'
+import { pointInPolygon, type Floor, type Point } from '@signalplan/floorplan'
 import type { Coverage, Grid } from './coverage.ts'
 
 /**
@@ -12,6 +12,9 @@ import type { Coverage, Grid } from './coverage.ts'
  * A cell whose centre lies exactly on a wall can't be reached either, so it
  * counts as inside: the area may run up to half a cell over along such walls,
  * but the flood never leaks through a closed outline.
+ *
+ * Cells whose centre lies in an opening in the floor, such as a stairwell,
+ * aren't floor either (D54).
  */
 export function floorAreaMask(floor: Floor, grid: Grid): Uint8Array {
   const { cols, rows, cellM } = grid
@@ -88,6 +91,26 @@ export function floorAreaMask(floor: Floor, grid: Grid): Uint8Array {
   }
 
   for (let i = 0; i < inside.length; i++) inside[i] = reached[i] ? 0 : 1
+  for (const { points } of floor.floorOpenings ?? []) {
+    const col0 = clampCol(
+      Math.floor((Math.min(...points.map((p) => p.x)) - grid.originX) / cellM),
+    )
+    const col1 = clampCol(
+      Math.floor((Math.max(...points.map((p) => p.x)) - grid.originX) / cellM),
+    )
+    const row0 = clampRow(
+      Math.floor((Math.min(...points.map((p) => p.y)) - grid.originY) / cellM),
+    )
+    const row1 = clampRow(
+      Math.floor((Math.max(...points.map((p) => p.y)) - grid.originY) / cellM),
+    )
+    for (let row = row0; row <= row1; row++) {
+      for (let col = col0; col <= col1; col++) {
+        if (pointInPolygon(centre(col, row), points))
+          inside[row * cols + col] = 0
+      }
+    }
+  }
   return inside
 }
 

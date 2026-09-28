@@ -73,6 +73,16 @@ export const openingSchema = z.object({
 })
 
 /**
+ * A hole in a floor's slab, such as a stairwell or an atrium (D54): a polygon
+ * of at least three corners, in order. Signal crossing the slab inside it
+ * pays no floor loss, and its area isn't counted as floor.
+ */
+export const floorOpeningSchema = z.object({
+  id,
+  points: z.array(z.object({ x: metres, y: metres })).min(3),
+})
+
+/**
  * A floor plan image to trace over (D22). In the browser the image is kept
  * in its own store and referenced by `imageId`; saved files embed it as a
  * `dataUrl` so one file restores everything.
@@ -113,6 +123,8 @@ export const floorSchema = z.object({
   nodes: z.array(nodeSchema),
   walls: z.array(wallSchema),
   openings: z.array(openingSchema),
+  /** Holes in this floor's slab (D54). Omitted means none. */
+  floorOpenings: z.array(floorOpeningSchema).optional(),
   background: backgroundSchema.optional(),
 })
 
@@ -157,6 +169,7 @@ export type Band = z.infer<typeof bandSchema>
 export type PlanNode = z.infer<typeof nodeSchema>
 export type Wall = z.infer<typeof wallSchema>
 export type Opening = z.infer<typeof openingSchema>
+export type FloorOpening = z.infer<typeof floorOpeningSchema>
 export type Background = z.infer<typeof backgroundSchema>
 export type Floor = z.infer<typeof floorSchema>
 export type Radio = z.infer<typeof radioSchema>

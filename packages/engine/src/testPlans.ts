@@ -171,8 +171,8 @@ export const bigHouse = () =>
 /**
  * A two-storey house (#87): two 15 × 10 m (150 m²) floors of 3 × 2 m rooms,
  * 300 m² in all, with a timber joist floor between, the router downstairs and
- * a second access point upstairs. As large as the big house, so it has the
- * same budget (D29).
+ * a second access point upstairs, and a 1 × 3 m stairwell through the upper
+ * floor (D54). As large as the big house, so it has the same budget (D29).
  */
 export function twoStoreyHouse(): Plan {
   const ground = rooms('Two-storey house', 3, 2, [[4, 3]])
@@ -183,6 +183,17 @@ export function twoStoreyHouse(): Plan {
     name: 'Upstairs',
     elevationM: 2.7,
     material: 'timber-joist',
+    floorOpenings: [
+      {
+        id: 'stairs',
+        points: [
+          { x: 6, y: 4 },
+          { x: 7, y: 4 },
+          { x: 7, y: 7 },
+          { x: 6, y: 7 },
+        ],
+      },
+    ],
   }
   return {
     ...ground,

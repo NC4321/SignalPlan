@@ -1,10 +1,12 @@
 import {
   DEFAULT_FLOOR_MATERIAL,
   materialSegments,
+  pointInPolygon,
   stackedFloors,
   type Band,
   type Floor,
   type Plan,
+  type Point,
 } from '@signalplan/floorplan'
 import {
   prepareWalls,
@@ -28,7 +30,40 @@ export interface Storey {
   topM: number
   /** Loss in dB through this floor's slab, head-on (D50). */
   slabLossDb: number
+  /** Holes in the slab, such as stairwells, that cost nothing (D54). */
+  holes: SlabHoles | undefined
   walls: PreparedWalls
+}
+
+/** A slab's openings, with a bounding box to skip most points quickly. */
+export interface SlabHoles {
+  polygons: readonly (readonly Point[])[]
+  minX: number
+  minY: number
+  maxX: number
+  maxY: number
+}
+
+function prepareHoles(floor: Floor): SlabHoles | undefined {
+  const polygons = (floor.floorOpenings ?? []).map((o) => o.points)
+  if (polygons.length === 0) return undefined
+  const points = polygons.flat()
+  return {
+    polygons,
+    minX: Math.min(...points.map((p) => p.x)),
+    minY: Math.min(...points.map((p) => p.y)),
+    maxX: Math.max(...points.map((p) => p.x)),
+    maxY: Math.max(...points.map((p) => p.y)),
+  }
+}
+
+/** Whether a point on the plan lies in one of a slab's holes. */
+export function inHole(holes: SlabHoles, x: number, y: number): boolean {
+  if (x < holes.minX || x > holes.maxX || y < holes.minY || y > holes.maxY) {
+    return false
+  }
+  const p = { x, y }
+  return holes.polygons.some((polygon) => pointInPolygon(p, polygon))
 }
 
 /**
@@ -47,6 +82,7 @@ export function prepareStack(plan: Plan, band: Band): Storey[] {
       bottomM: floor.elevationM,
       topM: next ? Math.min(ceiling, next.elevationM) : ceiling,
       slabLossDb: slabLosses[floor.material ?? DEFAULT_FLOOR_MATERIAL],
+      holes: prepareHoles(floor),
       walls: prepareWalls(materialSegments(floor), (m) => wallLosses[m]),
     }
   })
@@ -64,15 +100,21 @@ export interface StoreyStretch {
  * heights `fromZ` and `toZ` above the lowest floor (D51). It pays the slab of
  * every storey boundary it crosses, and each storey's walls along the stretch
  * of the path inside that storey, between its surface and its ceiling. Every
- * slab covers the whole plan.
+ * slab covers the whole plan except its openings (D54): where the path
+ * passes through the slab's middle height inside one, that slab costs nothing.
  *
  * The stretches depend only on the heights, so a grid of cells at one height
  * shares them. A path that doesn't rise from storey to storey as it should
  * (an access point mounted above the next floor up) splits halfway.
  */
 export interface FloorCrossing {
-  /** Total loss of the slabs crossed, in dB. */
+  /** Total loss of the slabs crossed that have no openings, in dB. */
   slabLossDb: number
+  /**
+   * Slabs crossed that have openings, with where along the path (0 to 1) it
+   * passes their middle height.
+   */
+  holedSlabs: { holes: SlabHoles; lossDb: number; t: number }[]
   /** One stretch per storey, from the start's storey to the end's. */
   stretches: StoreyStretch[]
 }
@@ -91,6 +133,7 @@ export function floorCrossing(
     rise > 0 ? Math.min(Math.max((z - fromZ) / (toZ - fromZ), 0), 1) : 0.5
 
   let slabLossDb = 0
+  const holedSlabs: FloorCrossing['holedSlabs'] = []
   const stretches: StoreyStretch[] = []
   let enter = 0
   for (let i = from; i !== to; i += step) {
@@ -101,10 +144,19 @@ export function floorCrossing(
     stretches.push({ walls: here.walls, fromT: enter, toT: exit })
     enter = Math.max(exit, at(step > 0 ? next.bottomM : next.topM))
     // Going up crosses the next storey's slab; going down, this one's.
-    slabLossDb += (step > 0 ? next : here).slabLossDb
+    const slab = step > 0 ? next : here
+    if (slab.holes) {
+      holedSlabs.push({
+        holes: slab.holes,
+        lossDb: slab.slabLossDb,
+        t: (exit + enter) / 2,
+      })
+    } else {
+      slabLossDb += slab.slabLossDb
+    }
   }
   stretches.push({ walls: stack[to]!.walls, fromT: enter, toT: 1 })
-  return { slabLossDb, stretches }
+  return { slabLossDb, holedSlabs, stretches }
 }
 
 /**
@@ -121,6 +173,9 @@ export function crossingLossDb(
   const dx = toX - fromX
   const dy = toY - fromY
   let total = crossing.slabLossDb
+  for (const { holes, lossDb, t } of crossing.holedSlabs) {
+    if (!inHole(holes, fromX + t * dx, fromY + t * dy)) total += lossDb
+  }
   for (const { walls, fromT, toT } of crossing.stretches) {
     if (toT <= fromT) continue
     total += preparedWallLoss(

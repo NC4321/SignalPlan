@@ -54,6 +54,12 @@ export interface Scene {
   selection: Selection
   /** Walls as lines between their corners, for selection highlights. */
   wallLines: readonly { id: string; a: Point; b: Point }[]
+  /** Openings in the floor, such as stairwells (D54). */
+  floorOpenings?: readonly { id: string; points: readonly Point[] }[]
+  /** The floor opening tool's outline so far, and where the next corner goes. */
+  outline?:
+    | { points: readonly Point[]; cursor: Point | undefined; snap: SnapKind }
+    | undefined
   /** Doors and windows, for their end marks and selection highlights. */
   openings: readonly OpeningSpan[]
   /** The door or window tool's preview of where a click would place one. */
@@ -154,6 +160,15 @@ export function draw(
   const isSelected = (kind: string, id: string) =>
     scene.selection.some((s) => s.kind === kind && s.id === id)
 
+  for (const opening of scene.floorOpenings ?? []) {
+    drawFloorOpening(
+      context,
+      colour,
+      opening.points.map((p) => toScreen(camera, p)),
+      isSelected('floorOpening', opening.id),
+    )
+  }
+
   // Selected walls get a halo underneath.
   context.lineCap = 'round'
   context.strokeStyle = colour('--accent')
@@ -224,6 +239,22 @@ export function draw(
     context.stroke()
   }
 
+  // Corners of selected floor openings, to drag on their own.
+  for (const opening of scene.floorOpenings ?? []) {
+    if (!isSelected('floorOpening', opening.id)) continue
+    for (const point of opening.points) {
+      const at = toScreen(camera, point)
+      context.beginPath()
+      context.rect(at.x - 4.5, at.y - 4.5, 9, 9)
+      context.fillStyle = colour('--canvas')
+      context.fill()
+      context.strokeStyle = colour('--accent')
+      context.lineWidth = 2
+      context.stroke()
+    }
+  }
+
+  if (scene.outline) drawOutline(context, colour, camera, scene.outline)
   if (scene.drawing) drawPreview(context, colour, scene, wallWidth)
   if (scene.calibration) drawCalibration(context, colour, scene)
 
@@ -479,17 +510,119 @@ function drawPreview(
     }
   }
 
-  // Snap marker: circle on a corner, diamond on a wall, cross otherwise;
-  // dashed on the ghosted floor below (D53).
+  context.strokeStyle = colour('--accent')
+  drawSnapMarker(context, cursor, drawing.snap)
+}
+
+/** Spacing of the hatching across a floor opening, in screen pixels. */
+const HATCH_PX = 8
+
+/**
+ * An opening in the floor (D54): hatched, so it reads as a hole rather than
+ * a room, with a solid edge; accent-coloured when selected.
+ */
+function drawFloorOpening(
+  context: CanvasRenderingContext2D,
+  colour: (name: string) => string,
+  screen: readonly Point[],
+  selected: boolean,
+) {
+  if (screen.length < 3) return
+  const path = new Path2D()
+  screen.forEach((p, i) =>
+    i === 0 ? path.moveTo(p.x, p.y) : path.lineTo(p.x, p.y),
+  )
+  path.closePath()
+  const xs = screen.map((p) => p.x)
+  const ys = screen.map((p) => p.y)
+  const minX = Math.min(...xs)
+  const maxX = Math.max(...xs)
+  const minY = Math.min(...ys)
+  const maxY = Math.max(...ys)
+
+  context.save()
+  context.globalAlpha = 0.55
+  context.fillStyle = colour('--canvas')
+  context.fill(path, 'evenodd')
+  context.globalAlpha = 1
+  context.clip(path, 'evenodd')
+  context.beginPath()
+  // Lines at 45°, on screen-fixed spacing so zooming keeps them even.
+  const start = Math.floor((minX + minY) / HATCH_PX) * HATCH_PX
+  for (let c = start; c <= maxX + maxY; c += HATCH_PX) {
+    context.moveTo(c - minY, minY)
+    context.lineTo(c - maxY, maxY)
+  }
+  context.strokeStyle = colour(selected ? '--accent' : '--muted')
+  context.lineWidth = 1
+  context.stroke()
+  context.restore()
+
+  context.save()
+  context.lineJoin = 'round'
+  context.strokeStyle = colour(selected ? '--accent' : '--text')
+  context.lineWidth = selected ? 2.5 : 1.5
+  context.stroke(path)
+  context.restore()
+}
+
+/** The floor opening being drawn: its corners so far, then to the cursor. */
+function drawOutline(
+  context: CanvasRenderingContext2D,
+  colour: (name: string) => string,
+  camera: Camera,
+  outline: NonNullable<Scene['outline']>,
+) {
+  const points = outline.points.map((p) => toScreen(camera, p))
+  const cursor = outline.cursor && toScreen(camera, outline.cursor)
+  context.save()
   context.strokeStyle = colour('--accent')
   context.lineWidth = 2
-  const ghostSnap =
-    drawing.snap === 'ghost-node' || drawing.snap === 'ghost-wall'
+  context.lineJoin = 'round'
+  if (points.length > 0) {
+    context.beginPath()
+    points.forEach((p, i) =>
+      i === 0 ? context.moveTo(p.x, p.y) : context.lineTo(p.x, p.y),
+    )
+    if (cursor) context.lineTo(cursor.x, cursor.y)
+    context.stroke()
+    // The closing edge, dashed, once there's an area to close.
+    if (cursor && points.length >= 2) {
+      context.setLineDash([4, 4])
+      context.beginPath()
+      context.moveTo(cursor.x, cursor.y)
+      context.lineTo(points[0]!.x, points[0]!.y)
+      context.stroke()
+      context.setLineDash([])
+    }
+    for (const p of points) {
+      context.beginPath()
+      context.rect(p.x - 3.5, p.y - 3.5, 7, 7)
+      context.fillStyle = colour('--accent')
+      context.fill()
+    }
+  }
+  if (cursor) drawSnapMarker(context, cursor, outline.snap)
+  context.restore()
+}
+
+/**
+ * Where the next point snapped: a circle on a corner, a diamond on a wall, a
+ * cross otherwise; dashed on the ghosted floor below (D53). Uses the current
+ * stroke style.
+ */
+function drawSnapMarker(
+  context: CanvasRenderingContext2D,
+  cursor: Point,
+  snap: SnapKind,
+) {
+  context.lineWidth = 2
+  const ghostSnap = snap === 'ghost-node' || snap === 'ghost-wall'
   context.setLineDash(ghostSnap ? [3, 3] : [])
   context.beginPath()
-  if (drawing.snap === 'node' || drawing.snap === 'ghost-node') {
+  if (snap === 'node' || snap === 'ghost-node') {
     context.arc(cursor.x, cursor.y, 7, 0, Math.PI * 2)
-  } else if (drawing.snap === 'wall' || drawing.snap === 'ghost-wall') {
+  } else if (snap === 'wall' || snap === 'ghost-wall') {
     context.moveTo(cursor.x, cursor.y - 7)
     context.lineTo(cursor.x + 7, cursor.y)
     context.lineTo(cursor.x, cursor.y + 7)

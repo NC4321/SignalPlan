@@ -68,6 +68,26 @@ describe('segmentsTouch', () => {
 })
 
 describe('floorAreaMask', () => {
+  it('leaves out openings in the floor, such as a stairwell (D54)', () => {
+    // A 1 × 0.5 m stairwell in the 2 × 2 m room, its edges on cell edges.
+    const floor: Floor = {
+      ...outline(SQUARE),
+      floorOpenings: [
+        {
+          id: 'stairs',
+          points: [
+            { x: 0.5, y: 0.5 },
+            { x: 1.5, y: 0.5 },
+            { x: 1.5, y: 1 },
+            { x: 0.5, y: 1 },
+          ],
+        },
+      ],
+    }
+    expect(areaOf(outline(SQUARE))).toBeCloseTo(4, 9)
+    expect(areaOf(floor)).toBeCloseTo(3.5, 9)
+  })
+
   it('counts the cells inside a closed 2 × 2 m room', () => {
     // Cell centres sit at 0.05, 0.15 … 1.95 inside the room: 20 × 20 cells.
     expect(areaOf(outline(SQUARE))).toBeCloseTo(4, 9)

@@ -158,3 +158,42 @@ describe('describeForScreenReader', () => {
     ).toBe('2 items selected')
   })
 })
+
+describe('floor openings (D54)', () => {
+  const holed: Floor = {
+    ...floor,
+    floorOpenings: [
+      {
+        id: 'stairs',
+        points: [
+          { x: 1, y: 1 },
+          { x: 3.5, y: 1 },
+          { x: 3.5, y: 2 },
+          { x: 1, y: 2 },
+        ],
+      },
+    ],
+  }
+
+  it('come after corners and before access points', () => {
+    const order = keyboardOrder(holed, accessPoints)
+    expect(order.slice(5, 7)).toEqual([
+      { kind: 'node', id: 'c' },
+      { kind: 'floorOpening', id: 'stairs' },
+    ])
+    expect(order).toHaveLength(9)
+  })
+
+  it('are described by area and first corner', () => {
+    const order = keyboardOrder(holed, accessPoints)
+    expect(
+      describeForScreenReader(
+        [{ kind: 'floorOpening', id: 'stairs' }],
+        holed,
+        accessPoints,
+        'metric',
+        order,
+      ),
+    ).toBe('Floor opening, 3 m², at 1.00 m, 1.00 m, 7 of 9')
+  })
+})

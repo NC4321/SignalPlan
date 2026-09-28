@@ -423,6 +423,111 @@ describe('crossing floors (properties)', () => {
   })
 })
 
+describe('openings in the floor (properties)', () => {
+  /**
+   * A rectangle as a floor opening. Its edges sit 0.37 m off whole metres,
+   * away from where fast-check shrinks paths to: a point exactly on an edge
+   * may fall either way, as a wall exactly at a split may (see above).
+   */
+  const edge = fc.integer({ min: -8, max: 7 }).map((n) => n + 0.37)
+  const hole = fc
+    .tuple(edge, edge, edge, edge)
+    .filter(([x1, y1, x2, y2]) => x1 !== x2 && y1 !== y2)
+    .map(([x1, y1, x2, y2]) => ({
+      id: 'hole',
+      points: [
+        { x: x1, y: y1 },
+        { x: x2, y: y1 },
+        { x: x2, y: y2 },
+        { x: x1, y: y2 },
+      ],
+    }))
+
+  it('an opening never lowers the signal', () => {
+    fc.assert(
+      fc.property(
+        fc.array(fc.array(wallSpec, { maxLength: 3 }), {
+          minLength: 2,
+          maxLength: 2,
+        }),
+        hole,
+        fc.boolean(),
+        fc.double({ min: 0, max: 2.4, noNaN: true }),
+        fc.record({ x: coordinate, y: coordinate }),
+        (walls, opening, fromBelow, apHeight, at) => {
+          const build = (withHole: boolean) =>
+            plan(
+              [
+                storey('ground', 0, walls[0]!),
+                {
+                  ...storey('up', 2.7, walls[1]!),
+                  ...(withHole ? { floorOpenings: [opening] } : {}),
+                },
+              ],
+              [
+                {
+                  ...ap(fromBelow ? 'ground' : 'up', 0, 0, apHeight),
+                  x: at.x,
+                  y: at.y,
+                },
+              ],
+            )
+          const floorId = fromBelow ? 'up' : 'ground'
+          const before = evaluateCoverage(build(false), floorId, '5GHz', 0.5)
+          const after = evaluateCoverage(build(true), floorId, '5GHz', 0.5)
+          expect(after.grid).toEqual(before.grid)
+          after.dbm.forEach((value, i) => {
+            expect(value).toBeGreaterThanOrEqual(before.dbm[i]! - EPSILON_DB)
+          })
+        },
+      ),
+      { ...RUNS, numRuns: 40 },
+    )
+  })
+
+  it('lose the same both ways along a path through openings', () => {
+    fc.assert(
+      fc.property(
+        fc.array(storeyShape, { minLength: 2, maxLength: 4 }),
+        fc.array(fc.option(hole), { minLength: 4, maxLength: 4 }),
+        fc.nat(),
+        fc.nat(),
+        fc.double({ min: 0, max: 2, noNaN: true }),
+        fc.double({ min: 0, max: 2, noNaN: true }),
+        fc.record({ x: coordinate, y: coordinate }),
+        fc.record({ x: coordinate, y: coordinate }),
+        (shapes, holes, i, j, ha, hb, a, b) => {
+          const floors = openStack(shapes).map((f, k) =>
+            holes[k] ? { ...f, floorOpenings: [holes[k]] } : f,
+          )
+          const stack = prepareStack(plan(floors, []), '5GHz')
+          const from = i % stack.length
+          const to = j % stack.length
+          if (from === to) return
+          const za = floors[from]!.elevationM + ha
+          const zb = floors[to]!.elevationM + hb
+          const there = crossingLossDb(
+            floorCrossing(stack, from, za, to, zb),
+            a.x,
+            a.y,
+            b.x,
+            b.y,
+          )
+          const back = crossingLossDb(
+            floorCrossing(stack, to, zb, from, za),
+            b.x,
+            b.y,
+            a.x,
+            a.y,
+          )
+          expect(back).toBeCloseTo(there, 6)
+        },
+      ),
+      RUNS,
+    )
+  })
+})
+
 /** Upstairs signal per cell centre at 0.5 m cells, keyed by position. */
 function cellsOf(p: Plan) {
   const { grid, dbm } = evaluateCoverage(p, 'up', '5GHz', 0.5)
@@ -438,3 +543,79 @@ function cellsOf(p: Plan) {
   }
   return cells
 }
+
+describe('openings in the floor (D54, hand-worked)', () => {
+  /** Upstairs with a rectangular hole in its slab. */
+  const holed = (x0: number, y0: number, x1: number, y1: number): Floor => ({
+    ...storey('up', 2.7),
+    floorOpenings: [
+      {
+        id: 'stairs',
+        points: [
+          { x: x0, y: y0 },
+          { x: x1, y: y0 },
+          { x: x1, y: y1 },
+          { x: x0, y: y1 },
+        ],
+      },
+    ],
+  })
+
+  it('pays no slab straight up through a stairwell', () => {
+    const p = plan(
+      [storey('ground', 0), holed(-1, -1, 1, 1)],
+      [ap('ground', 0.05, 0.05, 2)],
+    )
+    expect(dbmAt(p, 'up', 0.05, 0.05)).toBeCloseTo(freeSpace(RISE), 4)
+  })
+
+  it('pays no slab straight down through it either', () => {
+    // Upstairs router 2 m up (z = 4.7) to a ground-floor cell (z = 1).
+    const p = plan(
+      [storey('ground', 0), holed(-1, -1, 1, 1)],
+      [ap('up', 0.05, 0.05, 2)],
+    )
+    expect(dbmAt(p, 'ground', 0.05, 0.05)).toBeCloseTo(freeSpace(3.7), 4)
+  })
+
+  it('counts where the path passes the middle of the slab', () => {
+    // From the router at (0.05, 0.05), z = 2, to (3.05, 0.05), z = 3.7. The
+    // slab lies between 2.4 and 2.7 m; the path passes its middle, 2.55 m,
+    // at t = 0.55 / 1.7, x = 0.05 + 3 · 0.55/1.7 ≈ 1.02.
+    const slant = freeSpace(Math.sqrt(3 ** 2 + RISE ** 2))
+    const through = plan(
+      [storey('ground', 0), holed(0.5, -1, 1.5, 1)],
+      [ap('ground', 0.05, 0.05, 2)],
+    )
+    expect(dbmAt(through, 'up', 3.05, 0.05)).toBeCloseTo(slant, 4)
+    // A hole under the receiver doesn't help: the path is already past it.
+    const beside = plan(
+      [storey('ground', 0), holed(2, -1, 3.5, 1)],
+      [ap('ground', 0.05, 0.05, 2)],
+    )
+    expect(dbmAt(beside, 'up', 3.05, 0.05)).toBeCloseTo(slant - TIMBER, 4)
+  })
+
+  it('only spares the slab that has the hole', () => {
+    // Three storeys; the hole is in the middle floor's slab only, so a path
+    // from the ground floor to the top still pays the top floor's slab.
+    const p = plan(
+      [
+        storey('ground', 0),
+        { ...holed(-1, -1, 1, 1), id: 'middle', name: 'middle' },
+        storey('top', 5.4),
+      ],
+      [ap('ground', 0.05, 0.05, 2)],
+    )
+    expect(dbmAt(p, 'top', 0.05, 0.05)).toBeCloseTo(
+      freeSpace(6.4 - 2) - TIMBER,
+      4,
+    )
+  })
+
+  it('changes nothing in the lowest floor, whose slab is never crossed', () => {
+    const ground = { ...holed(-1, -1, 1, 1), id: 'ground', elevationM: 0 }
+    const p = plan([ground, storey('up', 2.7)], [ap('ground', 0.05, 0.05, 2)])
+    expect(dbmAt(p, 'up', 0.05, 0.05)).toBeCloseTo(freeSpace(RISE) - TIMBER, 4)
+  })
+})

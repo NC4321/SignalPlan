@@ -14,7 +14,14 @@ import {
   keyboardOrder,
   nextKeyboardItem,
 } from './a11y.ts'
-import { fitCamera, panBy, toPlan, zoomAt, type Camera } from './camera.ts'
+import {
+  fitCamera,
+  panBy,
+  toPlan,
+  toScreen,
+  zoomAt,
+  type Camera,
+} from './camera.ts'
 import { useEditor, useEditorStore } from './context.ts'
 import { useBackgroundImage } from './images.ts'
 import { LengthInput } from './LengthInput.tsx'
@@ -23,8 +30,11 @@ import { draw, heatmapBitmap } from './render.ts'
 import {
   accessPointAt,
   describeSelection,
+  floorOpeningCornerAt,
   hitTest,
   LOCKED_NOTICE,
+  moveFloorOpeningCornerRecipe,
+  moveFloorOpeningRecipe,
   moveNodeRecipe,
   pressGrabsAccessPoint,
   moveOpeningRecipe,
@@ -36,8 +46,9 @@ import {
   wallAt,
   wallDragDelta,
 } from './selectTool.ts'
-import { snapPoint, type SnapKind } from './snap.ts'
+import { SNAP_RADIUS_PX, snapPoint, type SnapKind } from './snap.ts'
 import {
+  canCutFloor,
   DEFAULT_OPENING_WIDTH_M,
   ghostFloor,
   heatmapShown,
@@ -46,6 +57,7 @@ import {
 } from './store.ts'
 import { useServices } from './services.ts'
 import { onImage } from './tracing.ts'
+import { snapStep } from './units.ts'
 import { isTyping } from './util.ts'
 
 /** Arrow keys move the selection this far; with Shift, 5×. */
@@ -64,6 +76,8 @@ type Drag =
       startPlan: Point
       /** The dragged thing's position when the press started. */
       origin: Point
+      /** A floor opening dragged by one of its corners: which one (D54). */
+      corner?: number
       moved: boolean
     }
   /** A press on a locked access point: it selects, but won't move (D43). */
@@ -95,6 +109,7 @@ export function EditorCanvas({ coverage }: { coverage: Coverage | undefined }) {
   const showHeatmap = useEditor(heatmapShown)
   const tool = useEditor((s) => s.tool)
   const chain = useEditor((s) => s.chain)
+  const outline = useEditor((s) => s.outline)
   const wallMaterial = useEditor((s) => s.wallMaterial)
   const openingMaterial = useEditor((s) => s.openingMaterial)
   const openingTool = tool === 'door' || tool === 'window' ? tool : undefined
@@ -114,8 +129,9 @@ export function EditorCanvas({ coverage }: { coverage: Coverage | undefined }) {
       ? optimizer.suggestion
       : undefined
   const { library } = useServices()
-  const anchor = chain?.at(-1)?.point
-  /** Wall tool: where the next click would land. */
+  const anchor =
+    tool === 'floorOpening' ? outline?.at(-1) : chain?.at(-1)?.point
+  /** Wall and floor opening tools: where the next click would land. */
   const [preview, setPreview] = useState<{ cursor: Point; snap: SnapKind }>()
 
   const canvas = useRef<HTMLCanvasElement>(null)
@@ -268,6 +284,15 @@ export function EditorCanvas({ coverage }: { coverage: Coverage | undefined }) {
       selection,
       wallLines,
       openings,
+      floorOpenings: floor.floorOpenings ?? [],
+      outline:
+        tool === 'floorOpening' && (outline || preview)
+          ? {
+              points: outline ?? [],
+              cursor: preview?.cursor,
+              snap: preview?.snap ?? 'none',
+            }
+          : undefined,
       openingPreview:
         openingTool && placement
           ? {
@@ -326,6 +351,8 @@ export function EditorCanvas({ coverage }: { coverage: Coverage | undefined }) {
     calibrationPoints,
     pointer,
     floor.nodes,
+    floor.floorOpenings,
+    outline,
     tool,
     cursor,
     preview,
@@ -337,6 +364,19 @@ export function EditorCanvas({ coverage }: { coverage: Coverage | undefined }) {
 
   const snapForWallTool = (screen: Point, altKey: boolean) => {
     const current = store.getState().camera!
+    // The floor opening tool closes its outline on the first corner (D54).
+    const first = tool === 'floorOpening' ? outline?.[0] : undefined
+    if (
+      first &&
+      !altKey &&
+      outline!.length >= 3 &&
+      Math.hypot(
+        toScreen(current, first).x - screen.x,
+        toScreen(current, first).y - screen.y,
+      ) <= SNAP_RADIUS_PX
+    ) {
+      return { point: first, kind: 'node' as const }
+    }
     return snapPoint(floor, toPlan(current, screen), {
       scale: current.scale,
       units,
@@ -373,7 +413,11 @@ export function EditorCanvas({ coverage }: { coverage: Coverage | undefined }) {
    */
   const grabsAccessPoint = (screen: Point, altKey: boolean) =>
     !!camera &&
-    pressGrabsAccessPoint(tool, !!store.getState().chain, altKey) &&
+    pressGrabsAccessPoint(
+      tool,
+      !!store.getState().chain || !!store.getState().outline,
+      altKey,
+    ) &&
     !!accessPointAt(camera, accessPoints, screen)
 
   /** Whether this hit is an access point that is locked in place (D43). */
@@ -392,10 +436,11 @@ export function EditorCanvas({ coverage }: { coverage: Coverage | undefined }) {
       return wallAt(camera, floor, screen) ? 'not-allowed' : 'default'
     }
     if (tool !== 'select') return 'default'
+    if (floorOpeningCornerAt(camera, floor, selection, screen)) return 'grab'
     const hit = hitTest(camera, floor, accessPoints, openings, screen)
     if (!hit) return draggableImageAt(screen) ? 'move' : 'default'
     if (isLocked(hit)) return 'pointer'
-    return hit.kind === 'wall' ? 'move' : 'grab'
+    return hit.kind === 'wall' || hit.kind === 'floorOpening' ? 'move' : 'grab'
   }
 
   /** True if the pointer is over the tracing image and it can be dragged. */
@@ -435,7 +480,32 @@ export function EditorCanvas({ coverage }: { coverage: Coverage | undefined }) {
       y: here.y - active.startPlan.y,
     }
     const { item, origin } = active
-    if (item.kind === 'accessPoint') {
+    if (item.kind === 'floorOpening' && active.corner !== undefined) {
+      // A corner snaps as when drawing (D54).
+      const to = snapPoint(
+        floor,
+        { x: origin.x + delta.x, y: origin.y + delta.y },
+        {
+          scale: current.scale,
+          units,
+          disabled: altKey,
+          ghost: ghostFloor(state),
+        },
+      ).point
+      state.updateGesture(
+        moveFloorOpeningCornerRecipe(floorId, item.id, active.corner, to),
+      )
+    } else if (item.kind === 'floorOpening') {
+      // In whole grid steps, or freely with Alt, as walls move (D18).
+      const step = snapStep(units)
+      const move = altKey
+        ? delta
+        : {
+            x: Math.round(delta.x / step) * step,
+            y: Math.round(delta.y / step) * step,
+          }
+      state.updateGesture(moveFloorOpeningRecipe(floorId, item.id, move))
+    } else if (item.kind === 'accessPoint') {
       state.updateGesture((draft) => {
         const ap = draft.accessPoints.find((a) => a.id === item.id)
         if (ap) {
@@ -480,7 +550,10 @@ export function EditorCanvas({ coverage }: { coverage: Coverage | undefined }) {
   const cursorStyle =
     spaceDown && cursor === 'default'
       ? 'grab'
-      : (tool === 'wall' || tool === 'accessPoint' || openingTool) &&
+      : (tool === 'wall' ||
+            tool === 'floorOpening' ||
+            tool === 'accessPoint' ||
+            openingTool) &&
           cursor === 'default'
         ? 'crosshair'
         : cursor
@@ -502,17 +575,23 @@ export function EditorCanvas({ coverage }: { coverage: Coverage | undefined }) {
             ? `Floor plan, ${openingTool} tool`
             : tool === 'wall'
               ? 'Floor plan, wall tool'
-              : tool === 'accessPoint'
-                ? 'Floor plan, access point tool'
-                : tool === 'calibrate'
-                  ? 'Floor plan, calibrating: click two points on the image'
-                  : 'Floor plan'
+              : tool === 'floorOpening'
+                ? 'Floor plan, floor opening tool'
+                : tool === 'accessPoint'
+                  ? 'Floor plan, access point tool'
+                  : tool === 'calibrate'
+                    ? 'Floor plan, calibrating: click two points on the image'
+                    : 'Floor plan'
         }
         aria-describedby={hintId}
         onDoubleClick={(event) => {
           const state = store.getState()
           if (tool === 'wall') {
             state.endChain()
+            return
+          }
+          if (tool === 'floorOpening') {
+            state.finishOutline()
             return
           }
           if (!camera) return
@@ -562,6 +641,13 @@ export function EditorCanvas({ coverage }: { coverage: Coverage | undefined }) {
             return
           }
 
+          if (tool === 'floorOpening' && !grabsAccessPoint(at, event.altKey)) {
+            if (canCutFloor(state.plan, floorId)) {
+              state.clickOutlinePoint(snapForWallTool(at, event.altKey).point)
+            }
+            return
+          }
+
           if (tool === 'calibrate') {
             const first = state.calibrationPoints[0]
             const point = toPlan(camera, at)
@@ -603,6 +689,25 @@ export function EditorCanvas({ coverage }: { coverage: Coverage | undefined }) {
               },
             )
             if (created) state.select([{ kind: 'opening', id: created }])
+            return
+          }
+
+          // A corner of a selected floor opening drags on its own (D54).
+          const corner =
+            event.pointerType === 'touch' || event.shiftKey
+              ? undefined
+              : floorOpeningCornerAt(camera, floor, state.selection, at)
+          if (corner) {
+            drag.current = {
+              kind: 'item',
+              item: { kind: 'floorOpening', id: corner.id },
+              startScreen: at,
+              startPlan: toPlan(camera, at),
+              origin: { x: corner.point.x, y: corner.point.y },
+              corner: corner.index,
+              moved: false,
+            }
+            state.beginGesture()
             return
           }
 
@@ -673,7 +778,7 @@ export function EditorCanvas({ coverage }: { coverage: Coverage | undefined }) {
           // Over an access point that a press would grab, show no wall or
           // opening preview, only the grab cursor.
           const grabbing = grabsAccessPoint(at, event.altKey)
-          if (tool === 'wall' && !drag.current) {
+          if ((tool === 'wall' || tool === 'floorOpening') && !drag.current) {
             if (grabbing) {
               setPreview(undefined)
             } else {
@@ -740,7 +845,9 @@ export function EditorCanvas({ coverage }: { coverage: Coverage | undefined }) {
                   ? accessPoints.find((a) => a.id === active.item.id)?.name
                   : undefined
               state.endGesture(
-                `Move ${name ?? describeSelection([active.item])}`,
+                active.corner !== undefined
+                  ? 'Move floor opening corner'
+                  : `Move ${name ?? describeSelection([active.item])}`,
               )
             } else {
               state.cancelGesture()
@@ -763,7 +870,9 @@ export function EditorCanvas({ coverage }: { coverage: Coverage | undefined }) {
         onPointerLeave={() => {
           store.getState().setPointer(undefined)
           // Mid-chain, keep the preview: it sets the direction of a typed length.
-          if (!store.getState().chain) setPreview(undefined)
+          if (!store.getState().chain && !store.getState().outline) {
+            setPreview(undefined)
+          }
           setPlacement(undefined)
         }}
         onKeyDown={(event) => {
@@ -818,11 +927,13 @@ export function EditorCanvas({ coverage }: { coverage: Coverage | undefined }) {
       <p id={hintId} className="visually-hidden">
         {tool === 'wall'
           ? 'Click to place wall corners; double-click or press Enter to finish. Type a number for an exact length.'
-          : openingTool
-            ? `Click a wall to add a ${openingTool}. Esc returns to Select.`
-            : tool === 'accessPoint'
-              ? 'Click to add an access point. Esc returns to Select.'
-              : 'Tab and Shift+Tab select walls, doors, windows, corners and access points. Arrow keys move the selection, Delete removes it. Shortcuts: V select, W wall, D door, N window, A access point.'}
+          : tool === 'floorOpening'
+            ? 'Click to place the corners of a stairwell or atrium; click the first corner, double-click or press Enter to close it. Esc drops it.'
+            : openingTool
+              ? `Click a wall to add a ${openingTool}. Esc returns to Select.`
+              : tool === 'accessPoint'
+                ? 'Click to add an access point. Esc returns to Select.'
+                : 'Tab and Shift+Tab select walls, doors, windows, corners, floor openings and access points. Arrow keys move the selection, Delete removes it. Shortcuts: V select, W wall, D door, N window, O floor opening, A access point.'}
       </p>
       <p className="visually-hidden" aria-live="polite">
         {describeForScreenReader(selection, floor, accessPoints, units, order)}

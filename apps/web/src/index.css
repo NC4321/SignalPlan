@@ -214,6 +214,11 @@ input:focus-visible + *,
   border-color: transparent;
 }
 
+.toolbar button[aria-disabled='true'] {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
 .toolbar button[aria-pressed='true'] {
   border-color: var(--accent);
   background: color-mix(in srgb, var(--accent) 14%, transparent);
