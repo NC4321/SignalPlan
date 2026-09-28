@@ -69,6 +69,12 @@ A running log of project decisions, newest last. Each entry records what was dec
 - **Decision:** 10 cm cells by default, with no spatial index.
 - **Why:** measured at ~20 ms for the 150 m² sample home, far inside the 200 ms budget.
 
+### D24. Propagation scope for M1: omnidirectional, direct path only — 2026-09-27
+
+- **Decision:** for M1, every access point radiates equally in all directions (no antenna pattern), and only the direct line from access point to cell is modelled, adding the loss of each wall it crosses. Reflections and diffraction are not modelled.
+- **Why:** there's no router data to source antenna patterns from, and D8 already leaves router-model presets for later. The multi-wall model, as in the COST 231 final report, is the standard citable approach and is what [MODEL.md](MODEL.md#from-equation-to-heatmap) describes. It's also cheap: one straight-line wall check per cell keeps the grid inside the 200 ms budget (D11), which live dragging needs.
+- **Revisit if:** Phase 7 calibration shows a consistent error behind strong walls, router presets with real antenna patterns arrive, or a reflection or ray-tracing mode fits the worker's time budget.
+
 ## Phase 3
 
 ### D12. Heatmap colours — 2026-09-27
