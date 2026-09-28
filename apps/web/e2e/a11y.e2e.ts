@@ -52,6 +52,13 @@ test.describe('axe-core finds no serious problems', () => {
     await expectNoSeriousViolations(page)
     await plans.getByRole('button', { name: 'Done' }).click()
 
+    await page.getByText('File', { exact: true }).click()
+    await page.getByRole('button', { name: 'Export image…' }).click()
+    const exporter = page.getByRole('dialog', { name: 'Export image' })
+    await expect(exporter).toBeVisible()
+    await expectNoSeriousViolations(page)
+    await exporter.getByRole('button', { name: 'Cancel' }).click()
+
     // Editing the sample puts it in the list, so it can be deleted.
     await panel(page).getByRole('button', { name: 'Wi-Fi 6E router' }).click()
     await canvas(page).focus()

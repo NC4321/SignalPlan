@@ -1,8 +1,4 @@
-import {
-  BAND_PROFILES,
-  summariseCoverage,
-  type Coverage,
-} from '@signalplan/engine'
+import { BAND_PROFILES, type Coverage } from '@signalplan/engine'
 import {
   BANDS,
   COVERAGE_TARGETS,
@@ -36,10 +32,11 @@ import {
   targetBand,
 } from '../quality.ts'
 import { zoomAt } from './camera.ts'
+import { BAND_LABELS, coverageMessage } from './coverageText.ts'
 import { useEditor, useEditorStore } from './context.ts'
 import { deleteRecipe, describeSelection } from './selectTool.ts'
 import { bearingDeg } from './snap.ts'
-import { formatArea, formatLength, parseLength, type Units } from './units.ts'
+import { formatLength, parseLength, type Units } from './units.ts'
 import {
   DEFAULT_OPENING_WIDTH_M,
   heatmapShown,
@@ -50,12 +47,6 @@ import { TracingSection } from './TracingSection.tsx'
 import type { SaveStatus } from './autosave.ts'
 import { MOD_KEY, signalAt } from './util.ts'
 import { drawWall, WALL_STYLES } from './wallStyles.ts'
-
-const BAND_LABELS: Record<Band, string> = {
-  '2.4GHz': '2.4 GHz',
-  '5GHz': '5 GHz',
-  '6GHz': '6 GHz',
-}
 
 const MODEL_URL = 'https://github.com/NC4321/SignalPlan/blob/main/docs/MODEL.md'
 
@@ -378,17 +369,8 @@ function CoverageSummary({ coverage }: { coverage: Coverage | undefined }) {
   const target = useEditor((s) => s.plan.coverageTarget ?? DEFAULT_TARGET)
   const units = useEditor((s) => s.units)
   const id = useId()
-  const goal = targetBand(target)
 
-  let message = ''
-  if (coverage) {
-    const { share, areaM2 } = summariseCoverage(coverage, goal.minDbm)
-    // Rounded down, so 100% only ever means all of it.
-    message =
-      share === undefined
-        ? 'Close the outer walls to see how much of the floor is covered.'
-        : `${Math.floor(share * 100)}% of ${formatArea(areaM2, units)} at ${goal.label} or better on ${BAND_LABELS[coverage.band]}.`
-  }
+  const message = coverage ? coverageMessage(coverage, target, units) : ''
 
   return (
     <div className="coverage-summary">

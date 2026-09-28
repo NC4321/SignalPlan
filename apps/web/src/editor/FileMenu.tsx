@@ -2,6 +2,7 @@ import { loadPlan, type Plan, type PlanIssue } from '@signalplan/floorplan'
 import { useEffect, useRef, useState } from 'react'
 import { useEditorStore } from './context.ts'
 import { Dialog, PlanIssues } from './Dialog.tsx'
+import { ExportDialog } from './ExportDialog.tsx'
 import { newPlanId } from './library.ts'
 import {
   blankPlan,
@@ -32,6 +33,7 @@ export function FileMenu() {
   const menu = useRef<HTMLDetailsElement>(null)
   const fileInput = useRef<HTMLInputElement>(null)
   const [plansOpen, setPlansOpen] = useState(false)
+  const [exportOpen, setExportOpen] = useState(false)
   const [problem, setProblem] = useState<{
     file: string
     issues: PlanIssue[]
@@ -190,6 +192,15 @@ export function FileMenu() {
             type="button"
             onClick={() => {
               closeMenu()
+              setExportOpen(true)
+            }}
+          >
+            Export image…
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              closeMenu()
               chooseImage()
             }}
           >
@@ -221,6 +232,8 @@ export function FileMenu() {
           onClose={() => setPlansOpen(false)}
         />
       )}
+
+      <ExportDialog open={exportOpen} onClose={() => setExportOpen(false)} />
 
       <Dialog
         open={problem !== undefined}

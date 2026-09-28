@@ -109,6 +109,14 @@ A running log of project decisions, newest last. Each entry records what was dec
 - **Why:** the whole grid would count the 1 m outdoor margin and change as you draw; rooms don't exist in the schema. Reusing the D12 bands avoids new thresholds that would each need a source.
 - **Revisit if:** rooms or room importance arrive (Phase 4 scoring), or a floor has courtyards or holes that should be left out.
 
+### D28. Export as a PNG — 2026-09-27
+
+- **Decision:** File › Export image… opens a dialog with a size (Small 1280 × 800, Medium 1920 × 1200 by default, Large 3840 × 2400) and a theme (Light by default, or Dark), then downloads a PNG named after the plan and band, e.g. "Sample bungalow - 5 GHz.png".
+- **Contents:** a title (plan name, floor and band), the whole floor fitted to the image whatever the current zoom, the heatmap for the band on show, walls, doors and windows, access points with their names, a scale bar, the quality legend, the coverage summary and target (D27), and a line saying it's a simplified model's prediction. The tracing image, the grid, selection and tool previews are left out.
+- **How:** the page is laid out at 1280 × 800 and scaled, so text and lines keep their proportions at every size. Coverage is computed for the export with the engine directly, not the worker. The theme colours are copied from the stylesheet's tokens, and a unit test fails if they drift apart.
+- **Why:** an image for sharing needs to stand alone, so it carries its own legend and scale. It's the same at any zoom. Light suits documents, READMEs and print, and a theme choice suits people who share into dark-themed places.
+- **Revisit if:** multi-floor plans arrive (export one floor or all), or people ask for the tracing image or SVG/PDF output.
+
 ## Phase 1: editor
 
 ### D14. Canvas 2D for the editor — 2026-09-27

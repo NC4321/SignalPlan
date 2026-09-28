@@ -84,10 +84,14 @@ export function safeStorage(): Storage | null {
   }
 }
 
+/** A plan name made safe for a file name, without an extension. */
+export function safeBaseName(name: string): string {
+  return name.replace(/[\\/:*?"<>|]+/g, '-').trim() || 'plan'
+}
+
 /** A safe file name for a plan, such as `My house.signalplan.json`. */
 export function fileName(plan: Plan): string {
-  const base = plan.name.replace(/[\\/:*?"<>|]+/g, '-').trim() || 'plan'
-  return `${base}${FILE_EXTENSION}`
+  return `${safeBaseName(plan.name)}${FILE_EXTENSION}`
 }
 
 /** The plan as a file's text: indented JSON, ending in a newline. */
