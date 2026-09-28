@@ -36,6 +36,10 @@ Access points on other floors are ignored until multi-floor support in Phase 5.
 
 The editor reports the share of the **floor area** at or above a target level (D27). Floor area is the set of cells inside the outer walls (`floorArea.ts`): the outside is flooded in from the grid's edge, stepping between neighbouring cell centres, and a step that touches a wall is blocked. Cells the flood can't reach are inside. Doors and windows sit on walls, so they count as closed. The sample home measures exactly its stated 150 m². A cell whose centre lies exactly on a wall also counts as inside, so the area can run over by up to half a cell along such walls.
 
+### Placement scoring
+
+The placement optimizer (M2, D40 and D41) scores a layout with the same model and floor area as the coverage summary. The score is the share of floor-area cells whose strongest signal reaches the target. While searching, cells are 25 cm, and at that size the score matches the coverage summary exactly on the same grid. Candidate positions start on a 0.5 m lattice inside the outer walls, at least 10 cm from any wall, and the best are refined to 10 cm. Signals from access points that stay put are worked out once, and only cells inside the walls are evaluated. Backhaul between access points isn't modelled (D40).
+
 ### Speed
 
 The Phase 2 budget is a 100 m² floor at 10 cm cells in under 200 ms. Large homes have a tighter one, set for dragging on phones: 200 ms on a device 4× slower than the desktop, so 50 ms here (D29). `pnpm speed` (`packages/engine/src/coverage.speed.ts`) times each band 30 times after 5 warm-up runs, on three plans:

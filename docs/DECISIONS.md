@@ -299,3 +299,11 @@ A running log of project decisions, newest last. Each entry records what was dec
 - **Time budget:** the search runs in the worker, shows a progress bar and Cancel, and stops within 10 seconds, returning the best result found so far. The outline's exit gate still applies: on three test homes, the suggestion beats a naive centre placement.
 - **Why:** these are the smallest choices that give a useful, honest optimizer. Each one reuses something that already exists (the coverage target, the floor area, the gesture undo), so nothing new needs a source.
 - **Revisit if:** people ask for priority rooms or no-go areas, or mesh suggestions turn out unrealistic because of weak backhaul (M4).
+
+### D41. Optimizer scoring and candidate positions — 2026-09-28
+
+- **Decision:** `createScorer` in `placement.ts` scores a placement as the share of floor-area cells (D27's flood fill) at or above the target, with the fixed access points plus the moving ones. It searches on 25 cm cells. The first candidates are the points (i + ½, j + ½) × 0.5 m that lie inside the walls and at least 10 cm from any wall. The best ones are refined to 10 cm afterwards (#72), and the final figure is confirmed on the normal 10 cm grid, so it matches the status bar.
+- **Speed:** everything that doesn't depend on the moving access points is computed once: the floor-area cells, the prepared walls, and the strongest signal from the fixed access points. Only cells inside the walls are evaluated. One pass over all candidates for a single access point takes about 0.26 s on the sample home (600 candidates, 2,400 cells), 0.26 s on the room grid and 2.2 s on the 300 m² big house (1,200 candidates, 4,800 cells), measured on the development machine.
+- **Wall clearance:** walls are thin lines, so a point on one is on neither side. 10 cm stands for an access point placed against the wall.
+- **Why:** you chose a 0.5 m lattice with refinement over 0.25 m everywhere (about 4× slower) or 1 m (more risk of missing narrow spots). At 25 cm the scorer agrees exactly with `evaluateCoverage` plus `summariseCoverage` on the same grid (unit test), so the search optimizes the same model the heatmap shows, only on coarser cells.
+- **Revisit if:** the 25 cm score often ranks candidates differently from the 10 cm check, or the big house's multi-AP search runs over the 10 s budget.

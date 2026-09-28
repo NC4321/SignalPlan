@@ -104,8 +104,8 @@ export function predictDbm(
 }
 
 /** EIRP − [PL(1 m) + 10·n·log10(d) + walls], given the walls' total loss. */
-function signalDbm(
-  ap: AccessPoint,
+export function signalDbm(
+  ap: Pick<AccessPoint, 'x' | 'y' | 'heightM'>,
   radio: Radio,
   x: number,
   y: number,
