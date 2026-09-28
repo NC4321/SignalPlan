@@ -168,6 +168,32 @@ export const bigHouse = () =>
     [15, 11],
   ])
 
+/**
+ * A two-storey house (#87): two 15 × 10 m (150 m²) floors of 3 × 2 m rooms,
+ * 300 m² in all, with a timber joist floor between, the router downstairs and
+ * a second access point upstairs. As large as the big house, so it has the
+ * same budget (D29).
+ */
+export function twoStoreyHouse(): Plan {
+  const ground = rooms('Two-storey house', 3, 2, [[4, 3]])
+  const upper = rooms('Upstairs', 3, 2, [[11, 7]])
+  const upstairs: Floor = {
+    ...upper.floors[0]!,
+    id: 'up',
+    name: 'Upstairs',
+    elevationM: 2.7,
+    material: 'timber-joist',
+  }
+  return {
+    ...ground,
+    floors: [...ground.floors, upstairs],
+    accessPoints: [
+      ...ground.accessPoints,
+      ...upper.accessPoints.map((ap) => ({ ...ap, id: 'up0', floorId: 'up' })),
+    ],
+  }
+}
+
 /** A drywall outline of a w × h room, optionally split at x = splitX. */
 export function room(
   w: number,

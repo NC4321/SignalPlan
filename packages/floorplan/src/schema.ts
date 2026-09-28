@@ -27,7 +27,6 @@ export const WALL_MATERIALS = [
 
 /**
  * What a floor's slab is made of (D49, D50). Loss values live in the engine.
- * Plans don't store it yet; the floor list (#88) adds the field.
  */
 export const FLOOR_MATERIALS = ['timber-joist', 'concrete-slab'] as const
 
@@ -105,6 +104,12 @@ export const floorSchema = z.object({
   elevationM: metres,
   /** Floor-to-ceiling height. */
   heightM: positiveMetres,
+  /**
+   * What this floor's slab is made of: the floor under its rooms, crossed by
+   * signal to and from the storey below (D51). Omitted means
+   * `DEFAULT_FLOOR_MATERIAL`.
+   */
+  material: z.enum(FLOOR_MATERIALS).optional(),
   nodes: z.array(nodeSchema),
   walls: z.array(wallSchema),
   openings: z.array(openingSchema),

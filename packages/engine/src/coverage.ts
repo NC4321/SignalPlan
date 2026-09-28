@@ -1,5 +1,4 @@
 import {
-  materialSegments,
   type AccessPoint,
   type Band,
   type Floor,
@@ -9,8 +8,9 @@ import {
   type Radio,
 } from '@signalplan/floorplan'
 import { BAND_PROFILES } from './bands.ts'
-import { prepareWalls, preparedWallLoss, wallLoss } from './crossings.ts'
+import { preparedWallLoss, wallLoss } from './crossings.ts'
 import { floorAreaMask } from './floorArea.ts'
+import { crossingLossDb, floorCrossing, prepareStack } from './floors.ts'
 import { MATERIAL_LOSS_DB } from './materials.ts'
 
 /** Height of the receiving device above the floor: a phone in hand or on a desk. */
@@ -103,17 +103,21 @@ export function predictDbm(
   return signalDbm(ap, radio, point.x, point.y, walls)
 }
 
-/** EIRP − [PL(1 m) + 10·n·log10(d) + walls], given the walls' total loss. */
+/**
+ * EIRP − [PL(1 m) + 10·n·log10(d) + walls], given the walls' total loss.
+ * `dz` is the access point's height above the receiver, which on its own
+ * floor follows from its mounting height.
+ */
 export function signalDbm(
   ap: Pick<AccessPoint, 'x' | 'y' | 'heightM'>,
   radio: Radio,
   x: number,
   y: number,
   walls: number,
+  dz = ap.heightM - RECEIVER_HEIGHT_M,
 ): number {
   const profile = BAND_PROFILES[radio.band]
   const eirp = radio.txPowerDbm ?? profile.defaultTxPowerDbm
-  const dz = ap.heightM - RECEIVER_HEIGHT_M
   const distance = Math.max(Math.hypot(x - ap.x, y - ap.y, dz), 1)
   return (
     eirp -
@@ -125,9 +129,10 @@ export function signalDbm(
 
 /**
  * Predicted coverage of one floor in one band. Each cell takes the strongest
- * signal from any access point on this floor with a radio in the band.
- *
- * Access points on other floors are ignored until multi-floor support (Phase 5).
+ * signal from any access point with a radio in the band, on this floor or
+ * another (D51). From another floor the distance is 3D, between the access
+ * point and a receiver 1 m above this floor, and the path pays the slabs it
+ * crosses and each floor's walls along its stretch in that storey.
  */
 export function evaluateCoverage(
   plan: Plan,
@@ -138,30 +143,46 @@ export function evaluateCoverage(
   const floor = plan.floors.find((f) => f.id === floorId)
   if (!floor) throw new RangeError(`No floor with id "${floorId}".`)
 
-  const onFloor = plan.accessPoints.filter((ap) => ap.floorId === floorId)
-  const grid = gridForFloor(floor, cellM, onFloor)
-  const segments = materialSegments(floor)
+  // A floor with no walls yet shows what reaches it from other floors too.
+  const nearby = plan.accessPoints.filter(
+    (ap) => ap.floorId === floorId || floor.nodes.length === 0,
+  )
+  const grid = gridForFloor(floor, cellM, nearby)
   const size = grid.cols * grid.rows
   const dbm = new Float32Array(size).fill(Number.NEGATIVE_INFINITY)
   const strongest = new Int16Array(size).fill(-1)
 
+  // Walls are prepared once, so each cell only does the arithmetic of
+  // `predictDbm`, in the same order and with the same result. A path from
+  // another floor splits into stretches that depend only on its two heights,
+  // so each source works them out once.
+  const stack = prepareStack(plan, band)
+  const storeyOf = new Map(stack.map((storey, i) => [storey.floor.id, i]))
+  const here = storeyOf.get(floorId)!
+  const receiverZ = floor.elevationM + RECEIVER_HEIGHT_M
+  const walls = stack[here]!.walls
   const sources = plan.accessPoints.flatMap((ap) => {
     const radio = ap.radios.find((r) => r.band === band)
-    return ap.floorId === floorId && radio ? [{ ap, radio }] : []
+    const from = storeyOf.get(ap.floorId)
+    return radio && from !== undefined ? [{ ap, radio, from }] : []
   })
-
-  // Segments are prepared once, so each cell only does the arithmetic of
-  // `predictDbm`, in the same order and with the same result.
-  const losses = MATERIAL_LOSS_DB[band]
-  const walls = prepareWalls(segments, (material) => losses[material])
-  sources.forEach(({ ap, radio }, index) => {
+  sources.forEach(({ ap, radio, from }, index) => {
+    const apZ = stack[from]!.floor.elevationM + ap.heightM
+    const crossing =
+      from === here
+        ? undefined
+        : floorCrossing(stack, from, apZ, here, receiverZ)
+    // On its own floor, exactly as `predictDbm` works it out.
+    const dz = crossing ? apZ - receiverZ : ap.heightM - RECEIVER_HEIGHT_M
     for (let row = 0; row < grid.rows; row++) {
       const y = grid.originY + (row + 0.5) * grid.cellM
       for (let col = 0; col < grid.cols; col++) {
         const x = grid.originX + (col + 0.5) * grid.cellM
         const i = row * grid.cols + col
-        const loss = preparedWallLoss(walls, ap.x, ap.y, x, y)
-        const value = signalDbm(ap, radio, x, y, loss)
+        const loss = crossing
+          ? crossingLossDb(crossing, ap.x, ap.y, x, y)
+          : preparedWallLoss(walls, ap.x, ap.y, x, y)
+        const value = signalDbm(ap, radio, x, y, loss, dz)
         if (value > dbm[i]!) {
           dbm[i] = value
           strongest[i] = index

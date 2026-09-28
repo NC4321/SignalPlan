@@ -6,7 +6,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ### Added
 
-- Engine: floor constructions for multi-floor plans. A timber joist floor (OSB subfloor, joist cavity and gypsum ceiling, with layer thicknesses from the IRC and PS 20-20, averaged over 2×8 to 2×12 joists) loses 2.5 / 2.7 / 3.1 dB at 2.4 / 5 / 6 GHz, and a 150 mm concrete slab 11.5 / 20.2 / 22.8 dB. The slab agrees with ITU-R P.1238-13's measured 20 dB through a concrete floor at 5.2 GHz. Plans can't use them yet; the floor list (#88) and signal between floors (#87) come next (D50).
+- Engine: floor constructions for multi-floor plans. A timber joist floor (OSB subfloor, joist cavity and gypsum ceiling, with layer thicknesses from the IRC and PS 20-20, averaged over 2×8 to 2×12 joists) loses 2.5 / 2.7 / 3.1 dB at 2.4 / 5 / 6 GHz, and a 150 mm concrete slab 11.5 / 20.2 / 22.8 dB. The slab agrees with ITU-R P.1238-13's measured 20 dB through a concrete floor at 5.2 GHz. The floor list (#88) will let you pick one (D50).
+- Engine: signal between floors. Each floor's coverage now counts access points on every floor: the 3D distance, the loss of each slab crossed, and each floor's walls along the part of the path inside that storey. Floors get an optional `material` (`timber-joist` by default). A floor with no walls yet shows signal 5 m around access points on other floors. The optimizer still works on one floor until #91. A 300 m² two-storey house takes about 20 ms per floor (D51).
 
 ## [0.2.0] - 2026-09-28
 
