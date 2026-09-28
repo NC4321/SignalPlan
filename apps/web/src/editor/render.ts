@@ -72,6 +72,16 @@ export interface Scene {
   /** Calibration: the points clicked so far, and where the pointer is. */
   calibration?:
     { points: readonly Point[]; cursor: Point | undefined } | undefined
+  /**
+   * The floor below, drawn faintly under this floor's walls to line them up
+   * (D53): its walls, doors and windows (dashed), and access points.
+   */
+  ghost?:
+    | {
+        segments: readonly MaterialSegment[]
+        accessPoints: readonly (Point & { name: string })[]
+      }
+    | undefined
   /** Corners, drawn as small dots so they can be grabbed. */
   corners: readonly (Point & { id: string })[]
   /** The wall tool's preview of the wall being drawn. */
@@ -139,6 +149,7 @@ export function draw(
   }
 
   const wallWidth = baseWallWidth(camera)
+  if (scene.ghost) drawGhost(context, colour, camera, scene.ghost, wallWidth)
   const casing = colour('--wall-casing')
   const isSelected = (kind: string, id: string) =>
     scene.selection.some((s) => s.kind === kind && s.id === id)
@@ -468,13 +479,17 @@ function drawPreview(
     }
   }
 
-  // Snap marker: circle on a corner, diamond on a wall, cross otherwise.
+  // Snap marker: circle on a corner, diamond on a wall, cross otherwise;
+  // dashed on the ghosted floor below (D53).
   context.strokeStyle = colour('--accent')
   context.lineWidth = 2
+  const ghostSnap =
+    drawing.snap === 'ghost-node' || drawing.snap === 'ghost-wall'
+  context.setLineDash(ghostSnap ? [3, 3] : [])
   context.beginPath()
-  if (drawing.snap === 'node') {
+  if (drawing.snap === 'node' || drawing.snap === 'ghost-node') {
     context.arc(cursor.x, cursor.y, 7, 0, Math.PI * 2)
-  } else if (drawing.snap === 'wall') {
+  } else if (drawing.snap === 'wall' || drawing.snap === 'ghost-wall') {
     context.moveTo(cursor.x, cursor.y - 7)
     context.lineTo(cursor.x + 7, cursor.y)
     context.lineTo(cursor.x, cursor.y + 7)
@@ -487,6 +502,46 @@ function drawPreview(
     context.lineTo(cursor.x, cursor.y + 6)
   }
   context.stroke()
+  context.setLineDash([])
+}
+
+/** Opacity of the ghosted floor below (D53). */
+const GHOST_ALPHA = 0.55
+
+function drawGhost(
+  context: CanvasRenderingContext2D,
+  colour: (name: string) => string,
+  camera: Camera,
+  ghost: NonNullable<Scene['ghost']>,
+  wallWidth: number,
+) {
+  context.save()
+  context.globalAlpha = GHOST_ALPHA
+  context.strokeStyle = colour('--muted')
+  context.fillStyle = colour('--muted')
+  context.lineCap = 'butt'
+  context.lineWidth = Math.max(wallWidth * 0.4, 1.5)
+  for (const segment of ghost.segments) {
+    const a = toScreen(camera, segment.a)
+    const b = toScreen(camera, segment.b)
+    // Doors and windows dashed, so the gaps in the walls read as openings.
+    context.setLineDash(segment.openingId === undefined ? [] : [4, 4])
+    context.beginPath()
+    context.moveTo(a.x, a.y)
+    context.lineTo(b.x, b.y)
+    context.stroke()
+  }
+  context.setLineDash([3, 3])
+  context.lineWidth = 1.5
+  context.font = '12px system-ui, sans-serif'
+  for (const ap of ghost.accessPoints) {
+    const at = toScreen(camera, ap)
+    context.beginPath()
+    context.arc(at.x, at.y, AP_RADIUS_PX, 0, Math.PI * 2)
+    context.stroke()
+    context.fillText(`${ap.name} (below)`, at.x + AP_RADIUS_PX + 4, at.y + 4)
+  }
+  context.restore()
 }
 
 function drawGrid(

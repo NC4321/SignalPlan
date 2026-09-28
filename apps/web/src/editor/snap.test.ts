@@ -109,3 +109,56 @@ describe('angles', () => {
     expect(q.y).toBeCloseTo(-1, 9)
   })
 })
+
+describe('snapPoint with the floor below ghosted (D53)', () => {
+  /** A wall below from (0, 3) to (4, 3), and a corner at (6, 6) on its own. */
+  const below: Floor = {
+    ...floor,
+    id: 'below',
+    nodes: [
+      { id: 'c', x: 0, y: 3 },
+      { id: 'd', x: 4, y: 3 },
+      { id: 'e', x: 6, y: 6 },
+    ],
+    walls: [{ id: 'v', from: 'c', to: 'd', material: 'brick' }],
+  }
+  const withGhost = { ...options, ghost: below }
+
+  it('snaps to a corner below', () => {
+    expect(snapPoint(floor, { x: 6.05, y: 5.97 }, withGhost)).toEqual({
+      point: { x: 6, y: 6 },
+      kind: 'ghost-node',
+    })
+  })
+
+  it('snaps onto a wall below', () => {
+    const snap = snapPoint(floor, { x: 1.77, y: 3.06 }, withGhost)
+    expect(snap.kind).toBe('ghost-wall')
+    expect(snap.point.x).toBeCloseTo(1.77, 9)
+    expect(snap.point.y).toBeCloseTo(3, 9)
+  })
+
+  it("prefers this floor's corners and walls", () => {
+    // A corner below at the same spot as this floor's corner.
+    const under: Floor = {
+      ...below,
+      nodes: [...below.nodes, { id: 'f', x: 4, y: 0.02 }],
+    }
+    expect(
+      snapPoint(floor, { x: 4.03, y: 0.03 }, { ...options, ghost: under }).kind,
+    ).toBe('node')
+    expect(
+      snapPoint(floor, { x: 2, y: 0.05 }, { ...options, ghost: under }).kind,
+    ).toBe('wall')
+  })
+
+  it('comes before the angle and grid snaps, and Alt turns it off', () => {
+    const drawing = { ...withGhost, anchor: { x: 6, y: 0 } }
+    expect(snapPoint(floor, { x: 6.04, y: 6.02 }, drawing).kind).toBe(
+      'ghost-node',
+    )
+    expect(
+      snapPoint(floor, { x: 6.04, y: 6.02 }, { ...drawing, disabled: true }),
+    ).toEqual({ point: { x: 6.04, y: 6.02 }, kind: 'none' })
+  })
+})

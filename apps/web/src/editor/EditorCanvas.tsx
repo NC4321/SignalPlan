@@ -39,6 +39,7 @@ import {
 import { snapPoint, type SnapKind } from './snap.ts'
 import {
   DEFAULT_OPENING_WIDTH_M,
+  ghostFloor,
   heatmapShown,
   sameItem,
   type SelectionItem,
@@ -125,6 +126,15 @@ export function EditorCanvas({ coverage }: { coverage: Coverage | undefined }) {
   const [cursor, setCursor] = useState<Cursor>('default')
 
   const floor = plan.floors.find((f) => f.id === floorId)!
+  const ghost = useEditor(ghostFloor)
+  const ghostScene = useMemo(
+    () =>
+      ghost && {
+        segments: materialSegments(ghost),
+        accessPoints: plan.accessPoints.filter((ap) => ap.floorId === ghost.id),
+      },
+    [ghost, plan.accessPoints],
+  )
   const background = floor.background
   const backgroundImage = useBackgroundImage(background, library)
   const accessPoints = useMemo(
@@ -254,6 +264,7 @@ export function EditorCanvas({ coverage }: { coverage: Coverage | undefined }) {
       heatmap: showHeatmap ? heatmap : undefined,
       segments,
       accessPoints,
+      ghost: ghostScene,
       selection,
       wallLines,
       openings,
@@ -321,6 +332,7 @@ export function EditorCanvas({ coverage }: { coverage: Coverage | undefined }) {
     anchor,
     wallMaterial,
     suggestion,
+    ghostScene,
   ])
 
   const snapForWallTool = (screen: Point, altKey: boolean) => {
@@ -330,6 +342,7 @@ export function EditorCanvas({ coverage }: { coverage: Coverage | undefined }) {
       units,
       anchor,
       disabled: altKey,
+      ghost,
     })
   }
 
@@ -444,7 +457,12 @@ export function EditorCanvas({ coverage }: { coverage: Coverage | undefined }) {
         baseFloor,
         item.id,
         { x: origin.x + delta.x, y: origin.y + delta.y },
-        { scale: current.scale, units, disabled: altKey },
+        {
+          scale: current.scale,
+          units,
+          disabled: altKey,
+          ghost: ghostFloor(state),
+        },
       )
       state.updateGesture(moveNodeRecipe(floorId, item.id, to, drop))
     } else {

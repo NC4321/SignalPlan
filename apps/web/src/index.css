@@ -286,6 +286,14 @@ input:focus-visible + *,
   font-weight: 600;
 }
 
+.floor-ghost {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin-top: 0.15rem;
+  font-size: 0.8rem;
+}
+
 .floor-stack .floor-add {
   border-style: dashed;
   color: var(--muted);
