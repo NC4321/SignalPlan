@@ -4,6 +4,10 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-09-28
+
+M1: single-floor MVP. Draw a floor to scale, add doors, windows and access points, and see predicted coverage on 2.4, 5 and 6 GHz.
+
 ### Added
 
 - Engine: wall losses near 2.4 GHz checked against NIST at 2.0 GHz and in-building measurements at 2.5 GHz; drywall, glass and lumber stay within 4 dB of NIST in a unit test.
@@ -44,3 +48,6 @@ All notable changes to this project are documented here. The format follows [Kee
 
 - Wall tool: between chains, pressing on an access point now selects or drags it instead of starting a wall (hold Alt to start a wall there). Door and Window tools grab access points the same way.
 - Access point tool: pressing on an existing access point now grabs it to move it, instead of stacking a new one on top.
+
+[Unreleased]: https://github.com/NC4321/SignalPlan/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/NC4321/SignalPlan/releases/tag/v0.1.0
