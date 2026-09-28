@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
-import { clickPlan, openEditor } from './helpers.ts'
+import { clickPlan, openEditor, screenPoint } from './helpers.ts'
 
 const panel = (page: Page) =>
   page.getByRole('complementary', { name: 'Properties' })
@@ -88,4 +88,43 @@ test('says how to turn on a band that nothing broadcasts on', async ({
     .getByRole('checkbox', { name: '6 GHz' })
     .check()
   await expect(notice).toBeHidden()
+})
+
+test('keeps the summary in view in the status bar on a laptop (D37)', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1280, height: 800 })
+  const summary = page.locator('.status-bar .coverage-status')
+  await expect(summary).toHaveText('86% of 150 m² at Fair or better on 5 GHz.')
+  await expect(summary).toBeInViewport({ ratio: 1 })
+
+  // Selecting the router fills the panel; the summary stays in view.
+  await panel(page).getByRole('button', { name: 'Router' }).click()
+  await expect(summary).toBeInViewport({ ratio: 1 })
+
+  // With nothing broadcasting, the status bar shows no summary.
+  await page.keyboard.press('Delete')
+  await expect(summary).toBeHidden()
+})
+
+test('announces the summary once a drag ends, not during it', async ({
+  page,
+}) => {
+  const summary = page.locator('.status-bar .coverage-status')
+  const status = page.locator('.coverage-announcement')
+  const before = '86% of 150 m² at Fair or better on 5 GHz.'
+  await expect(status).toHaveText(before)
+
+  // Drag the router into a far corner; the visible summary follows it,
+  // but the live region holds the settled text until release.
+  const router = await screenPoint(page, 5.6, 1.2)
+  const to = await screenPoint(page, 0.5, 0.5)
+  await page.mouse.move(router.x, router.y)
+  await page.mouse.down()
+  await page.mouse.move(to.x, to.y, { steps: 8 })
+  await expect(summary).not.toHaveText(before)
+  await expect(status).toHaveText(before)
+  await page.mouse.up()
+  await expect(status).toHaveText((await summary.textContent())!)
+  await expect(status).not.toHaveText(before)
 })

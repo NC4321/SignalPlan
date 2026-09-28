@@ -32,7 +32,7 @@ import {
   targetBand,
 } from '../quality.ts'
 import { zoomAt } from './camera.ts'
-import { BAND_LABELS, coverageMessage } from './coverageText.ts'
+import { BAND_LABELS, settledAnnouncement } from './coverageText.ts'
 import { useEditor, useEditorStore } from './context.ts'
 import { deleteRecipe, describeSelection } from './selectTool.ts'
 import { bearingDeg } from './snap.ts'
@@ -254,11 +254,11 @@ export function Toolbar() {
 
 export function PropertiesPanel({
   open,
-  coverage,
+  coverageText,
 }: {
   open: boolean
-  /** The heatmap's coverage, or undefined when nothing broadcasts. */
-  coverage: Coverage | undefined
+  /** The coverage summary line, or '' when nothing broadcasts. */
+  coverageText: string
 }) {
   const plan = useEditor((s) => s.plan)
   const floorId = useEditor((s) => s.floorId)
@@ -350,7 +350,7 @@ export function PropertiesPanel({
             </span>
           </li>
         </ul>
-        <CoverageSummary coverage={coverage} />
+        <CoverageSummary message={coverageText} />
         <p className="hint">
           Predictions come from a simplified model.{' '}
           <a href={MODEL_URL}>How it works and its limits</a>
@@ -364,13 +364,10 @@ export function PropertiesPanel({
  * The share of the floor inside the walls that reaches the plan's target,
  * for the band on show (#43).
  */
-function CoverageSummary({ coverage }: { coverage: Coverage | undefined }) {
+function CoverageSummary({ message }: { message: string }) {
   const store = useEditorStore()
   const target = useEditor((s) => s.plan.coverageTarget ?? DEFAULT_TARGET)
-  const units = useEditor((s) => s.units)
   const id = useId()
-
-  const message = coverage ? coverageMessage(coverage, target, units) : ''
 
   return (
     <div className="coverage-summary">
@@ -395,9 +392,8 @@ function CoverageSummary({ coverage }: { coverage: Coverage | undefined }) {
           })}
         </select>
       </div>
-      <p className="coverage-share" role="status">
-        {message}
-      </p>
+      {/* Announced from the status bar, where it is always visible (D37). */}
+      <p className="coverage-share">{message}</p>
     </div>
   )
 }
@@ -412,12 +408,19 @@ const SAVE_MESSAGES: Record<SaveStatus, string> = {
 
 export function StatusBar({
   coverage,
+  coverageText,
   saveStatus,
 }: {
   coverage: Coverage | undefined
+  /** The coverage summary line, or '' when nothing broadcasts. */
+  coverageText: string
   saveStatus: SaveStatus
 }) {
   const store = useEditorStore()
+  const inGesture = useEditor((s) => s.gesture !== undefined)
+  const [announced, setAnnounced] = useState(coverageText)
+  const next = settledAnnouncement(announced, coverageText, inGesture)
+  if (next !== announced) setAnnounced(next)
   const pointer = useEditor((s) => s.pointer)
   const units = useEditor((s) => s.units)
   const showHeatmap = useEditor(heatmapShown)
@@ -444,6 +447,14 @@ export function StatusBar({
 
   return (
     <footer className="status-bar">
+      {/* Always visible, so the answer is never below the fold (D37). The
+          live region beside it stays quiet until a drag ends. */}
+      <p className="coverage-status" aria-hidden="true">
+        {coverageText}
+      </p>
+      <p className="visually-hidden coverage-announcement" role="status">
+        {announced}
+      </p>
       {/* Not a live region: it changes with every pointer move. */}
       <p className="readout">
         {pointer

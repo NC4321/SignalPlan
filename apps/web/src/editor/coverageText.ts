@@ -24,3 +24,16 @@ export function coverageMessage(
     ? 'Close the outer walls to see how much of the floor is covered.'
     : `${Math.floor(share * 100)}% of ${formatArea(areaM2, units)} at ${goal.label} or better on ${BAND_LABELS[coverage.band]}.`
 }
+
+/**
+ * What the status bar's live region should say (D37). During a drag the
+ * summary changes with every frame, so the announcement holds the last
+ * settled text and catches up once the gesture ends.
+ */
+export function settledAnnouncement(
+  announced: string,
+  message: string,
+  inGesture: boolean,
+): string {
+  return inGesture ? announced : message
+}
