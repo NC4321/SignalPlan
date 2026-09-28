@@ -1,4 +1,9 @@
-import { BANDS, type Band, type WallMaterial } from '@signalplan/floorplan'
+import {
+  BANDS,
+  type Band,
+  type FloorMaterial,
+  type WallMaterial,
+} from '@signalplan/floorplan'
 import { BAND_PROFILES, bandSamples } from './bands.ts'
 import { slabLossDb, type Layer } from './slab.ts'
 
@@ -113,3 +118,77 @@ export const MATERIAL_LOSS_DB: Readonly<
     ),
   ]),
 ) as Record<Band, Record<WallMaterial, number>>
+
+export interface FloorConstruction {
+  /** What the floor stands for in a home. */
+  description: string
+  /**
+   * Layers from the top of the floor to the ceiling below. Several variants
+   * stand for a range of real floors, and their loss is averaged (D50).
+   */
+  variants: Layer[][]
+}
+
+/** OSB subfloor, 23/32 in: IRC Table R503.2.1.1(1) at 16 or 24 in joists. */
+const SUBFLOOR_M = mm(18.3)
+/** Dry depths of 2×8, 2×10 and 2×12 joists (PS 20-20, Table 3). */
+const JOIST_DEPTHS_M = [mm(184), mm(235), mm(286)]
+/** 1/2 in gypsum ceiling: IRC Table R702.3.5. */
+const CEILING_M = mm(12.7)
+
+/**
+ * Floor constructions (D49, D50). Layer properties come from ITU-R P.2040-4
+ * Table 3, OSB as chipboard, as in the brick wall. Joist cavities are air: a
+ * path crossing a floor mostly passes between joists.
+ */
+export const FLOOR_CONSTRUCTIONS: Readonly<
+  Record<FloorMaterial, FloorConstruction>
+> = {
+  'timber-joist': {
+    description:
+      'Timber joist floor: 18.3 mm OSB subfloor, a 2×8, 2×10 or 2×12 joist cavity, and a 12.7 mm gypsum ceiling below',
+    variants: JOIST_DEPTHS_M.map((depth) => [
+      { material: 'chipboard', thicknessM: SUBFLOOR_M },
+      { material: 'air', thicknessM: depth },
+      { material: 'plasterboard', thicknessM: CEILING_M },
+    ]),
+  },
+  'concrete-slab': {
+    description:
+      'Concrete slab, 150 mm, as between apartments or over a basement',
+    variants: [[{ material: 'concrete', thicknessM: mm(150) }]],
+  },
+}
+
+/**
+ * Loss in dB through a floor at normal incidence (D49): the power
+ * transmission averaged over the band's channels and the floor's variants,
+ * as `slabLossDb` averages over channels.
+ */
+export function floorConstructionLossDb(
+  construction: FloorConstruction,
+  band: Band,
+): number {
+  const samples = bandSamples(BAND_PROFILES[band])
+  let sum = 0
+  for (const layers of construction.variants) {
+    sum += 10 ** (-slabLossDb(layers, samples) / 10)
+  }
+  const mean = sum / construction.variants.length
+  return mean > 0 ? -10 * Math.log10(mean) : Number.POSITIVE_INFINITY
+}
+
+/** Loss in dB per floor crossing, by band and floor material. Computed once. */
+export const FLOOR_LOSS_DB: Readonly<
+  Record<Band, Readonly<Record<FloorMaterial, number>>>
+> = Object.fromEntries(
+  BANDS.map((band) => [
+    band,
+    Object.fromEntries(
+      Object.entries(FLOOR_CONSTRUCTIONS).map(([material, construction]) => [
+        material,
+        floorConstructionLossDb(construction, band),
+      ]),
+    ),
+  ]),
+) as Record<Band, Record<FloorMaterial, number>>
