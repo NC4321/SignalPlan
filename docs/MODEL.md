@@ -78,25 +78,27 @@ The 2.4 and 5 GHz defaults are **assumptions**: typical consumer router output, 
 
 Each wall material stands for a typical **North American construction**, built up in layers. Losses are calculated, not looked up:
 
-1. **Electrical properties** of each layer come from Recommendation **ITU-R P.2040-4** (09/2025), Table 3: relative permittivity ε′ = a·f^b and conductivity σ = c·f^d (eqs. 57–58, f in GHz), with ε″ = 17.98·σ/f (eq. 59).
+1. **Electrical properties** of each layer come from Recommendation **ITU-R P.2040-4** (09/2025), Table 3: relative permittivity ε′ = a·f^b and conductivity σ = c·f^d (eqs. 57–58, f in GHz), with ε″ = 17.98·σ/f (eq. 59). The one exception is brick's conductivity, which is fitted to a measured wall (see below).
 2. **Transmission through the layered wall** uses P.2040's general multi-layer slab method (§ 2.2.2.1, eqs. 39–42), which accounts for reflections at every surface, and for absorption and interference inside each layer.
 3. The result is the mean of TE and TM polarisation (a phone's orientation is random) at normal incidence, **averaged over 25 frequencies across the band**. Averaging smooths out thickness resonances that make single-frequency results jump by several dB.
 
 ### Constructions
 
-| Material      | Construction                             | Layers (P.2040 class)                                                                                 |
-| ------------- | ---------------------------------------- | ----------------------------------------------------------------------------------------------------- |
-| `drywall`     | Interior stud wall                       | 12.7 mm plasterboard · 89 mm air · 12.7 mm plasterboard                                               |
-| `brick`       | Exterior brick veneer wall               | 90 mm brick · 25 mm air · 11 mm OSB (chipboard) · 89 mm insulated cavity (air) · 12.7 mm plasterboard |
-| `concrete`    | Poured concrete, such as a basement wall | 200 mm concrete                                                                                       |
-| `glass`       | Double-glazed window                     | 3 mm glass · 13 mm air · 3 mm glass                                                                   |
-| `low-e-glass` | Double-glazed low-E window               | As `glass`, plus a metallic coating (see below)                                                       |
-| `wood`        | Solid-core door                          | 44 mm wood                                                                                            |
-| `metal`       | Steel door or appliance                  | 1 mm metal, capped at 40 dB                                                                           |
+| Material      | Construction                             | Layers (P.2040 class)                                                                                          |
+| ------------- | ---------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| `drywall`     | Interior stud wall                       | 12.7 mm plasterboard · 89 mm air · 12.7 mm plasterboard                                                        |
+| `brick`       | Exterior brick veneer wall               | 90 mm brick (fitted) · 25 mm air · 11 mm OSB (chipboard) · 89 mm insulated cavity (air) · 12.7 mm plasterboard |
+| `concrete`    | Poured concrete, such as a basement wall | 200 mm concrete                                                                                                |
+| `glass`       | Double-glazed window                     | 3 mm glass · 13 mm air · 3 mm glass                                                                            |
+| `low-e-glass` | Double-glazed low-E window               | As `glass`, plus a metallic coating (see below)                                                                |
+| `wood`        | Solid-core door                          | 44 mm wood                                                                                                     |
+| `metal`       | Steel door or appliance                  | 1 mm metal, capped at 40 dB                                                                                    |
 
 Fibreglass insulation is modelled as air; its permittivity is close to 1.
 
-**Low-E glass.** P.2040 has no data for the metal-oxide coatings on energy-efficient windows, which block much more signal than plain glass. The coating is modelled as a 100 nm conductive film with sheet resistance R_s. R_s is the only fitted number in the model: it is chosen so the model matches the **29.7 dB** measured through a double-pane low-E window at 6.75 GHz by Shakya et al. (see sources). The fitted value, **9.1 Ω/sq**, falls within the range commonly quoted for real low-E coatings (roughly 2–20 Ω/sq), which suggests the film model is physically sensible.
+**Low-E glass.** P.2040 has no data for the metal-oxide coatings on energy-efficient windows, which block much more signal than plain glass. The coating is modelled as a 100 nm conductive film with sheet resistance R_s. R_s is one of two fitted numbers in the model (the other is brick's conductivity): it is chosen so the model matches the **29.7 dB** measured through a double-pane low-E window at 6.75 GHz by Shakya et al. (see sources). The fitted value, **9.1 Ω/sq**, falls within the range commonly quoted for real low-E coatings (roughly 2–20 Ω/sq), which suggests the film model is physically sensible.
+
+**Brick.** P.2040's brick (ε′ = 3.91, σ = 0.0238·f^0.16 S/m) loses 1–5 dB less than a single-wythe brick wall measured head on by Muqaibel (Virginia Tech), and NIST's brick at 2.0 GHz points the same way (see [validation](#masonry-and-wood-second-sources)). The model keeps P.2040's ε′ and uses a fitted conductivity, **σ = 0.0170·f^0.92 S/m**, chosen so an 87.1 mm slab reproduces Muqaibel's line (1.0702·f + 0.9757 dB) averaged over each band: 3.58 / 6.89 / 7.81 dB against 3.58 / 6.88 / 7.94 dB measured at 2.4 / 5 / 6 GHz. In the code this is `brick-fitted` in `FITTED_MATERIALS`, next to the untouched P.2040 table ([D36](DECISIONS.md#d36-brick-conductivity-fitted-to-a-measured-wall--2026-09-28)). Muqaibel's bricks were dry-stacked without mortar; a mortared wall may lose somewhat more.
 
 **Metal.** P.2040 treats metal as a near-perfect conductor, which gives thousands of dB of loss. Real signals leak around the edges of doors, appliances and ducts, so metal is **capped at 40 dB**, slightly below the 43.2 dB measured through a steel door (Shakya et al.).
 
@@ -105,7 +107,7 @@ Fibreglass insulation is modelled as air; its permittivity is close to 1.
 | Material      | 2.4 GHz | 5 GHz | 6 GHz |
 | ------------- | ------- | ----- | ----- |
 | `drywall`     | 2.9     | 2.4   | 1.4   |
-| `brick`       | 5.8     | 5.3   | 5.2   |
+| `brick`       | 6.6     | 9.0   | 9.9   |
 | `concrete`    | 14.7    | 26.5  | 29.9  |
 | `glass`       | 0.5     | 6.1   | 8.3   |
 | `low-e-glass` | 23.5    | 29.9  | 29.8  |
@@ -148,7 +150,7 @@ NIST measured 1 m square panels of single materials from 3 to 8 GHz (Stone, NIST
 | Glass, 18.60 mm (G75H)    | 0.4            | 2.5         | +2.1       | 0.5            | 1.2         | +0.7       |
 | Lumber, 36.95 mm (L15DH)  | 3.4            | 1.4         | −2.0       | 3.8            | 1.8         | −2.0       |
 | Lumber, 75.42 mm (L30DH)  | 7.7            | 2.7         | −5.0       | 8.2            | 3.3         | −4.8       |
-| **Brick, 90.4 mm (B1H)**  | 15.4           | 3.4         | −12.0      | 15.6           | 3.4         | −12.2      |
+| **Brick, 90.4 mm (B1H)**  | 15.4           | 7.1         | −8.3       | 15.6           | 8.1         | −7.5       |
 | **Concrete, 102 mm (×7)** | 17.9–26.8      | 14.2        | −4 to −13  | 19.4–28.8      | 16.0        | −3 to −13  |
 | **Concrete, 203 mm (×3)** | 54.6–57.2      | 26.9        | −28 to −30 | 59.2–62.4      | 30.3        | −29 to −32 |
 
@@ -156,7 +158,7 @@ Lumber is dry spruce-pine-fir. Concrete rows span NIST's mixes. Only fits that r
 
 - **Drywall and glass** agree within 2.3 dB. Unlike the Shakya comparison, the model is slightly _pessimistic_ for glass here, so the two sources bracket it.
 - **Wood** is under-predicted again, by 2 dB for 37 mm and 5 dB for 75 mm, which matches the Shakya door. Muqaibel's 44.5 mm door is also lossier than the model, but only by 0.4–0.5 dB (see [below](#masonry-and-wood-second-sources)), so how far the model falls short depends on the wood.
-- **Brick and concrete** are far lossier at NIST than P.2040 predicts, by 12 dB for one wythe of brick and up to 30 dB for 203 mm of concrete. The report doesn't give the specimens' moisture when tested; the brick is cored clay brick with 13–14 mm mortar joints (Table 3.1.1). Second sources and the likely causes are [below](#masonry-and-wood-second-sources); per D9 the values aren't changed to match the measurements.
+- **Brick and concrete** are far lossier at NIST than predicted: by 7.5–8.3 dB for one wythe of brick (12 dB before brick's conductivity was fitted, D36) and up to 30 dB for 203 mm of concrete. The report doesn't give the specimens' moisture when tested; the brick is cored clay brick with 13–14 mm mortar joints (Table 3.1.1). Second sources and the likely causes are [below](#masonry-and-wood-second-sources); NIST's high-range brick isn't used for the brick fit, because it's out of line with NIST's own 2.0 GHz value and with Muqaibel's wall.
 
 A unit test copies NIST's coefficients, checks each curve against the report's plot at 5 GHz, and keeps the drywall, glass and lumber samples within 5 dB in both bands. The 75 mm lumber is 4.97 dB under at 5 GHz, just inside that limit. A panel listed as 16 mm drywall (D625H) is left out, because the report's measured drywall panels are 6.94, 9.44 and 12.52 mm and it's unclear which one it is.
 
@@ -176,8 +178,8 @@ No primary lab measurement of these materials inside the 2.4 GHz band was found 
 | Glass, 18.60 mm (G75L)    | 3.9       | 3.0   | −0.9       |
 | Lumber, 36.95 mm (L15DL)  | 3.3       | 0.7   | −2.6       |
 | Lumber, 75.42 mm (L30DL)  | 4.8       | 1.3   | −3.5       |
-| **Brick, 90.4 mm (B1L)**  | 5.4       | 3.5   | −2.0       |
-| **Brick, 178 mm (B2L)**   | 7.6       | 5.0   | −2.6       |
+| **Brick, 90.4 mm (B1L)**  | 5.4       | 3.8   | −1.6       |
+| **Brick, 178 mm (B2L)**   | 7.6       | 5.8   | −1.8       |
 | **Concrete, 102 mm (×8)** | 12.6–18.0 | 7.0   | −6 to −11  |
 | **Concrete, 203 mm (×8)** | 28.6–34.9 | 13.0  | −16 to −22 |
 
@@ -185,7 +187,7 @@ The fits checked against their plots (brick, drywall, glass, lumber, and concret
 
 - **Drywall and glass** agree within 1 dB.
 - **Wood** is under-predicted by 2.6–3.5 dB, the same direction as at 5, 6 and 6.75 GHz. In every source so far, P.2040's wood class is less lossy than the measured lumber and doors.
-- **Brick** is within 2.6 dB here, unlike the 12 dB gap in NIST's own 3–8 GHz data for the same brick. NIST's two ranges jump from 5.4 dB at 2.0 GHz to 15.1 dB at 3.0 GHz for that brick, far more than P.2040's brick properties allow for a solid slab. The brick's cores or the change of antennas between ranges may explain it; this is noted for [#55](https://github.com/NC4321/SignalPlan/issues/55).
+- **Brick** is within 1.8 dB here with the fitted conductivity (2.6 dB with P.2040's), unlike the 12 dB gap in NIST's own 3–8 GHz data for the same brick. NIST's two ranges jump from 5.4 dB at 2.0 GHz to 15.1 dB at 3.0 GHz for that brick, far more than P.2040's brick properties allow for a solid slab. The brick's cores or the change of antennas between ranges may explain it; this is noted for [#55](https://github.com/NC4321/SignalPlan/issues/55).
 - **Concrete** is again much lossier than predicted, by 6–22 dB ([#55](https://github.com/NC4321/SignalPlan/issues/55)).
 
 A unit test copies the six drywall, glass and lumber curves, checks each against its plot at 2.0 GHz, and keeps each within 4 dB of the model. The worst is the 75 mm lumber at 3.5 dB.
@@ -209,13 +211,13 @@ Real homes are still unvalidated in every band until Phase 7.
 | ---------------------------------- | ------------------------ | ---------------------- | ---------------------- |
 | Wooden door, 44.5 mm               | 1.0 / 0.7                | 2.2 / 1.8              | 2.6 / 2.1              |
 | Glass, 2.36 mm                     | 0.8 / 0.5                | 1.7 / 1.7              | 2.0 / 2.1              |
-| **Brick wall, 87.1 mm**            | 3.6 / 2.8                | 6.9 / 3.3              | 7.9 / 3.2              |
+| **Brick wall, 87.1 mm (fitted)**   | 3.6 / 3.6                | 6.9 / 6.9              | 7.9 / 7.8              |
 | Concrete block wall, 194.5 mm      | —                        | 13.6 / —               | —                      |
 | NIST concrete block, 203 mm (CB1H) | —                        | 15.3 / —               | 16.3 / —               |
 
 The brick fit is stated for 1–7 GHz, so the top of the 6 GHz band (to 7.125 GHz) is a slight extrapolation; the block was flat at 13.62 dB from 2.0 to 6.8 GHz. The door and glass agree within about 0.5 dB in every band. The dissertation's "wallboard" and "structure wood" samples are left out, because it doesn't say what they're made of.
 
-- **Brick:** both sources measured single-wythe, three-cored clay brick, and both find more loss than P.2040's brick: 0.8–4.8 dB more for Muqaibel's wall, 12 dB more at NIST. Muqaibel's bricks were dry-stacked without mortar (Figure B2.1), while NIST's were laid in mortar, which may explain part of the 8.5 dB between them. But NIST's 3–8 GHz brick is also out of line with NIST's own 2.0 GHz value for the same wall (15.1 dB at 3.0 GHz against 5.4 dB at 2.0 GHz, [above](#near-24-ghz-nist-at-20-ghz-and-anderson-and-rappaport-at-25-ghz)), and with Muqaibel's wall, which rises smoothly to 4.2 dB at 3.0 GHz. So the 12 dB gap is probably specific to NIST's high-range brick measurement, and the gap the other data support is Muqaibel's 1–5 dB. P.2040's brick conductivity would have to be 2.6 times higher to match Muqaibel at 5 GHz and 6.2 times higher to match NIST.
+- **Brick:** both sources measured single-wythe, three-cored clay brick, and both find more loss than P.2040's brick: 0.8–4.8 dB more for Muqaibel's wall, 12 dB more at NIST. Muqaibel's bricks were dry-stacked without mortar (Figure B2.1), while NIST's were laid in mortar, which may explain part of the 8.5 dB between them. But NIST's 3–8 GHz brick is also out of line with NIST's own 2.0 GHz value for the same wall (15.1 dB at 3.0 GHz against 5.4 dB at 2.0 GHz, [above](#near-24-ghz-nist-at-20-ghz-and-anderson-and-rappaport-at-25-ghz)), and with Muqaibel's wall, which rises smoothly to 4.2 dB at 3.0 GHz. So the 12 dB gap is probably specific to NIST's high-range brick measurement, and the gap the other data support is Muqaibel's 1–5 dB. P.2040's brick conductivity would have to be 2.6 times higher to match Muqaibel at 5 GHz and 6.2 times higher to match NIST. With P.2040's brick the model gave 2.8 / 3.3 / 3.2 dB for this wall; brick's conductivity is now fitted to it ([D36](DECISIONS.md#d36-brick-conductivity-fitted-to-a-measured-wall--2026-09-28)), so the table shows the fitted model.
 - **Concrete block:** the two sources agree within 1.7 dB, which suggests NIST's set-up isn't lossy in general. P.2040 has no hollow-block class and the model has no block material.
 
 **Concrete and moisture.** P.2040-4 doesn't say how dry its concrete and brick samples were: Table 3 is a curve fit to "examples of measured electrical characteristics" from the literature, with no note on moisture. Rhim (MIT) measured the permittivity of 4-week-old concrete cylinders of one mix, wet, saturated, air dried and oven dried, from 0.1 to 20 GHz (Table 3-3, ε′ and ε″ as straight lines in frequency). Putting those into the same slab calculation gives loss in dB:
@@ -235,7 +237,7 @@ When the loss is low, thickness resonances can make a thicker slab lose less, as
 - NIST's 203 mm panels lose more per millimetre than its 102 mm panels of the same mix (mix 3: 22.6 dB at 102 mm, 56.4 dB at 203 mm; mix 5: 23.9 and 54.6; mix 8: 26.8 and 57.2, at 5 GHz). A uniform slab this lossy can lose at most about twice as much at twice the thickness. One explanation is thicker panels holding more water because they dry more slowly; the report doesn't give the specimens' age or moisture, so this can't be checked.
 - 3GPP TR 38.901 (Table 7.4.3-1) gives concrete as 5 + 4f dB, which is 14.7, 27.1 and 31.1 dB at the band midpoints, close to the model's 200 mm wall. It doesn't state a thickness, so this is context rather than validation.
 
-A unit test keeps the Muqaibel door and glass within 1 dB in all three bands, and records that the model is below Muqaibel's brick wall by less than 5 dB at 2.4 and 5 GHz. Whether to change `brick` or `concrete` is an open decision (D33, [#55](https://github.com/NC4321/SignalPlan/issues/55)).
+A unit test keeps the Muqaibel door and glass within 1 dB in all three bands, checks that the fitted brick reproduces Muqaibel's wall within 0.3 dB in all three, and records that P.2040's brick falls 0.5–5 dB short of it. [D36](DECISIONS.md#d36-brick-conductivity-fitted-to-a-measured-wall--2026-09-28) settles [#55](https://github.com/NC4321/SignalPlan/issues/55): brick's conductivity is fitted, and concrete stays at P.2040's values, which behave like Rhim's saturated concrete, because a plan doesn't record how damp a wall is.
 
 ### Against the ITU-R P.1238-13 indoor model
 

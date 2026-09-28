@@ -36,6 +36,7 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ### Changed
 
+- Engine: brick walls now lose more signal. Brick's conductivity is fitted to a measured single-wythe wall (Muqaibel, Virginia Tech 2003) instead of taken from ITU-R P.2040, so the brick veneer wall loses 6.6 / 9.0 / 9.9 dB at 2.4 / 5 / 6 GHz, up from 5.8 / 5.3 / 5.2 (D36).
 - Engine: the coverage grid is 5–7× faster with identical results (a 300 m² house went from ~210 ms to 28 ms), so the heatmap keeps up while dragging on slower devices. `pnpm speed` adds the 300 m² house with a 50 ms budget.
 
 ### Fixed

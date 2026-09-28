@@ -25,7 +25,8 @@ export const LOW_E_SHEET_RESISTANCE_OHMS = 9.1
 
 /**
  * Typical North American constructions for each wall material. Layer
- * properties come from ITU-R P.2040-4 Table 3 (see slab.ts). Stud cavities are
+ * properties come from ITU-R P.2040-4 Table 3, except brick, whose conductivity
+ * is fitted to a measured wall (`brick-fitted`, see slab.ts). Stud cavities are
  * modelled as air; fibreglass insulation has a permittivity close to 1.
  */
 export const CONSTRUCTIONS: Readonly<Record<WallMaterial, Construction>> = {
@@ -42,7 +43,7 @@ export const CONSTRUCTIONS: Readonly<Record<WallMaterial, Construction>> = {
     description:
       'Exterior brick veneer: 90 mm brick, 25 mm air gap, 11 mm OSB sheathing, 89 mm insulated cavity, 12.7 mm gypsum',
     layers: [
-      { material: 'brick', thicknessM: mm(90) },
+      { material: 'brick-fitted', thicknessM: mm(90) },
       { material: 'air', thicknessM: mm(25) },
       { material: 'chipboard', thicknessM: mm(11) },
       { material: 'air', thicknessM: mm(89) },

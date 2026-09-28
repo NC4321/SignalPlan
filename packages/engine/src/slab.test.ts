@@ -12,11 +12,14 @@ import {
 } from './complex.ts'
 import { SPEED_OF_LIGHT } from './pathLoss.ts'
 import {
+  FITTED_MATERIALS,
   P2040_MATERIALS,
   permittivity,
   slabLossDb,
   slabTransmission,
+  type FittedMaterial,
   type Layer,
+  type P2040Material,
   type Polarisation,
 } from './slab.ts'
 
@@ -57,6 +60,17 @@ describe('permittivity', () => {
     const eps = permittivity({ material: 'concrete', thicknessM: 0.1 }, 1)
     expect(eps.re).toBe(5.24)
     expect(eps.im).toBeCloseTo(-17.98 * 0.0462, 12)
+  })
+
+  it("keeps P.2040's brick and fits only the conductivity of brick-fitted", () => {
+    expect(P2040_MATERIALS.brick).toEqual({ a: 3.91, b: 0, c: 0.0238, d: 0.16 })
+    const fitted = permittivity(
+      { material: 'brick-fitted', thicknessM: 0.1 },
+      2,
+    )
+    expect(fitted.re).toBe(3.91)
+    // σ = 0.0170·2^0.92 = 0.03216 S/m, so ε″ = 17.98·σ / 2 = 0.2892.
+    expect(fitted.im).toBeCloseTo(-0.2892, 4)
   })
 })
 
@@ -114,9 +128,10 @@ describe('slabTransmission', () => {
   })
 
   it('never gains power', () => {
-    for (const material of Object.keys(
-      P2040_MATERIALS,
-    ) as (keyof typeof P2040_MATERIALS)[]) {
+    for (const material of Object.keys({
+      ...P2040_MATERIALS,
+      ...FITTED_MATERIALS,
+    }) as (P2040Material | FittedMaterial)[]) {
       for (const f of [2.4, 5.5, 6.5]) {
         const t = slabTransmission(
           [{ material, thicknessM: mm(20) }],

@@ -58,6 +58,7 @@ A running log of project decisions, newest last. Each entry records what was dec
 - **Why:** one citable standard, reproducible numbers, and a clear story in [MODEL.md](MODEL.md). Measured values are used to validate, not to set, the other materials.
 - **Revisit if:** calibration (Phase 7) shows systematic errors for a material.
 - **Update:** NIST measurements at 5 and 6 GHz show brick and concrete much lossier than computed; see D31.
+- **Update:** brick's conductivity is now fitted to a measured wall, a second fitted value after low-E; see D36.
 
 ### D10. No clutter term — 2026-09-27
 
@@ -118,6 +119,16 @@ A running log of project decisions, newest last. Each entry records what was dec
 - **Findings:** the model is below every wood measurement, but by only 0.4–0.5 dB for Muqaibel's 44.5 mm door, against 2–5 dB for NIST's lumber and the Shakya fire door. Brick is under-predicted by every source: 0.8–4.8 dB for Muqaibel's dry-stacked wall and 12 dB for NIST's mortared one at 5 GHz, but NIST's 3–8 GHz brick is out of line with its own 2.0 GHz value (D32) and with Muqaibel, so the supported gap is about 1–5 dB. Concrete loss is dominated by moisture: with Rhim's measured permittivities, 102 mm of concrete loses 4.0 dB at 5 GHz air dried, 16.1 dB saturated and 27.4 dB wet; P.2040's concrete (14.2 dB) behaves like saturated concrete, and NIST's (17.9–26.8 dB) lies between saturated and wet. P.2040-4 doesn't state the moisture of its samples. Details are in [MODEL.md](MODEL.md#masonry-and-wood-second-sources).
 - **Why:** D9 keeps measurements for validating rather than setting values, and D31 asked for a second source before retuning masonry. The second source confirms the direction for brick but not the size, and for concrete it shows the answer depends on moisture, which a plan doesn't record.
 - **Revisit if:** the user picks a change on #55, or Phase 7 measurements in real homes show a consistent error behind brick or concrete walls.
+- **Update:** the user chose to fit brick and keep concrete; see D36.
+
+### D36. Brick conductivity fitted to a measured wall — 2026-09-28
+
+- **Decision:** the `brick` construction's 90 mm brick layer keeps P.2040's ε′ = 3.91 but uses a fitted conductivity, σ = 0.0170·f^0.92 S/m, instead of P.2040's 0.0238·f^0.16. It lives in `FITTED_MATERIALS` in `slab.ts` as `brick-fitted`, next to the unchanged P.2040 table, so it's clear which numbers are the standard's and which are fitted. `concrete` and `wood` are unchanged. The brick veneer wall now loses 6.6 / 9.0 / 9.9 dB at 2.4 / 5 / 6 GHz, up from 5.8 / 5.3 / 5.2.
+- **Why:** every brick measurement found is lossier than P.2040's brick (D31–D33). The fit reproduces the single-wythe wall Muqaibel measured head on (Table 4.3, 1.0702·f + 0.9757 dB) within 0.13 dB in all three bands, and NIST's mortared brick at 2.0 GHz points the same way (within 1.6 dB of the fit, against 2.0 dB for P.2040). NIST's 3–8 GHz brick isn't used: it's out of line with NIST's own 2.0 GHz value and with Muqaibel, and matching it would take 6.2 times P.2040's conductivity.
+- **D9 exception:** D9 keeps measurements for validating rather than setting values. This is the second fitted value, after the low-E coating. Brick is used for exterior walls in many plans, and a 1–5 dB optimism there was consistent across sources, so one well-documented measurement is better than a standard value every source disagrees with.
+- **Caveats:** Muqaibel's bricks were dry-stacked without mortar (Figure B2.1), so a mortared wall may lose somewhat more. The 6 GHz band runs to 7.125 GHz, slightly past the fit's stated 1–7 GHz.
+- **Concrete stays** at P.2040's values (D33): its loss depends mostly on moisture, which a plan doesn't record, and P.2040's concrete behaves like Rhim's saturated concrete, in the middle of the measured range and close to 3GPP TR 38.901.
+- **Revisit if:** a mortared-brick measurement at 2–7 GHz disagrees with the fit by more than about 2 dB, or Phase 7 calibration shows a consistent error behind brick walls.
 
 ## Phase 3
 

@@ -33,9 +33,28 @@ export const P2040_MATERIALS = {
 
 export type P2040Material = keyof typeof P2040_MATERIALS
 
-/** One layer of a wall: either a P.2040 material or an explicit conductivity. */
+/**
+ * Materials whose properties are fitted to measurements instead of taken from
+ * P.2040, in the same form (eqs. 57–58).
+ *
+ * `brick-fitted` keeps P.2040's ε′ = 3.91 but has σ = 0.0170·f^0.92 S/m, fitted
+ * so an 87.1 mm slab reproduces the brick wall measured head on by A. H.
+ * Muqaibel, "Characterization of Ultra Wideband Communication Channels", PhD
+ * dissertation, Virginia Tech, 2003, Table 4.3: 1.0702·f + 0.9757 dB, averaged
+ * over each band. P.2040's brick (σ = 0.0238·f^0.16) under-predicts that wall
+ * by 1–5 dB, and NIST's brick at 2.0 GHz (NISTIR 6055) points the same way.
+ */
+export const FITTED_MATERIALS = {
+  'brick-fitted': { a: 3.91, b: 0, c: 0.017, d: 0.92 },
+} as const
+
+export type FittedMaterial = keyof typeof FITTED_MATERIALS
+
+const MATERIAL_PROPERTIES = { ...P2040_MATERIALS, ...FITTED_MATERIALS }
+
+/** One layer of a wall: a P.2040 or fitted material, or a conductive film. */
 export type Layer =
-  | { material: P2040Material; thicknessM: number }
+  | { material: P2040Material | FittedMaterial; thicknessM: number }
   | {
       /** A thin conductive film, such as a low-E coating, by sheet resistance. */
       sheetResistanceOhms: number
@@ -51,7 +70,7 @@ export function permittivity(layer: Layer, frequencyGHz: number): Complex {
     const sigma = 1 / (layer.sheetResistanceOhms * layer.thicknessM)
     return complex(1, (-17.98 * sigma) / frequencyGHz)
   }
-  const { a, b, c, d } = P2040_MATERIALS[layer.material]
+  const { a, b, c, d } = MATERIAL_PROPERTIES[layer.material]
   const realPart = a * frequencyGHz ** b
   const sigma = c * frequencyGHz ** d
   return complex(realPart, (-17.98 * sigma) / frequencyGHz)
