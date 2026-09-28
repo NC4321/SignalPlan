@@ -161,24 +161,25 @@ export const FLOOR_CONSTRUCTIONS: Readonly<
 }
 
 /**
- * Loss in dB through a floor at normal incidence (D49): the power
- * transmission averaged over the band's channels and the floor's variants,
- * as `slabLossDb` averages over channels.
+ * Loss in dB through a floor (D49, D60): the power transmission averaged
+ * over the band's channels and the floor's variants, as `slabLossDb`
+ * averages over channels. Head-on unless given an angle from the normal.
  */
 export function floorConstructionLossDb(
   construction: FloorConstruction,
   band: Band,
+  angleRad = 0,
 ): number {
   const samples = bandSamples(BAND_PROFILES[band])
   let sum = 0
   for (const layers of construction.variants) {
-    sum += 10 ** (-slabLossDb(layers, samples) / 10)
+    sum += 10 ** (-slabLossDb(layers, samples, angleRad) / 10)
   }
   const mean = sum / construction.variants.length
   return mean > 0 ? -10 * Math.log10(mean) : Number.POSITIVE_INFINITY
 }
 
-/** Loss in dB per floor crossing, by band and floor material. Computed once. */
+/** Loss in dB per floor crossing head-on, by band and floor material. */
 export const FLOOR_LOSS_DB: Readonly<
   Record<Band, Readonly<Record<FloorMaterial, number>>>
 > = Object.fromEntries(
@@ -192,3 +193,65 @@ export const FLOOR_LOSS_DB: Readonly<
     ),
   ]),
 ) as Record<Band, Record<FloorMaterial, number>>
+
+/**
+ * A slab's loss stops growing past this angle from its normal (D60), the
+ * top of the 60–75° that D30 suggested for walls. Past it the P.2040 loss
+ * climbs steeply towards grazing, where real signal finds other ways round.
+ */
+export const FLOOR_ANGLE_CAP_DEG = 75
+
+/** Step between angles in a floor's loss table, in degrees. */
+export const FLOOR_ANGLE_STEP_DEG = 0.5
+
+/**
+ * A floor's loss in dB every `FLOOR_ANGLE_STEP_DEG` from its normal, 0 up
+ * to `FLOOR_ANGLE_CAP_DEG`. Read it with `floorLossAtDb`.
+ */
+export type FloorLossTable = readonly number[]
+
+const floorLossTables = new Map<string, FloorLossTable>()
+
+/**
+ * A floor's loss table in one band. Each takes tens of milliseconds, so it's
+ * worked out the first time it's needed and kept.
+ */
+export function floorLossTable(
+  band: Band,
+  material: FloorMaterial,
+): FloorLossTable {
+  const key = `${band} ${material}`
+  let table = floorLossTables.get(key)
+  if (!table) {
+    const construction = FLOOR_CONSTRUCTIONS[material]
+    table = Array.from(
+      { length: FLOOR_ANGLE_CAP_DEG / FLOOR_ANGLE_STEP_DEG + 1 },
+      (_, i) =>
+        floorConstructionLossDb(
+          construction,
+          band,
+          (i * FLOOR_ANGLE_STEP_DEG * Math.PI) / 180,
+        ),
+    )
+    floorLossTables.set(key, table)
+  }
+  return table
+}
+
+/**
+ * A floor's loss for a path `across` metres sideways for every `up` metres
+ * it rises: interpolated between the table's angles, and held at the cap
+ * beyond.
+ */
+export function floorLossAtDb(
+  table: FloorLossTable,
+  across: number,
+  up: number,
+): number {
+  const steps = (Math.atan2(across, up) * 180) / Math.PI / FLOOR_ANGLE_STEP_DEG
+  const last = table.length - 1
+  if (!(steps < last)) return table[last]!
+  const i = Math.floor(steps)
+  const below = table[i]!
+  return below + (steps - i) * (table[i + 1]! - below)
+}

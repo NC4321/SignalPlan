@@ -11,11 +11,23 @@ import { describe, expect, it } from 'vitest'
 import { BAND_PROFILES } from './bands.ts'
 import { cellCentre, evaluateCoverage, gridForFloor } from './coverage.ts'
 import { crossingLossDb, floorCrossing, prepareStack } from './floors.ts'
-import { FLOOR_LOSS_DB, MATERIAL_LOSS_DB } from './materials.ts'
+import {
+  FLOOR_ANGLE_CAP_DEG,
+  FLOOR_CONSTRUCTIONS,
+  FLOOR_LOSS_DB,
+  floorConstructionLossDb,
+  floorLossAtDb,
+  floorLossTable,
+  MATERIAL_LOSS_DB,
+} from './materials.ts'
 
 const FIVE = BAND_PROFILES['5GHz']
 const TIMBER = FLOOR_LOSS_DB['5GHz']['timber-joist']
-const SLAB = FLOOR_LOSS_DB['5GHz']['concrete-slab']
+/** Slab losses for a path `across` metres sideways and `up` metres up (D60). */
+const timberAt = (across: number, up: number) =>
+  floorLossAtDb(floorLossTable('5GHz', 'timber-joist'), across, up)
+const slabAt = (across: number, up: number) =>
+  floorLossAtDb(floorLossTable('5GHz', 'concrete-slab'), across, up)
 const BRICK = MATERIAL_LOSS_DB['5GHz'].brick
 const DRYWALL = MATERIAL_LOSS_DB['5GHz'].drywall
 
@@ -109,7 +121,8 @@ describe('floorCrossing (hand-worked)', () => {
     expect(lower!.toT).toBeCloseTo(0.4 / 1.7, 12)
     expect(upper!.fromT).toBeCloseTo(0.7 / 1.7, 12)
     expect(upper!.toT).toBe(1)
-    expect(crossing.slabLossDb).toBe(TIMBER)
+    expect(crossing.slabLoss).toEqual(floorLossTable('5GHz', 'timber-joist'))
+    expect(crossing.riseM).toBeCloseTo(1.7, 12)
   })
 
   it('splits a downward path the same way, from the other end', () => {
@@ -122,7 +135,8 @@ describe('floorCrossing (hand-worked)', () => {
     expect(upper!.toT).toBeCloseTo(2 / 3.7, 12)
     expect(lower!.fromT).toBeCloseTo(2.3 / 3.7, 12)
     expect(lower!.toT).toBe(1)
-    expect(crossing.slabLossDb).toBe(TIMBER)
+    expect(crossing.slabLoss).toEqual(floorLossTable('5GHz', 'timber-joist'))
+    expect(crossing.riseM).toBeCloseTo(3.7, 12)
   })
 
   it('splits halfway when the path does not rise towards the upper floor', () => {
@@ -143,9 +157,33 @@ describe('signal from another floor (hand-worked)', () => {
       [ap('ground', 0.05, 0.05, 2)],
     )
     expect(dbmAt(p, 'up', 3.05, 0.05)).toBeCloseTo(
-      freeSpace(Math.sqrt(3 ** 2 + RISE ** 2)) - TIMBER,
+      freeSpace(Math.sqrt(3 ** 2 + RISE ** 2)) - timberAt(3, RISE),
       4,
     )
+  })
+
+  it('pays more for the slab on a slant, up to the cap (D60)', () => {
+    // 3 m across and 1.7 m up: 60.5° from the vertical, between the table's
+    // angles, so within interpolation of the slab worked out at that angle.
+    const timber = FLOOR_CONSTRUCTIONS['timber-joist']
+    const exact = floorConstructionLossDb(timber, '5GHz', Math.atan2(3, RISE))
+    expect(timberAt(3, RISE)).toBeCloseTo(exact, 1)
+    expect(timberAt(3, RISE)).toBeGreaterThan(TIMBER + 1)
+    // 20 m across is 85°, past the cap: the loss stays at 75°'s, and so
+    // does a path that doesn't rise at all.
+    const capped = floorConstructionLossDb(
+      timber,
+      '5GHz',
+      (FLOOR_ANGLE_CAP_DEG * Math.PI) / 180,
+    )
+    expect(timberAt(20, RISE)).toBeCloseTo(capped, 10)
+    const stack = prepareStack(
+      plan([storey('ground', 0), storey('up', 2.7)], []),
+      '5GHz',
+    )
+    const crossing = floorCrossing(stack, 0, 2, 1, 3.7)
+    expect(crossingLossDb(crossing, 0, 0, 20, 0)).toBeCloseTo(capped, 10)
+    expect(timberAt(5, 0)).toBeCloseTo(capped, 10)
   })
 
   it('pays only the slab straight above the router', () => {
@@ -180,7 +218,10 @@ describe('signal from another floor (hand-worked)', () => {
       [ap('ground', 0.05, 0.05, 2)],
     )
     expect(dbmAt(p, 'up', 3.05, 0.05)).toBeCloseTo(
-      freeSpace(Math.sqrt(3 ** 2 + RISE ** 2)) - BRICK - TIMBER - DRYWALL,
+      freeSpace(Math.sqrt(3 ** 2 + RISE ** 2)) -
+        BRICK -
+        timberAt(3, RISE) -
+        DRYWALL,
       4,
     )
   })
@@ -196,13 +237,17 @@ describe('signal from another floor (hand-worked)', () => {
     // Basement router 2 m up (z = −0.7) to a cell upstairs (z = 3.7).
     const up = plan(floors, [ap('basement', 0.05, 0.05, 2)])
     expect(dbmAt(up, 'up', 3.05, 0.05)).toBeCloseTo(
-      freeSpace(Math.sqrt(3 ** 2 + 4.4 ** 2)) - SLAB - TIMBER,
+      freeSpace(Math.sqrt(3 ** 2 + 4.4 ** 2)) -
+        slabAt(3, 4.4) -
+        timberAt(3, 4.4),
       4,
     )
     // And back down: upstairs router 2 m up (z = 4.7) to the basement (z = −1.7).
     const down = plan(floors, [ap('up', 0.05, 0.05, 2)])
     expect(dbmAt(down, 'basement', 3.05, 0.05)).toBeCloseTo(
-      freeSpace(Math.sqrt(3 ** 2 + 6.4 ** 2)) - SLAB - TIMBER,
+      freeSpace(Math.sqrt(3 ** 2 + 6.4 ** 2)) -
+        slabAt(3, 6.4) -
+        timberAt(3, 6.4),
       4,
     )
   })
@@ -593,7 +638,10 @@ describe('openings in the floor (D54, hand-worked)', () => {
       [storey('ground', 0), holed(2, -1, 3.5, 1)],
       [ap('ground', 0.05, 0.05, 2)],
     )
-    expect(dbmAt(beside, 'up', 3.05, 0.05)).toBeCloseTo(slant - TIMBER, 4)
+    expect(dbmAt(beside, 'up', 3.05, 0.05)).toBeCloseTo(
+      slant - timberAt(3, RISE),
+      4,
+    )
   })
 
   it('only spares the slab that has the hole', () => {

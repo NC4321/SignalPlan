@@ -107,9 +107,10 @@ describe('M3 exit gate: one router in a two-storey home (D58)', () => {
   }
 
   it('records how far off it is (see MODEL.md)', () => {
-    // Upstairs the model is more optimistic than the reference, mostly
-    // because the timber joist floor loses less than P.1238's house factor
-    // (D50): kept here so a change shows up in review.
+    // Upstairs the model is a little more optimistic than the reference,
+    // most on 5 GHz, where the timber joist floor at its capped angle still
+    // loses less than P.1238's house factor (D50, D60): kept here so a
+    // change shows up in review.
     const gaps = (['2.4GHz', '5GHz'] as const).flatMap((band) =>
       ['main', 'up'].map((floorId) =>
         Number(medianGap(band, floorId).toFixed(1)),
@@ -118,9 +119,9 @@ describe('M3 exit gate: one router in a two-storey home (D58)', () => {
     expect(gaps).toMatchInlineSnapshot(`
       [
         0.7,
-        -2.3,
+        -0.7,
         -0.8,
-        -5.5,
+        -3.4,
       ]
     `)
   })

@@ -6,7 +6,10 @@ import {
   CONSTRUCTIONS,
   FLOOR_CONSTRUCTIONS,
   FLOOR_LOSS_DB,
+  FLOOR_ANGLE_CAP_DEG,
   floorConstructionLossDb,
+  floorLossAtDb,
+  floorLossTable,
   MATERIAL_LOSS_DB,
 } from './materials.ts'
 import { slabLossDb, type Layer } from './slab.ts'
@@ -452,6 +455,84 @@ describe('floor losses (D50)', () => {
         FLOOR_LOSS_DB[band]
       expect(timber).toBeGreaterThan(0)
       expect(concrete).toBeGreaterThan(timber + 5)
+    }
+  })
+})
+
+describe('floor losses by angle (D60)', () => {
+  const BANDS = ['2.4GHz', '5GHz', '6GHz'] as const
+  const radians = (degrees: number) => (degrees * Math.PI) / 180
+  /** A path at `degrees` from the vertical, as (across, up). */
+  const at = (degrees: number) =>
+    [Math.sin(radians(degrees)), Math.cos(radians(degrees))] as const
+
+  it('is the head-on loss straight up', () => {
+    for (const band of BANDS) {
+      for (const material of FLOOR_MATERIALS) {
+        const table = floorLossTable(band, material)
+        expect(table[0]).toBe(FLOOR_LOSS_DB[band][material])
+        expect(floorLossAtDb(table, 0, 2.7)).toBe(FLOOR_LOSS_DB[band][material])
+      }
+    }
+  })
+
+  it('stays within 0.1 dB of the slab worked out at the angle itself', () => {
+    // Worst on timber at 2.4 GHz, where the joist cavity's resonance moves
+    // with the angle: about 0.06 dB with half-degree steps.
+    for (const band of BANDS) {
+      for (const material of FLOOR_MATERIALS) {
+        const table = floorLossTable(band, material)
+        const construction = FLOOR_CONSTRUCTIONS[material]
+        for (let degrees = 0.3; degrees < FLOOR_ANGLE_CAP_DEG; degrees += 1.7) {
+          const exact = floorConstructionLossDb(
+            construction,
+            band,
+            radians(degrees),
+          )
+          expect(
+            Math.abs(floorLossAtDb(table, ...at(degrees)) - exact),
+          ).toBeLessThan(0.1)
+        }
+      }
+    }
+  })
+
+  it('stops growing at the cap, even flat along the slab', () => {
+    for (const band of BANDS) {
+      for (const material of FLOOR_MATERIALS) {
+        const table = floorLossTable(band, material)
+        const capped = table[table.length - 1]!
+        expect(floorLossAtDb(table, ...at(FLOOR_ANGLE_CAP_DEG))).toBeCloseTo(
+          capped,
+          10,
+        )
+        expect(floorLossAtDb(table, ...at(89))).toBe(capped)
+        expect(floorLossAtDb(table, 5, 0)).toBe(capped)
+      }
+    }
+  })
+
+  it('loses more at the cap than head on, in every band', () => {
+    for (const band of BANDS) {
+      for (const material of FLOOR_MATERIALS) {
+        const table = floorLossTable(band, material)
+        expect(table[table.length - 1]!).toBeGreaterThan(table[0]! + 1)
+      }
+    }
+  })
+
+  // Pinned so docs/MODEL.md stays in step with the code. Update both together.
+  it.each([
+    ['2.4GHz', 60, { 'timber-joist': 3.4, 'concrete-slab': 12.4 }],
+    ['2.4GHz', 75, { 'timber-joist': 5.4, 'concrete-slab': 13.6 }],
+    ['5GHz', 60, { 'timber-joist': 4.2, 'concrete-slab': 22.0 }],
+    ['5GHz', 75, { 'timber-joist': 6.6, 'concrete-slab': 23.4 }],
+    ['6GHz', 60, { 'timber-joist': 4.0, 'concrete-slab': 24.7 }],
+    ['6GHz', 75, { 'timber-joist': 6.4, 'concrete-slab': 26.2 }],
+  ] as const)('%s at %i°', (band, degrees, expected) => {
+    for (const [material, loss] of Object.entries(expected)) {
+      const table = floorLossTable(band, material as keyof typeof expected)
+      expect(floorLossAtDb(table, ...at(degrees))).toBeCloseTo(loss, 1)
     }
   })
 })

@@ -4,6 +4,10 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Changed
+
+- Engine: a floor's loss now depends on the angle the signal passes through it, as ITU-R P.2040 gives it, up to 75° from straight up. Signal to rooms well across the floor above or below meets the floor at a shallow angle and loses more than head on (a timber floor: 2.7 dB straight through, 6.6 dB at 75° on 5 GHz). Against ITU-R P.1238-13, the upper floor of the two-storey sample home goes from 2.3 / 5.5 dB optimistic to 0.7 / 3.4 dB on 2.4 / 5 GHz; the main floor doesn't change. Walls stay head-on (D60).
+
 ## [0.3.0] - 2026-09-28
 
 M3: whole home. Plan several floors with signal passing between them, cut stairwells and atriums, let the optimizer work across the whole home, and look at it all in a 3D view.
