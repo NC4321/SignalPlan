@@ -30,7 +30,7 @@ The engine evaluates the equation at the centre of every cell in a regular grid 
 2. computes the predicted signal from each access point with a radio in the selected band, and
 3. keeps the **strongest** one, recording which access point it came from.
 
-Access points on other floors are ignored until multi-floor support in Phase 5.
+Access points on other floors count too (D51); see [Signal between floors](#signal-between-floors). A floor with no walls yet reaches 5 m around access points on other floors as well, so a new floor shows what already reaches it.
 
 ### Coverage summary
 
@@ -67,7 +67,7 @@ On the CI runner (GitHub ubuntu-latest), in the run for #84: sample home 0.48 / 
 
 **Limits.** The optimizer finds good spots for this model, not guaranteed best ones, and inherits every limit of the model below.
 
-- **One band, one floor.** It optimizes the band on show. A spot that is best on 5 GHz may not be best on 2.4 or 6 GHz, and floors above and below are ignored until M3.
+- **One band, one floor.** It optimizes the band on show. A spot that is best on 5 GHz may not be best on 2.4 or 6 GHz. The heatmap counts access points on other floors (D51), but the optimizer still ignores them until #91.
 - **Every square metre counts the same.** There are no rooms or priorities (D40), so a hallway counts as much as an office.
 - **No allowed or forbidden zones.** Apart from locked access points (D43), any spot inside the walls and 10 cm from them is allowed, including ones with no power socket or cable.
 - **Backhaul is ignored.** Added access points are assumed to have a good link to the router (D40); a mesh node placed far away may in practice have a weak link.
@@ -77,11 +77,12 @@ On the CI runner (GitHub ubuntu-latest), in the run for #84: sample home 0.48 / 
 
 ### Speed
 
-The Phase 2 budget is a 100 m² floor at 10 cm cells in under 200 ms. Large homes have a tighter one, set for dragging on phones: 200 ms on a device 4× slower than the desktop, so 50 ms here (D29). `pnpm speed` (`packages/engine/src/coverage.speed.ts`) times each band 30 times after 5 warm-up runs, on three plans:
+The Phase 2 budget is a 100 m² floor at 10 cm cells in under 200 ms. Large homes have a tighter one, set for dragging on phones: 200 ms on a device 4× slower than the desktop, so 50 ms here (D29). `pnpm speed` (`packages/engine/src/coverage.speed.ts`) times each band 30 times after 5 warm-up runs, on four plans:
 
 - the sample home;
 - a deliberately busy "room grid" of 25 rooms, each 2 m square, in 10 × 10 m, with 60 walls, a door or window in every wall and 2 access points;
-- a "big house" of 25 rooms, each 4 × 3 m, in 20 × 15 m, laid out the same way.
+- a "big house" of 25 rooms, each 4 × 3 m, in 20 × 15 m, laid out the same way;
+- a two-storey house (D51): two floors of 25 rooms, each 3 × 2 m, in 15 × 10 m, laid out the same way, with a timber joist floor between, the router downstairs and one access point upstairs. It's 300 m² in all, so it has the big house's budget, and each floor is timed with both access points, one of them through the floor.
 
 Median per band, from 2026-09-27:
 
@@ -90,6 +91,7 @@ Median per band, from 2026-09-27:
 | Sample home (22 walls, 1 AP)    | 204 m² | 200 ms | 3.5 ms              | 6.3 ms                           |
 | Room grid (60 walls, 2 APs)     | 144 m² | 200 ms | 11 ms               | 21 ms                            |
 | Big house (300 m², 60 walls, 2) | 374 m² | 50 ms  | 28 ms               | 50 ms                            |
+| Two-storey house, each floor    | 204 m² | 50 ms  | 20 ms               | 31 ms                            |
 
 CI runs about 1.8× slower than the desktop and runner hardware varies, so the CI check fails at 1.5× each budget (D26): 300 ms, or 75 ms for the big house.
 
@@ -159,7 +161,7 @@ Two results may look odd but follow from the physics. The stud wall loses **less
 
 ## Floor materials
 
-Floors are built up in layers and computed the same way as walls (D49, D50): P.2040-4 Table 3 properties, the multi-layer slab method, TE and TM averaged, at normal incidence, averaged over each band. A path to another floor pays one floor loss per slab it crosses (#87).
+Floors are built up in layers and computed the same way as walls (D49, D50): P.2040-4 Table 3 properties, the multi-layer slab method, TE and TM averaged, at normal incidence, averaged over each band. A path to another floor pays one floor loss per slab it crosses (see below).
 
 | Material        | Construction                                | Layers (P.2040 class)                                                                                                       |
 | --------------- | ------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
@@ -180,6 +182,16 @@ Loss per floor crossing (dB), at normal incidence:
 A floor that doesn't say what it's made of is taken as `timber-joist` (D50).
 
 **Against ITU-R P.1238-13.** The concrete slab is tested against the head-on measurement above, within 3 dB (2σ). P.1238-13 Table 5 also gives floor penetration loss factors for its site-general model: 5 dB (house) and 10 dB (apartment) at 2.4 GHz, and 7 dB (house) and 13 dB (apartment) at 5.2 GHz. These are fitted together with that model's distance coefficient and include everything else between floors, so they aren't a head-on slab loss and aren't tested. The timber floor is 2–4 dB below the house values; since those aren't head-on slab losses, the gap isn't tested, and a measured timber floor would be the first thing to add. The apartment values are below the slab's head-on loss, as expected when signals also find paths around a floor.
+
+## Signal between floors
+
+A path from an access point on one floor to a point on another is still one straight line (D49, D51). The access point sits at its floor's elevation plus its mounting height, and the receiver 1 m above its own floor, so the distance is 3D and includes the height between floors. Floors are stacked by elevation. A floor's `material` is the slab under its rooms, so a path pays the slab of every floor above the lower end, up to and including the upper end's floor. The lowest floor's slab is never crossed. Slab losses are head-on (D49), however steep the path.
+
+Walls count along the part of the path inside each storey, between that floor's surface and its ceiling (or the next floor's surface, if that's lower). The path is split where its height passes each ceiling and surface, and each floor's walls are checked along its own stretch, including floors in between. For example, a router 2 m up on the ground floor (ceiling 2.4 m) and a phone 3 m across upstairs (floor at 2.7 m, phone at 3.7 m): the path leaves the ground floor 0.7 m across, passes through the slab until 1.24 m across, and is upstairs from there. A ground-floor wall 1 m from the router isn't crossed, and nor is an upstairs wall at that spot. Straight above an access point the path crosses no walls at all, only slabs. If an access point is mounted higher than a receiver on the floor above, which can't happen in a real storey, the path is split halfway.
+
+Every slab covers the whole plan, including outside the upper floor's walls, where the lower floor's roof or ceiling would be; roofs aren't modelled otherwise. Stairwells and atriums (#90) will cut holes in slabs.
+
+Two consequences follow from the geometry. Adding floors between, or making a storey taller, never raises the signal on a plan with no walls (a property test checks this), since the path only gets longer and crosses more slabs. With walls it can: a steeper path spends less of its length in each storey and may pass fewer walls there. And the loss is the same in both directions (property tested).
 
 ## Validation
 

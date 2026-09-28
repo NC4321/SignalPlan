@@ -189,7 +189,7 @@ describe('evaluateCoverage', () => {
     expect(at(9)).toBe(1)
   })
 
-  it('ignores access points without a radio in the band, or on other floors', () => {
+  it('ignores access points without a radio in the band, or on a floor the plan lacks', () => {
     const f = floor([[0, 0, 4, 4, 'brick']])
     const coverage = evaluateCoverage(
       plan(f, [

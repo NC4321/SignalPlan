@@ -2,7 +2,7 @@ import { parsePlan, type Band, type Plan } from '@signalplan/floorplan'
 import sampleHome from '@signalplan/floorplan/fixtures/sample-home.json' with { type: 'json' }
 import { describe, expect, it } from 'vitest'
 import { evaluateCoverage } from './coverage.ts'
-import { bigHouse, roomGrid } from './testPlans.ts'
+import { bigHouse, roomGrid, twoStoreyHouse } from './testPlans.ts'
 
 /**
  * Speed of the coverage grid against the Phase 2 budget: a 100 m² floor at
@@ -60,21 +60,45 @@ describe('coverage grid speed at 10 cm cells', () => {
   const sample = parsePlan(sampleHome)
   if (!sample.ok) throw new Error('fixture is invalid')
 
-  const cases: [string, Plan, number][] = [
-    ['Sample home (150 m², 22 walls, 1 access point)', sample.plan, BUDGET_MS],
-    ['Room grid (100 m², 60 walls, 2 access points)', roomGrid(), BUDGET_MS],
+  const cases: [string, Plan, string, number][] = [
+    [
+      'Sample home (150 m², 22 walls, 1 access point)',
+      sample.plan,
+      'main',
+      BUDGET_MS,
+    ],
+    [
+      'Room grid (100 m², 60 walls, 2 access points)',
+      roomGrid(),
+      'main',
+      BUDGET_MS,
+    ],
     [
       'Big house (300 m², 60 walls, 2 access points)',
       bigHouse(),
+      'main',
+      LARGE_HOME_BUDGET_MS,
+    ],
+    // Each floor counts both access points, one of them through the floor.
+    [
+      'Two-storey house, ground floor (2 × 150 m², 60 walls each, 1 access point per floor)',
+      twoStoreyHouse(),
+      'main',
+      LARGE_HOME_BUDGET_MS,
+    ],
+    [
+      'Two-storey house, upstairs (2 × 150 m², 60 walls each, 1 access point per floor)',
+      twoStoreyHouse(),
+      'up',
       LARGE_HOME_BUDGET_MS,
     ],
   ]
   const bands: Band[] = ['2.4GHz', '5GHz', '6GHz']
 
-  for (const [name, plan, budget] of cases) {
+  for (const [name, plan, floorId, budget] of cases) {
     for (const band of bands) {
       it(`${name}, ${band}`, () => {
-        const r = measure(plan, 'main', band)
+        const r = measure(plan, floorId, band)
         report(name, band, budget, r)
         expect(r.areaM2).toBeGreaterThanOrEqual(100)
         expect(r.median).toBeLessThan(budget * CI_MARGIN)

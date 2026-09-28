@@ -19,6 +19,7 @@ Plan
 │  ├─ id, name
 │  ├─ elevationM       height of this floor above the lowest one
 │  ├─ heightM          floor-to-ceiling height
+│  ├─ material?        the slab under this floor: timber-joist | concrete-slab
 │  ├─ nodes[]          { id, x, y }
 │  ├─ walls[]          { id, from, to, material }
 │  ├─ openings[]       { id, wallId, kind: door | window, offsetM, widthM, material }
@@ -30,6 +31,8 @@ Plan
 ```
 
 Wall materials are `drywall`, `brick`, `concrete`, `glass`, `low-e-glass`, `wood` and `metal`; each stands for a typical North American construction described in [MODEL.md](MODEL.md#wall-materials). Openings can use any of these, or `open` for a doorway with no door. Bands are `2.4GHz`, `5GHz` and `6GHz`. `txPowerDbm` is the radio's EIRP (antenna gain included); a radio without it uses the engine's default for its band.
+
+A floor's `material` is its slab, the floor under its rooms, which signal crosses to and from the storey below: `timber-joist` or `concrete-slab`, described in [MODEL.md](MODEL.md#floor-materials). Without it the floor is `timber-joist`. The lowest floor's slab is never crossed. See [D51](DECISIONS.md#d51-signal-between-floors--2026-09-28).
 
 An access point with `locked: true` can't be moved, by hand or by the placement optimizer; without it the access point is unlocked. See [D43](DECISIONS.md#d43-locking-access-points-in-place--2026-09-28).
 
