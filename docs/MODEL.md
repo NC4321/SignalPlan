@@ -63,7 +63,7 @@ The gain over the middle is small in the sample home, where brick and concrete w
 | L-shaped house (220 m²) | 0.76 s    | 1.05 s   | 1.25 s (1 more)   |
 | Big house (300 m²)      | 2.59 s    | 3.34 s   | 5.57 s (2 more)   |
 
-CI_TIMES_PLACEHOLDER
+On the CI runner (GitHub ubuntu-latest), in the run for #84: sample home 0.48 / 0.70 / 1.35 s, apartment 0.08 / 0.18 / 0.21 s, L-shaped house 1.03 / 1.45 / 1.70 s, and big house 3.46 / 4.50 / 7.39 s. That is about 1.35× the desktop, less than the grid's 1.8×, and the slowest search stays under the 10 s budget itself.
 
 **Limits.** The optimizer finds good spots for this model, not guaranteed best ones, and inherits every limit of the model below.
 
