@@ -16,6 +16,15 @@ export {
   type Point,
 } from './geometry.ts'
 export {
+  addAccessPoint,
+  deleteAccessPoint,
+  EIRP_RANGE_DBM,
+  NEW_ACCESS_POINT_HEIGHT_M,
+  nextAccessPointName,
+  setRadioOn,
+  setRadioPower,
+} from './accessPoints.ts'
+export {
   addOpening,
   addWall,
   alongWall,

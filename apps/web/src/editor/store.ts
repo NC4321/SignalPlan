@@ -34,7 +34,8 @@ interface HistoryEntry {
 export const HISTORY_LIMIT = 200
 
 /** `calibrate` is the step after adding a tracing image: click two points. */
-export type Tool = 'select' | 'wall' | 'door' | 'window' | 'calibrate'
+export type Tool =
+  'select' | 'wall' | 'door' | 'window' | 'accessPoint' | 'calibrate'
 
 /** Sizes for new openings (D19): a 32″ door and a 48″ window. */
 export const DEFAULT_OPENING_WIDTH_M = { door: 0.8128, window: 1.2192 } as const

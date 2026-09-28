@@ -35,6 +35,8 @@ export interface Scene {
   heatmap: OffscreenCanvas | undefined
   segments: readonly MaterialSegment[]
   accessPoints: readonly AccessPoint[]
+  /** Access point tool: where a click would add one. */
+  accessPointPreview?: Point | undefined
   selection: Selection
   /** Walls as lines between their corners, for selection highlights. */
   wallLines: readonly { id: string; a: Point; b: Point }[]
@@ -199,6 +201,20 @@ export function draw(
 
   if (scene.drawing) drawPreview(context, colour, scene, wallWidth)
   if (scene.calibration) drawCalibration(context, colour, scene)
+
+  if (scene.accessPointPreview) {
+    const at = toScreen(camera, scene.accessPointPreview)
+    context.save()
+    context.globalAlpha = 0.5
+    context.beginPath()
+    context.arc(at.x, at.y, AP_RADIUS_PX, 0, Math.PI * 2)
+    context.fillStyle = colour('--ap')
+    context.fill()
+    context.lineWidth = 2
+    context.strokeStyle = colour('--ap-ring')
+    context.stroke()
+    context.restore()
+  }
 
   context.font = '600 12px system-ui, sans-serif'
   context.textBaseline = 'middle'

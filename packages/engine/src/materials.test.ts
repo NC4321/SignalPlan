@@ -13,6 +13,16 @@ describe('band profiles', () => {
     expect(BAND_PROFILES['6GHz'].referenceLossDb).toBeCloseTo(48.74, 2)
   })
 
+  it('keeps default power within the FCC limits', () => {
+    // 1 W + 6 dBi at 2.4 and 5 GHz; 30 dBm for indoor 6 GHz (47 CFR 15).
+    expect(BAND_PROFILES['2.4GHz'].maxEirpDbm).toBe(36)
+    expect(BAND_PROFILES['5GHz'].maxEirpDbm).toBe(36)
+    expect(BAND_PROFILES['6GHz'].maxEirpDbm).toBe(30)
+    for (const profile of Object.values(BAND_PROFILES)) {
+      expect(profile.defaultTxPowerDbm).toBeLessThanOrEqual(profile.maxEirpDbm)
+    }
+  })
+
   it('samples a band from edge to edge', () => {
     const samples = bandSamples(BAND_PROFILES['6GHz'], 5)
     expect(samples).toHaveLength(5)

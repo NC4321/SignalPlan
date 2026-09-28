@@ -1,5 +1,6 @@
 import { gridForFloor, type Coverage } from '@signalplan/engine'
 import {
+  addAccessPoint,
   addOpening,
   fitOpeningAt,
   materialSegments,
@@ -266,6 +267,7 @@ export function EditorCanvas({ coverage }: { coverage: Coverage | undefined }) {
         tool === 'calibrate'
           ? { points: calibrationPoints, cursor: pointer }
           : undefined,
+      accessPointPreview: tool === 'accessPoint' ? pointer : undefined,
       corners: floor.nodes,
       drawing:
         tool === 'wall' && preview
@@ -418,7 +420,8 @@ export function EditorCanvas({ coverage }: { coverage: Coverage | undefined }) {
   const cursorStyle =
     spaceDown && cursor === 'default'
       ? 'grab'
-      : (tool === 'wall' || openingTool) && cursor === 'default'
+      : (tool === 'wall' || tool === 'accessPoint' || openingTool) &&
+          cursor === 'default'
         ? 'crosshair'
         : cursor
 
@@ -439,9 +442,11 @@ export function EditorCanvas({ coverage }: { coverage: Coverage | undefined }) {
             ? `Floor plan, ${openingTool} tool`
             : tool === 'wall'
               ? 'Floor plan, wall tool'
-              : tool === 'calibrate'
-                ? 'Floor plan, calibrating: click two points on the image'
-                : 'Floor plan'
+              : tool === 'accessPoint'
+                ? 'Floor plan, access point tool'
+                : tool === 'calibrate'
+                  ? 'Floor plan, calibrating: click two points on the image'
+                  : 'Floor plan'
         }
         aria-describedby={hintId}
         onDoubleClick={(event) => {
@@ -507,6 +512,15 @@ export function EditorCanvas({ coverage }: { coverage: Coverage | undefined }) {
             if (state.calibrationPoints.length < 2 && !tooClose) {
               state.addCalibrationPoint(point)
             }
+            return
+          }
+
+          if (tool === 'accessPoint') {
+            let created: string | undefined
+            state.edit('Add access point', (draft) => {
+              created = addAccessPoint(draft, floorId, toPlan(camera, at))
+            })
+            if (created) state.select([{ kind: 'accessPoint', id: created }])
             return
           }
 
@@ -716,7 +730,9 @@ export function EditorCanvas({ coverage }: { coverage: Coverage | undefined }) {
           ? 'Click to place wall corners; double-click or press Enter to finish. Type a number for an exact length.'
           : openingTool
             ? `Click a wall to add a ${openingTool}. Esc returns to Select.`
-            : 'Tab and Shift+Tab select walls, doors, windows, corners and access points. Arrow keys move the selection, Delete removes it. Shortcuts: V select, W wall, D door, N window.'}
+            : tool === 'accessPoint'
+              ? 'Click to add an access point. Esc returns to Select.'
+              : 'Tab and Shift+Tab select walls, doors, windows, corners and access points. Arrow keys move the selection, Delete removes it. Shortcuts: V select, W wall, D door, N window, A access point.'}
       </p>
       <p className="visually-hidden" aria-live="polite">
         {describeForScreenReader(selection, floor, accessPoints, units, order)}

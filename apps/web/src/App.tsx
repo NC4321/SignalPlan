@@ -33,6 +33,7 @@ function App({
   const band = useEditor((s) => s.band)
   const [panelOpen, setPanelOpen] = useState(false)
 
+  const hasAccessPoint = plan.accessPoints.some((ap) => ap.floorId === floorId)
   const broadcasting = plan.accessPoints.some(
     (ap) =>
       ap.floorId === floorId && ap.radios.some((radio) => radio.band === band),
@@ -61,17 +62,16 @@ function App({
         state.setTool('door')
       } else if (!mod && !event.altKey && key === 'n') {
         state.setTool('window')
+      } else if (!mod && !event.altKey && key === 'a') {
+        state.setTool('accessPoint')
       } else if (key === 'enter' && state.chain) {
         state.endChain()
       } else if (key === 'delete' || key === 'backspace') {
-        const removable = state.selection.filter(
-          (i) => i.kind !== 'accessPoint',
-        )
-        if (removable.length === 0) return
+        if (state.selection.length === 0) return
         event.preventDefault()
         state.edit(
-          `Delete ${describeSelection(removable)}`,
-          deleteRecipe(state.floorId, removable),
+          `Delete ${describeSelection(state.selection)}`,
+          deleteRecipe(state.floorId, state.selection),
         )
       } else if (key === 'escape') {
         // Esc finishes the chain; pressed again, it returns to Select (D16).
@@ -100,7 +100,9 @@ function App({
           {tool === 'calibrate' && <CalibrationBar />}
           {!broadcasting && (
             <p className="notice">
-              No access point on this floor broadcasts on this band.
+              {hasAccessPoint
+                ? 'No access point on this floor broadcasts on this band.'
+                : 'No access points on this floor. Add one with the Access point tool (A).'}
             </p>
           )}
           {error && (
