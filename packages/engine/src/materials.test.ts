@@ -44,7 +44,7 @@ describe('material losses', () => {
       '2.4GHz',
       {
         drywall: 2.9,
-        brick: 5.8,
+        brick: 6.6,
         concrete: 14.7,
         glass: 0.5,
         'low-e-glass': 23.5,
@@ -56,7 +56,7 @@ describe('material losses', () => {
       '5GHz',
       {
         drywall: 2.4,
-        brick: 5.3,
+        brick: 9.0,
         concrete: 26.5,
         glass: 6.1,
         'low-e-glass': 29.9,
@@ -68,7 +68,7 @@ describe('material losses', () => {
       '6GHz',
       {
         drywall: 1.4,
-        brick: 5.2,
+        brick: 9.9,
         concrete: 29.9,
         glass: 8.3,
         'low-e-glass': 29.8,
@@ -293,7 +293,8 @@ describe('validation against NIST measurements at 2.0 GHz', () => {
  * dissertation, Virginia Tech, 2003, Table 4.3. The table gives each sample's
  * loss as a straight line in frequency, a·f + b dB (f in GHz), and its loss at
  * 5 GHz; thicknesses are the table's. The brick wall is dry-stacked cored clay
- * brick (Figure B2.1), which the model under-predicts; see MODEL.md.
+ * brick (Figure B2.1). P.2040's brick under-predicts it, so the model's brick
+ * conductivity is fitted to it (`brick-fitted` in slab.ts, D36).
  */
 describe('validation against Muqaibel measurements at 2.4, 5 and 6 GHz', () => {
   const specimens = {
@@ -311,7 +312,9 @@ describe('validation against Muqaibel measurements at 2.4, 5 and 6 GHz', () => {
     },
     brick: {
       name: 'brick wall, 87.1 mm',
-      layers: [{ material: 'brick', thicknessM: mm(87.1474) }] as Layer[],
+      layers: [
+        { material: 'brick-fitted', thicknessM: mm(87.1474) },
+      ] as Layer[],
       line: [1.0702, 0.9757],
       tableAt5GHz: 6.45,
     },
@@ -344,15 +347,31 @@ describe('validation against Muqaibel measurements at 2.4, 5 and 6 GHz', () => {
     )
   }
 
-  // The line is stated for 1–7 GHz, so the 6 GHz band isn't checked here.
-  it.each(['2.4GHz', '5GHz'] as const)(
-    'under-predicts the brick wall by less than 5 dB at %s',
+  // The line is stated for 1–7 GHz; the 6 GHz band runs to 7.125 GHz, so its
+  // top 0.125 GHz is a short extrapolation.
+  it.each(['2.4GHz', '5GHz', '6GHz'] as const)(
+    'reproduces the brick wall it was fitted to within 0.3 dB at %s',
     (band) => {
       const frequencies = bandSamples(BAND_PROFILES[band])
       const { layers, line } = specimens.brick
+      const measured = measuredLossDb(line, frequencies)
+      expect(Math.abs(slabLossDb(layers, frequencies) - measured)).toBeLessThan(
+        0.3,
+      )
+    },
+  )
+
+  it.each(['2.4GHz', '5GHz', '6GHz'] as const)(
+    "shows why: P.2040's brick under-predicts it by 0.5–5 dB at %s",
+    (band) => {
+      const frequencies = bandSamples(BAND_PROFILES[band])
       const shortfall =
-        measuredLossDb(line, frequencies) - slabLossDb(layers, frequencies)
-      expect(shortfall).toBeGreaterThan(0)
+        measuredLossDb(specimens.brick.line, frequencies) -
+        slabLossDb(
+          [{ material: 'brick', thicknessM: mm(87.1474) }],
+          frequencies,
+        )
+      expect(shortfall).toBeGreaterThan(0.5)
       expect(shortfall).toBeLessThan(5)
     },
   )

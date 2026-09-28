@@ -15,7 +15,13 @@ import {
   constructionLossDb,
   MATERIAL_LOSS_DB,
 } from './materials.ts'
-import { P2040_MATERIALS, slabLossDb, type P2040Material } from './slab.ts'
+import {
+  FITTED_MATERIALS,
+  P2040_MATERIALS,
+  slabLossDb,
+  type FittedMaterial,
+  type P2040Material,
+} from './slab.ts'
 
 /**
  * Property tests (#37): physical rules that must hold for any plan, checked on
@@ -222,9 +228,11 @@ describe('wall losses', () => {
   })
 
   const dielectric = fc.constantFrom(
-    ...(Object.keys(P2040_MATERIALS) as P2040Material[]).filter(
-      (m) => m !== 'metal',
-    ),
+    ...(
+      Object.keys({ ...P2040_MATERIALS, ...FITTED_MATERIALS }) as (
+        P2040Material | FittedMaterial
+      )[]
+    ).filter((m) => m !== 'metal'),
   )
   const layer = fc.record({
     material: dielectric,
