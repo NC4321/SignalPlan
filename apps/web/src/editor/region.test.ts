@@ -3,10 +3,13 @@ import { blankPlan, samplePlan } from './persistence.ts'
 import { guessRegion, regionPlace } from './region.ts'
 
 describe('guessRegion', () => {
-  it('reads the country of the first language that names one', () => {
+  it('decides from the first language, filling in its likely country', () => {
     expect(guessRegion(['en-US'])).toBe('US')
     expect(guessRegion(['de-DE', 'en-US'])).toBe('EU')
     expect(guessRegion(['fr', 'fr-FR'])).toBe('EU')
+    // A German Firefox lists a bare language before its English fallback.
+    expect(guessRegion(['de', 'en-US', 'en'])).toBe('EU')
+    expect(guessRegion(['en'])).toBe('US')
     // A Canadian with French from France as a second language stays US.
     expect(guessRegion(['en-CA', 'fr-FR'])).toBe('US')
   })

@@ -33,8 +33,9 @@ const EU_COUNTRIES = new Set([
 
 /**
  * A new plan's region, guessed from the browser's languages (D61, D62). The
- * first language that names a country decides; a country outside the US and
- * EU, such as en-GB, or no country at all falls back to the US.
+ * first valid language decides, with its most likely country when it names
+ * none (`de` is Germany): an EU country gives EU, anything else, such as en-GB,
+ * the US.
  */
 export function guessRegion(
   languages: readonly string[] = browserLanguages(),
@@ -42,12 +43,13 @@ export function guessRegion(
   for (const tag of languages) {
     let country: string | undefined
     try {
-      country = new Intl.Locale(tag).region
+      country = new Intl.Locale(tag).maximize().region
     } catch {
       continue
     }
-    if (country === undefined) continue
-    return EU_COUNTRIES.has(country) ? 'EU' : DEFAULT_REGION
+    return country !== undefined && EU_COUNTRIES.has(country)
+      ? 'EU'
+      : DEFAULT_REGION
   }
   return DEFAULT_REGION
 }
@@ -56,7 +58,9 @@ function browserLanguages(): readonly string[] {
   return globalThis.navigator?.languages ?? []
 }
 
+const PLACES: Record<Region, string> = { US: 'the US', EU: 'the EU' }
+
 /** A region as it reads after "in": "in the US", "in the EU". */
 export function regionPlace(region: Region | undefined): string {
-  return (region ?? DEFAULT_REGION) === 'EU' ? 'the EU' : 'the US'
+  return PLACES[region ?? DEFAULT_REGION]
 }
