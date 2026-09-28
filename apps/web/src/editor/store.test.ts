@@ -493,3 +493,25 @@ describe('floor openings (D54)', () => {
     expect(store.getState().outline).toBeUndefined()
   })
 })
+
+describe('the 3D view (D57)', () => {
+  it('switches views without an undo step, ending drawing in progress', () => {
+    const store = createEditorStore(sample())
+    store.getState().setTool('wall')
+    store.getState().clickWallPoint({ x: 0, y: 0 })
+    store.getState().setView('3d')
+    const state = store.getState()
+    expect(state.view).toBe('3d')
+    expect(state.chain).toBeUndefined()
+    expect(state.past).toEqual([])
+    store.getState().setView3d({ spreadM: 2 })
+    expect(store.getState().view3d).toEqual({
+      hiddenFloors: [],
+      spreadM: 2,
+      fullWalls: false,
+    })
+    store.getState().setView('2d')
+    expect(store.getState().view).toBe('2d')
+    expect(store.getState().view3d.spreadM).toBe(2)
+  })
+})
