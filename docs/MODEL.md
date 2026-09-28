@@ -91,7 +91,7 @@ Median per band, from 2026-09-27:
 | Sample home (22 walls, 1 AP)    | 204 m² | 200 ms | 3.5 ms              | 6.3 ms                           |
 | Room grid (60 walls, 2 APs)     | 144 m² | 200 ms | 11 ms               | 21 ms                            |
 | Big house (300 m², 60 walls, 2) | 374 m² | 50 ms  | 28 ms               | 50 ms                            |
-| Two-storey house, each floor    | 204 m² | 50 ms  | 20 ms               | (after CI run)                   |
+| Two-storey house, each floor    | 204 m² | 50 ms  | 20 ms               | 31 ms                            |
 
 CI runs about 1.8× slower than the desktop and runner hardware varies, so the CI check fails at 1.5× each budget (D26): 300 ms, or 75 ms for the big house.
 
