@@ -57,6 +57,7 @@ A running log of project decisions, newest last. Each entry records what was dec
 - **Decision:** each material is a layered North American construction whose loss is computed with the P.2040-4 multi-layer slab method, averaged over each band. Metal is capped at 40 dB. Low-E glass is a separate material, modelled as a conductive film fitted to one published measurement.
 - **Why:** one citable standard, reproducible numbers, and a clear story in [MODEL.md](MODEL.md). Measured values are used to validate, not to set, the other materials.
 - **Revisit if:** calibration (Phase 7) shows systematic errors for a material.
+- **Update:** NIST measurements at 5 and 6 GHz show brick and concrete much lossier than computed; see D31.
 
 ### D10. No clutter term — 2026-09-27
 
@@ -95,6 +96,13 @@ A running log of project decisions, newest last. Each entry records what was dec
 - **Why:** the P.2040 slab method in `slab.ts` already takes an angle, so the effect was measured rather than guessed. Loss doesn't simply grow with angle: from 0° to 60° it moves by a few dB either way, and plain glass, low-E glass and the stud wall lose _less_ at some angles between 30° and 60° than head on (e.g. low-E glass at 5 GHz: 29.9 dB at 0°, 22.2 dB at 60°). Past about 80° every material climbs steeply, up to 40 dB or more near 89°. Replaying the sample home and the big house with angle-dependent loss (from a 1° table, so compute isn't the obstacle) moved the median cell by at most 0.5 dB and 90% of cells by at most about 3 dB, and the share of the floor at −67 dBm or better by 0.2 points at most. Without a cap on the angle, a few nearly parallel crossings dropped by 8–22 dB. The effect is well inside P.1238-13's 5 dB spread and the model's other known limits (D24), and a heatmap that brightens behind glass at an angle would look like a bug.
 - **Validation and P.1238:** unchanged. The Shakya et al. samples were measured head on, and the P.1238 comparison in [MODEL.md](MODEL.md#against-the-itu-r-p1238-13-indoor-model) counts walls without angles.
 - **Revisit if:** Phase 7 measurements show a consistent error along corridors or beside long walls; if so, use the P.2040 angle with a cap of about 60–75° so grazing crossings stay finite.
+
+### D31. Validation against NIST at 5 and 6 GHz — 2026-09-27
+
+- **Decision:** add NISTIR 6055 (Stone, 1997) as the second validation source, for 5 and 6 GHz. A unit test keeps every drywall, glass and dry lumber sample within 5 dB in both bands. Brick and concrete are shown in [MODEL.md](MODEL.md#against-nist-at-5-and-6-ghz) but not tested, and no material values change. 2.4 GHz stays unvalidated for now.
+- **Why:** it's a primary NIST source measured across both bands, and it publishes each curve as a polynomial, so values are computed exactly rather than read off plots; each copied curve is checked against its plot. Drywall and glass agree within 2.3 dB, and wood is under-predicted by 2–5 dB, as in the Shakya comparison. Brick and concrete are 12–30 dB lossier than P.2040 predicts, but the report doesn't give the specimens' moisture, and D9 keeps measurements for validating rather than setting values, so one source isn't enough to retune them. The 5 dB limit covers every non-masonry sample without picking; the worst, 75 mm lumber at 5 GHz, is 4.97 dB under. NIST didn't measure 2 to 3 GHz.
+- **Follow-ups:** [#55](https://github.com/NC4321/SignalPlan/issues/55) investigates the masonry gap with more sources; [#56](https://github.com/NC4321/SignalPlan/issues/56) looks for a peer-reviewed 2.4 GHz source.
+- **Revisit if:** a second source confirms the masonry gap (retune `brick` and `concrete`), or a change to wood pushes the 75 mm sample past 5 dB.
 
 ## Phase 3
 
