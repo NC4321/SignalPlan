@@ -1,0 +1,231 @@
+{
+  "schemaVersion": 1,
+  "name": "Concrete apartment",
+  "floors": [
+    {
+      "id": "main",
+      "name": "Main floor",
+      "elevationM": 0,
+      "heightM": 2.6,
+      "nodes": [
+        {
+          "id": "n1",
+          "x": 0,
+          "y": 0
+        },
+        {
+          "id": "n2",
+          "x": 10,
+          "y": 0
+        },
+        {
+          "id": "n3",
+          "x": 10,
+          "y": 6.5
+        },
+        {
+          "id": "n4",
+          "x": 0,
+          "y": 6.5
+        },
+        {
+          "id": "n5",
+          "x": 6,
+          "y": 0
+        },
+        {
+          "id": "n6",
+          "x": 6,
+          "y": 6.5
+        },
+        {
+          "id": "n7",
+          "x": 6,
+          "y": 3.5
+        },
+        {
+          "id": "n8",
+          "x": 7.5,
+          "y": 3.5
+        },
+        {
+          "id": "n9",
+          "x": 10,
+          "y": 3.5
+        },
+        {
+          "id": "n10",
+          "x": 7.5,
+          "y": 6.5
+        }
+      ],
+      "walls": [
+        {
+          "id": "ext-street-1",
+          "from": "n1",
+          "to": "n5",
+          "material": "concrete"
+        },
+        {
+          "id": "ext-street-2",
+          "from": "n5",
+          "to": "n2",
+          "material": "concrete"
+        },
+        {
+          "id": "ext-east-1",
+          "from": "n2",
+          "to": "n9",
+          "material": "concrete"
+        },
+        {
+          "id": "ext-east-2",
+          "from": "n9",
+          "to": "n3",
+          "material": "concrete"
+        },
+        {
+          "id": "ext-corridor-1",
+          "from": "n3",
+          "to": "n10",
+          "material": "concrete"
+        },
+        {
+          "id": "ext-corridor-2",
+          "from": "n10",
+          "to": "n6",
+          "material": "concrete"
+        },
+        {
+          "id": "ext-corridor-3",
+          "from": "n6",
+          "to": "n4",
+          "material": "concrete"
+        },
+        {
+          "id": "ext-west",
+          "from": "n4",
+          "to": "n1",
+          "material": "concrete"
+        },
+        {
+          "id": "spine-1",
+          "from": "n5",
+          "to": "n7",
+          "material": "concrete"
+        },
+        {
+          "id": "spine-2",
+          "from": "n7",
+          "to": "n6",
+          "material": "concrete"
+        },
+        {
+          "id": "bed-hall",
+          "from": "n7",
+          "to": "n8",
+          "material": "drywall"
+        },
+        {
+          "id": "bed-bath",
+          "from": "n8",
+          "to": "n9",
+          "material": "drywall"
+        },
+        {
+          "id": "hall-bath",
+          "from": "n8",
+          "to": "n10",
+          "material": "drywall"
+        }
+      ],
+      "openings": [
+        {
+          "id": "front-door",
+          "wallId": "ext-corridor-2",
+          "kind": "door",
+          "offsetM": 0.3,
+          "widthM": 0.9,
+          "material": "wood"
+        },
+        {
+          "id": "living-door",
+          "wallId": "spine-2",
+          "kind": "door",
+          "offsetM": 1.0,
+          "widthM": 0.9,
+          "material": "wood"
+        },
+        {
+          "id": "bed-door",
+          "wallId": "bed-hall",
+          "kind": "door",
+          "offsetM": 0.35,
+          "widthM": 0.8,
+          "material": "wood"
+        },
+        {
+          "id": "bath-door",
+          "wallId": "hall-bath",
+          "kind": "door",
+          "offsetM": 1.1,
+          "widthM": 0.8,
+          "material": "wood"
+        },
+        {
+          "id": "living-window",
+          "wallId": "ext-street-1",
+          "kind": "window",
+          "offsetM": 0.75,
+          "widthM": 2,
+          "material": "low-e-glass"
+        },
+        {
+          "id": "kitchen-window",
+          "wallId": "ext-street-1",
+          "kind": "window",
+          "offsetM": 3.9,
+          "widthM": 1.2,
+          "material": "low-e-glass"
+        },
+        {
+          "id": "bed-window",
+          "wallId": "ext-street-2",
+          "kind": "window",
+          "offsetM": 1.2,
+          "widthM": 1.6,
+          "material": "low-e-glass"
+        },
+        {
+          "id": "bath-window",
+          "wallId": "ext-east-2",
+          "kind": "window",
+          "offsetM": 1.2,
+          "widthM": 0.6,
+          "material": "glass"
+        }
+      ]
+    }
+  ],
+  "accessPoints": [
+    {
+      "id": "router",
+      "name": "Router",
+      "floorId": "main",
+      "x": 6.4,
+      "y": 6.1,
+      "heightM": 1,
+      "radios": [
+        {
+          "band": "2.4GHz"
+        },
+        {
+          "band": "5GHz"
+        },
+        {
+          "band": "6GHz"
+        }
+      ]
+    }
+  ]
+}
