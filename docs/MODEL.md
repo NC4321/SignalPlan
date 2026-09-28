@@ -70,7 +70,7 @@ Before D56 they were 0.35 / 0.51 / 0.98 s, 0.06 / 0.12 / 0.14 s, 0.76 / 1.05 / 1
 
 The two-storey house is the coverage speed plan's (two 150 m² floors of 25 rooms over a timber joist floor, with a stairwell), scored over both floors from its router downstairs; its second access point is left out, so added ones may go on either floor. It has as many cells and lattice spots as the big house, and each signal also crosses a floor, so it is the slowest search.
 
-On the CI runner (GitHub ubuntu-latest), in the run for #84: sample home 0.48 / 0.70 / 1.35 s, apartment 0.08 / 0.18 / 0.21 s, L-shaped house 1.03 / 1.45 / 1.70 s, and big house 3.46 / 4.50 / 7.39 s. That is about 1.35× the desktop, less than the grid's 1.8×, and the slowest search stays under the 10 s budget itself. The runner varies: in the runs for #100 and #101 it was about 1.8× the desktop (big house 4.81 / 6.19 / 10.18 s, two-storey house 3.32 / 7.54 / 12.70 s; then 10.37 s and 13.04 s for how many), so both how-many searches went past 10 s there, under the 15 s CI limit but with little room for the two-storey house. At that speed a real search stopped at 10 s and returned the best layout found so far, which led to D56.
+On the CI runner (GitHub ubuntu-latest), in the run for #84: sample home 0.48 / 0.70 / 1.35 s, apartment 0.08 / 0.18 / 0.21 s, L-shaped house 1.03 / 1.45 / 1.70 s, and big house 3.46 / 4.50 / 7.39 s. That is about 1.35× the desktop, less than the grid's 1.8×, and the slowest search stays under the 10 s budget itself. The runner varies: in the runs for #100 and #101 it was about 1.8× the desktop (big house 4.81 / 6.19 / 10.18 s, two-storey house 3.32 / 7.54 / 12.70 s; then 10.37 s and 13.04 s for how many), so both how-many searches went past 10 s there, under the 15 s CI limit but with little room for the two-storey house. At that speed a real search stopped at 10 s and returned the best layout found so far, which led to D56. With walls sorted by direction (D56), the run for #103 took: sample home 0.49 / 0.69 / 1.37 s, apartment 0.10 / 0.22 / 0.25 s, L-shaped house 0.93 / 1.38 / 1.58 s, big house 2.12 / 2.88 / 4.70 s and two-storey house 1.64 / 3.73 / 6.41 s, all within the 10 s budget itself.
 
 **Limits.** The optimizer finds good spots for this model, not guaranteed best ones, and inherits every limit of the model below.
 
@@ -92,16 +92,16 @@ The Phase 2 budget is a 100 m² floor at 10 cm cells in under 200 ms. Large home
 - a "big house" of 25 rooms, each 4 × 3 m, in 20 × 15 m, laid out the same way;
 - a two-storey house (D51): two floors of 25 rooms, each 3 × 2 m, in 15 × 10 m, laid out the same way, with a timber joist floor between, a 1 × 3 m stairwell through it (D54), the router downstairs and one access point upstairs. It's 300 m² in all, so it has the big house's budget, and each floor is timed with both access points, one of them through the floor.
 
-Median on 5 GHz, from 2026-09-28, with walls sorted by direction (D56); the CI column is from before D56:
+Median on 5 GHz, from 2026-09-28, with walls sorted by direction (D56); CI from the run for #103:
 
 | Plan                            | Grid   | Budget | Desktop (i5-12600K) | CI runner (GitHub ubuntu-latest) |
 | ------------------------------- | ------ | ------ | ------------------- | -------------------------------- |
-| Sample home (22 walls, 1 AP)    | 204 m² | 200 ms | 2.4 ms              | 6.3 ms                           |
-| Room grid (60 walls, 2 APs)     | 144 m² | 200 ms | 4.8 ms              | 21 ms                            |
-| Big house (300 m², 60 walls, 2) | 374 m² | 50 ms  | 11.5 ms             | 50 ms                            |
-| Two-storey house, each floor    | 204 m² | 50 ms  | 8.7 ms              | 31 ms                            |
+| Sample home (22 walls, 1 AP)    | 204 m² | 200 ms | 2.4 ms              | 4.8 ms                           |
+| Room grid (60 walls, 2 APs)     | 144 m² | 200 ms | 4.8 ms              | 9.3 ms                           |
+| Big house (300 m², 60 walls, 2) | 374 m² | 50 ms  | 11.5 ms             | 22 ms                            |
+| Two-storey house, each floor    | 204 m² | 50 ms  | 8.7 ms              | 16.5 ms                          |
 
-Before D56 the desktop took 3.5, 11, 28 and 20 ms.
+Before D56 the desktop took 3.5, 11, 28 and 20 ms, and CI 6.3, 21, 50 and 31 ms.
 
 CI runs about 1.8× slower than the desktop and runner hardware varies, so the CI check fails at 1.5× each budget (D26): 300 ms, or 75 ms for the big house.
 
