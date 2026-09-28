@@ -68,7 +68,7 @@ The gain over the middle is small in the sample home, where brick and concrete w
 
 The two-storey house is the coverage speed plan's (two 150 m² floors of 25 rooms over a timber joist floor, with a stairwell), scored over both floors from its router downstairs; its second access point is left out, so added ones may go on either floor. It has as many cells and lattice spots as the big house, and each signal also crosses a floor, so it is the slowest search.
 
-On the CI runner (GitHub ubuntu-latest), in the run for #84: sample home 0.48 / 0.70 / 1.35 s, apartment 0.08 / 0.18 / 0.21 s, L-shaped house 1.03 / 1.45 / 1.70 s, and big house 3.46 / 4.50 / 7.39 s. That is about 1.35× the desktop, less than the grid's 1.8×, and the slowest search stays under the 10 s budget itself.
+On the CI runner (GitHub ubuntu-latest), in the run for #84: sample home 0.48 / 0.70 / 1.35 s, apartment 0.08 / 0.18 / 0.21 s, L-shaped house 1.03 / 1.45 / 1.70 s, and big house 3.46 / 4.50 / 7.39 s. That is about 1.35× the desktop, less than the grid's 1.8×, and the slowest search stays under the 10 s budget itself. The runner varies: in the runs for #100 and #101 it was about 1.8× the desktop (big house 4.81 / 6.19 / 10.18 s, two-storey house 3.32 / 7.54 / 12.70 s; then 10.37 s and 13.04 s for how many), so both how-many searches went past 10 s there, under the 15 s CI limit but with little room for the two-storey house. At that speed a real search stops at 10 s and returns the best layout found so far.
 
 **Limits.** The optimizer finds good spots for this model, not guaranteed best ones, and inherits every limit of the model below.
 
