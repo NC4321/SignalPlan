@@ -12,5 +12,8 @@
   },
   "dependencies": {
     "@signalplan/floorplan": "workspace:*"
+  },
+  "devDependencies": {
+    "fast-check": "^4.10.2"
   }
 }

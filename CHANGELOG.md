@@ -6,6 +6,7 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ### Added
 
+- Engine property tests (fast-check): adding a wall never raises signal, signal never rises with distance on an open line, wall losses are finite and never negative (metal capped at 40 dB), and adding an access point never lowers any cell.
 - Keyboard access and screen-reader labels: the tools form a toolbar navigable with arrow keys, the File menu works by keyboard, dialogs return focus to where they opened from, and on the canvas Tab steps through walls, doors and windows, corners and access points with the selection announced. Browser tests now include axe-core scans.
 - Monorepo with `apps/web` (React + Vite) and `packages/engine` (TypeScript).
 - Free-space path loss function with unit tests.
