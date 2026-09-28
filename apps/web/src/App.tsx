@@ -102,7 +102,7 @@ function App({
             <p className="notice">
               {hasAccessPoint
                 ? 'No access point on this floor broadcasts on this band.'
-                : 'No access points on this floor. Add one with the Access point tool (A).'}
+                : 'No access points on this floor. Add one with the Access point tool.'}
             </p>
           )}
           {error && (

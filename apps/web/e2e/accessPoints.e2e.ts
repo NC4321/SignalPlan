@@ -152,7 +152,7 @@ test('explains an empty floor after deleting the last access point', async ({
   await panel(page).getByRole('button', { name: 'Wi-Fi 6E router' }).click()
   await panel(page).getByRole('button', { name: 'Delete' }).click()
   const notice = page.getByText(
-    'No access points on this floor. Add one with the Access point tool (A).',
+    'No access points on this floor. Add one with the Access point tool.',
   )
   await expect(notice).toBeVisible()
   await page.keyboard.press('ControlOrMeta+z')
