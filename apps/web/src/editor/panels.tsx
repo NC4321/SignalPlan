@@ -735,7 +735,7 @@ function PowerField({
       )}
       {overLimit && (
         <p id={noteId} className="field-note">
-          Above the legal limit in the US and Canada. {profile.maxEirpNote}
+          Above the legal limit in the US. {profile.maxEirpNote}
         </p>
       )}
     </div>

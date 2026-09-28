@@ -81,6 +81,11 @@ input:focus-visible + *,
   outline-offset: 2px;
 }
 
+/* Text fields show their own ring; the error or note after them doesn't. */
+.field input:focus-visible + * {
+  outline: none;
+}
+
 .visually-hidden {
   position: absolute;
   width: 1px;
@@ -549,6 +554,7 @@ dd {
 }
 
 .radios legend {
+  padding: 0;
   margin-bottom: 0.4rem;
   font-weight: 600;
 }
