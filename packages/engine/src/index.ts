@@ -9,6 +9,12 @@ export {
   type Coverage,
   type Grid,
 } from './coverage.ts'
+export {
+  floorAreaMask,
+  segmentsTouch,
+  summariseCoverage,
+  type CoverageSummary,
+} from './floorArea.ts'
 export { crossings, wallLoss, type Crossing } from './crossings.ts'
 export {
   CONSTRUCTIONS,

@@ -6,6 +6,7 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ### Added
 
+- Coverage summary: under the heatmap legend, the share of the floor inside the outer walls that reaches a chosen target (Excellent, Good, Fair or Weak; Fair by default), for the band on show. The target is saved with the plan as the optional `coverageTarget`.
 - CI: a coverage-grid speed check (`pnpm speed`) on the sample home and a busy 100 m² room grid, failing at 1.5× the 200 ms budget; timings in `docs/MODEL.md`.
 - Access point tool (A): click to add an access point, then set its name, mounting height, bands and power per band (with a note above the FCC limit). Access points can now be deleted, with undo.
 - Engine property tests (fast-check): adding a wall never raises signal, signal never rises with distance on an open line, wall losses are finite and never negative (metal capped at 40 dB), and adding an access point never lowers any cell.

@@ -19,6 +19,18 @@ export function formatLength(metres: number, units: Units): string {
   return feet > 0 ? `${sign}${feet}′ ${inchText}` : `${sign}${inchText}`
 }
 
+const SQUARE_METRES_PER_SQUARE_FOOT = 0.09290304
+
+/** An area for display, to the nearest whole unit: 148 m² or 1,593 sq ft. */
+export function formatArea(squareMetres: number, units: Units): string {
+  const value =
+    units === 'metric'
+      ? squareMetres
+      : squareMetres / SQUARE_METRES_PER_SQUARE_FOOT
+  const text = Math.round(value).toLocaleString('en-US')
+  return units === 'metric' ? `${text} m²` : `${text} sq ft`
+}
+
 /** Grid snapping step: 10 cm, or 1 inch. */
 export function snapStep(units: Units): number {
   return units === 'metric' ? 0.1 : METRES_PER_INCH

@@ -109,7 +109,10 @@ function App({
             <p className="notice">Couldn’t compute coverage: {error}</p>
           )}
         </main>
-        <PropertiesPanel open={panelOpen} />
+        <PropertiesPanel
+          open={panelOpen}
+          coverage={broadcasting ? coverage : undefined}
+        />
         <StatusBar
           coverage={broadcasting ? coverage : undefined}
           saveStatus={saveStatus}

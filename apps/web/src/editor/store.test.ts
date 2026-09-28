@@ -151,6 +151,20 @@ describe('renamePlan', () => {
   })
 })
 
+describe('setCoverageTarget', () => {
+  it('sets the target as an undoable edit, skipping no-op changes', () => {
+    const store = createEditorStore(sample())
+    // The sample sets no target, so it counts towards Fair.
+    store.getState().setCoverageTarget('fair')
+    expect(store.getState().past).toHaveLength(0)
+    store.getState().setCoverageTarget('good')
+    expect(store.getState().plan.coverageTarget).toBe('good')
+    expect(store.getState().past.at(-1)?.label).toBe('Change coverage target')
+    store.getState().undo()
+    expect(store.getState().plan.coverageTarget).toBeUndefined()
+  })
+})
+
 describe('loadPlan', () => {
   it('replaces the plan and clears history', () => {
     const store = createEditorStore(sample())
