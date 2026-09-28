@@ -126,3 +126,93 @@ describe('validation against NYU measurements at 6.75 GHz', () => {
     },
   )
 })
+
+/**
+ * Model against transmission measured at NIST from 3 to 8 GHz: W. C. Stone,
+ * "Electromagnetic Signal Attenuation in Construction Materials", NISTIR 6055
+ * (1997). The report gives each high-range curve as a polynomial in f (GHz),
+ * received signal in dB relative to free space = M0 + M1·f + … + M6·f⁶
+ * (Tables 4.13d, 4.14d and 4.15d); coefficients are copied as printed. Model
+ * thicknesses are the measured ones (Tables 3.5.3, 3.6.2 and 3.8.2). Brick and
+ * concrete disagree by 10–30 dB and are left out; see MODEL.md.
+ */
+describe('validation against NIST measurements at 5 and 6 GHz', () => {
+  const specimens: {
+    name: string
+    layers: Layer[]
+    /** M0…M6 of the dB curve. */
+    fit: number[]
+    /** The curve at 5 GHz as read from the report's plot, for transcription. */
+    plotAt5GHz: number
+  }[] = [
+    {
+      name: 'drywall, 6.94 mm (D25H)',
+      layers: [{ material: 'plasterboard', thicknessM: mm(6.94) }],
+      fit: [-3.661, 2.4242, -0.79028, 0.16723, -0.021237, 1.3407e-3, -3.121e-5],
+      plotAt5GHz: 0,
+    },
+    {
+      name: 'drywall, 12.52 mm (D50H)',
+      layers: [{ material: 'plasterboard', thicknessM: mm(12.52) }],
+      fit: [
+        -1.3024, 0.56703, 0.047116, -0.046679, 8.2634e-3, -7.1352e-4, 2.5864e-5,
+      ],
+      plotAt5GHz: 0.2,
+    },
+    {
+      name: 'glass, 5.68 mm (G25H)',
+      layers: [{ material: 'glass', thicknessM: mm(5.68) }],
+      fit: [-14.824, 12.201, -5.164, 1.2814, -0.18346, 0.013703, -4.0969e-4],
+      plotAt5GHz: -1,
+    },
+    {
+      name: 'glass, 12.52 mm (G50H)',
+      layers: [{ material: 'glass', thicknessM: mm(12.52) }],
+      fit: [-12.19, 11.883, -5.4546, 1.433, -0.21186, 0.015879, -4.6484e-4],
+      plotAt5GHz: -0.1,
+    },
+    {
+      name: 'glass, 18.60 mm (G75H)',
+      layers: [{ material: 'glass', thicknessM: mm(18.6) }],
+      fit: [-17.088, 14.896, -6.2841, 1.5197, -0.20985, 0.015169, -4.4443e-4],
+      plotAt5GHz: -0.45,
+    },
+    {
+      name: 'dry spruce-pine-fir, 36.95 mm (L15DH)',
+      layers: [{ material: 'wood', thicknessM: mm(36.95) }],
+      fit: [-16.547, 12.399, -5.4636, 1.4022, -0.20711, 0.015876, -4.8509e-4],
+      plotAt5GHz: -3.3,
+    },
+    {
+      name: 'dry spruce-pine-fir, 75.42 mm (L30DH)',
+      layers: [{ material: 'wood', thicknessM: mm(75.42) }],
+      fit: [-20.122, 11.806, -5.2732, 1.3594, -0.19937, 0.015069, -4.5414e-4],
+      plotAt5GHz: -7.6,
+    },
+  ]
+
+  const curveDb = (fit: number[], f: number) =>
+    fit.reduce((sum, m, i) => sum + m * f ** i, 0)
+  /** Measured loss averaged over the band as power, like `slabLossDb`. */
+  const measuredLossDb = (fit: number[], frequencies: number[]) => {
+    const power = frequencies.map((f) => 10 ** (curveDb(fit, f) / 10))
+    return -10 * Math.log10(power.reduce((a, b) => a + b) / power.length)
+  }
+
+  it.each(specimens)('copies the curve for $name', ({ fit, plotAt5GHz }) => {
+    expect(Math.abs(curveDb(fit, 5) - plotAt5GHz)).toBeLessThan(0.2)
+  })
+
+  it('averages a flat curve to its own value', () => {
+    expect(measuredLossDb([-3, 0, 0, 0, 0, 0, 0], [5, 6])).toBeCloseTo(3, 10)
+  })
+
+  for (const band of ['5GHz', '6GHz'] as const) {
+    const frequencies = bandSamples(BAND_PROFILES[band])
+    it.each(specimens)(`is within 5 dB at ${band} for $name`, (specimen) => {
+      const model = slabLossDb(specimen.layers, frequencies)
+      const measured = measuredLossDb(specimen.fit, frequencies)
+      expect(Math.abs(model - measured)).toBeLessThan(5)
+    })
+  }
+})
