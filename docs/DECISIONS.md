@@ -175,6 +175,7 @@ A running log of project decisions, newest last. Each entry records what was dec
 - **Not changed here:** where the coverage summary sits (#61) and the Wall tool starting a wall on an access point (#62) are design choices left open. The walkthrough doesn't replace watching real people (#46); see the [test script](usability/test-script.md).
 - **Revisit if:** the human usability test shows people still stack or lose access points, or don't find how to start.
 - **Update:** the coverage summary is now also in the status bar (D37).
+- **Update:** the Wall, Door and Window tools now grab access points too (D38).
 
 ### D37. Coverage summary always in view — 2026-09-28
 
@@ -184,6 +185,13 @@ A running log of project decisions, newest last. Each entry records what was dec
 - **Screen readers:** the visible line updates with every frame while dragging, so it's hidden from assistive tech. A separate polite live region beside it holds the last settled text during a drag and announces the result once the drag ends, in keeping with D23's quiet readout. The panel's copy is no longer a live region, so nothing is announced twice.
 - **Details** keeps its name: with the result in the bottom bar, the drawer holds the legends and settings, which "Details" describes well enough.
 - **Revisit if:** the human usability test (#46) shows people still miss the summary, or the status bar gets crowded at 1024 px wide.
+
+### D38. Wall, Door and Window tools grab access points — 2026-09-28
+
+- **Decision:** with the Wall tool active and no chain in progress, a press on an access point grabs it, as the Access point tool does (D34): a click selects it and a drag moves it, as one undo step, and the tool stays active (D17). The cursor shows a grab hand over the access point and the wall preview is hidden. Mid-chain, clicks always place corners, even on an access point. The Door and Window tools grab access points the same way, since a press there would otherwise do nothing useful.
+- **Starting a wall on an access point:** hold Alt, which already means "place freely, without snapping" in the Wall tool. An access point is a small circle in the middle of a room, so a wall rarely needs to start exactly there, and a mis-grab is one undo away.
+- **Why:** the tool stays active after a chain, so "draw the rooms, then move the router" started a stray wall from the router instead (#62, from the D34 walkthrough). One check, `pressGrabsAccessPoint`, now decides this for every tool, so the tools can't drift apart.
+- **Revisit if:** the usability test (#46) shows people meaning to start walls on access points, or grabbing them by accident while drawing.
 
 ## Phase 1: editor
 
@@ -211,7 +219,7 @@ A running log of project decisions, newest last. Each entry records what was dec
 - **Overlaps:** a new wall that runs along an existing wall reuses it; only the parts beyond it are added.
 - **Undo while drawing:** each wall in a chain is its own undo step; undo mid-chain removes the last wall and keeps drawing from the corner before it.
 - **Exact lengths:** while a wall follows the cursor, typing a number opens a length box (Tab for an angle, measured counter-clockwise from east); Enter places the wall.
-- **After a chain:** the wall tool stays active; Esc again (or V) returns to Select.
+- **After a chain:** the wall tool stays active; Esc again (or V) returns to Select. Between chains, a press on an access point grabs it rather than starting a wall (D38).
 - **Wall styles:** each material has an Okabe–Ito colour plus its own width and pattern (drywall plain, brick ticked, concrete thick, wood dashed, glass double line, low-E glass double line with dots, metal hatched), outlined in dark so walls stay readable over any heatmap colour.
 
 ### D18. Selecting and editing walls — 2026-09-27

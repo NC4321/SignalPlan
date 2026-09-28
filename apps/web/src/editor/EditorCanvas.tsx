@@ -25,6 +25,7 @@ import {
   describeSelection,
   hitTest,
   moveNodeRecipe,
+  pressGrabsAccessPoint,
   moveOpeningRecipe,
   moveWallRecipe,
   nudgeRecipe,
@@ -335,14 +336,21 @@ export function EditorCanvas({ coverage }: { coverage: Coverage | undefined }) {
     }
   }
 
-  const hoverCursor = (screen: Point): Cursor => {
+  /**
+   * True if a press here would grab an access point instead of doing the
+   * current tool's action (D38).
+   */
+  const grabsAccessPoint = (screen: Point, altKey: boolean) =>
+    !!camera &&
+    pressGrabsAccessPoint(tool, !!store.getState().chain, altKey) &&
+    !!accessPointAt(camera, accessPoints, screen)
+
+  const hoverCursor = (screen: Point, altKey: boolean): Cursor => {
     if (!camera) return 'default'
+    if (tool !== 'select' && grabsAccessPoint(screen, altKey)) return 'grab'
     if (openingTool) {
       if (placementAt(screen)) return 'default'
       return wallAt(camera, floor, screen) ? 'not-allowed' : 'default'
-    }
-    if (tool === 'accessPoint') {
-      return accessPointAt(camera, accessPoints, screen) ? 'grab' : 'default'
     }
     if (tool !== 'select') return 'default'
     const hit = hitTest(camera, floor, accessPoints, openings, screen)
@@ -503,7 +511,8 @@ export function EditorCanvas({ coverage }: { coverage: Coverage | undefined }) {
           }
           if (event.button !== 0 || !camera) return
 
-          if (tool === 'wall') {
+          // Between chains, a press on an access point grabs it (D38).
+          if (tool === 'wall' && !grabsAccessPoint(at, event.altKey)) {
             state.clickWallPoint(snapForWallTool(at, event.altKey).point)
             return
           }
@@ -523,11 +532,8 @@ export function EditorCanvas({ coverage }: { coverage: Coverage | undefined }) {
           }
 
           // A press on an existing access point grabs it, as with Select,
-          // rather than stacking a new one on top.
-          if (
-            tool === 'accessPoint' &&
-            !accessPointAt(camera, accessPoints, at)
-          ) {
+          // rather than stacking a new one on top (D34).
+          if (tool === 'accessPoint' && !grabsAccessPoint(at, event.altKey)) {
             let created: string | undefined
             state.edit('Add access point', (draft) => {
               created = addAccessPoint(draft, floorId, toPlan(camera, at))
@@ -536,7 +542,7 @@ export function EditorCanvas({ coverage }: { coverage: Coverage | undefined }) {
             return
           }
 
-          if (openingTool) {
+          if (openingTool && !grabsAccessPoint(at, event.altKey)) {
             const place = placementAt(at)
             if (!place) return
             let created: string | undefined
@@ -615,11 +621,20 @@ export function EditorCanvas({ coverage }: { coverage: Coverage | undefined }) {
           }
 
           store.getState().setPointer(toPlan(current, at))
+          // Over an access point that a press would grab, show no wall or
+          // opening preview, only the grab cursor.
+          const grabbing = grabsAccessPoint(at, event.altKey)
           if (tool === 'wall' && !drag.current) {
-            const snap = snapForWallTool(at, event.altKey)
-            setPreview({ cursor: snap.point, snap: snap.kind })
+            if (grabbing) {
+              setPreview(undefined)
+            } else {
+              const snap = snapForWallTool(at, event.altKey)
+              setPreview({ cursor: snap.point, snap: snap.kind })
+            }
           }
-          if (openingTool && !drag.current) setPlacement(placementAt(at))
+          if (openingTool && !drag.current) {
+            setPlacement(grabbing ? undefined : placementAt(at))
+          }
           const active = drag.current
           if (active?.kind === 'pan') {
             store
@@ -647,7 +662,7 @@ export function EditorCanvas({ coverage }: { coverage: Coverage | undefined }) {
             setCursor('grabbing')
             dragTo(active, at, event.altKey, current, false)
           } else {
-            setCursor(hoverCursor(at))
+            setCursor(hoverCursor(at, event.altKey))
           }
         }}
         onPointerUp={(event) => {
@@ -673,7 +688,7 @@ export function EditorCanvas({ coverage }: { coverage: Coverage | undefined }) {
             }
           }
           drag.current = undefined
-          setCursor(hoverCursor(local(event)))
+          setCursor(hoverCursor(local(event), event.altKey))
         }}
         onPointerCancel={(event) => {
           touches.current.delete(event.pointerId)
