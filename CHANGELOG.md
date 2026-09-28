@@ -6,6 +6,7 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ### Added
 
+- CI: a coverage-grid speed check (`pnpm speed`) on the sample home and a busy 100 m² room grid, failing at 1.5× the 200 ms budget; timings in `docs/MODEL.md`.
 - Access point tool (A): click to add an access point, then set its name, mounting height, bands and power per band (with a note above the FCC limit). Access points can now be deleted, with undo.
 - Engine property tests (fast-check): adding a wall never raises signal, signal never rises with distance on an open line, wall losses are finite and never negative (metal capped at 40 dB), and adding an access point never lowers any cell.
 - Keyboard access and screen-reader labels: the tools form a toolbar navigable with arrow keys, the File menu works by keyboard, dialogs return focus to where they opened from, and on the canvas Tab steps through walls, doors and windows, corners and access points with the selection announced. Browser tests now include axe-core scans.

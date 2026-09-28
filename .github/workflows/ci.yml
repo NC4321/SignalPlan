@@ -28,6 +28,8 @@ jobs:
       - run: pnpm lint
       - run: pnpm format:check
       - run: pnpm test
+      # Coverage grid speed against the Phase 2 budget (packages/engine/src/coverage.speed.ts).
+      - run: pnpm speed
       - run: pnpm build
       - uses: actions/upload-artifact@v7
         with:

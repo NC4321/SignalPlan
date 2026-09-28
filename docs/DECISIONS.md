@@ -75,6 +75,12 @@ A running log of project decisions, newest last. Each entry records what was dec
 - **Why:** there's no router data to source antenna patterns from, and D8 already leaves router-model presets for later. The multi-wall model, as in the COST 231 final report, is the standard citable approach and is what [MODEL.md](MODEL.md#from-equation-to-heatmap) describes. It's also cheap: one straight-line wall check per cell keeps the grid inside the 200 ms budget (D11), which live dragging needs.
 - **Revisit if:** Phase 7 calibration shows a consistent error behind strong walls, router presets with real antenna patterns arrive, or a reflection or ray-tracing mode fits the worker's time budget.
 
+### D26. CI speed check at 1.5× the budget — 2026-09-27
+
+- **Decision:** `pnpm speed` runs in CI and fails when the median coverage-grid time on the sample home or the busy room grid exceeds 300 ms, 1.5× the 200 ms budget (D11). The 200 ms budget itself stays the target on a real device.
+- **Why:** the CI runner is about 2.1× slower than the desktop (room grid: 80 ms there, 170 ms on CI), and runner hardware varies. Held to exactly 200 ms, the check would fail at random; at 300 ms it still catches the room grid getting about 1.8× slower. Timings are in [MODEL.md](MODEL.md#speed).
+- **Revisit if:** the check fails at random anyway, the room grid's CI time drifts near 300 ms, or a spatial index lands and the margin can tighten.
+
 ## Phase 3
 
 ### D12. Heatmap colours — 2026-09-27

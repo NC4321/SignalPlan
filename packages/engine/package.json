@@ -8,7 +8,8 @@
   },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json",
-    "test": "vitest run"
+    "test": "vitest run",
+    "speed": "vitest run --config vitest.speed.config.ts"
   },
   "dependencies": {
     "@signalplan/floorplan": "workspace:*"
