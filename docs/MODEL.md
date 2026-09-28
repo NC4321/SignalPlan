@@ -155,8 +155,8 @@ NIST measured 1 m square panels of single materials from 3 to 8 GHz (Stone, NIST
 Lumber is dry spruce-pine-fir. Concrete rows span NIST's mixes. Only fits that reproduce their plotted curves are used: the 102 mm panels of mixes 2–8 and the 203 mm panels of mixes 3, 5 and 8. The rest, including every 305 mm panel, give thousands of dB as printed. A slightly negative loss is a real effect of thin panels near resonance, not an error.
 
 - **Drywall and glass** agree within 2.3 dB. Unlike the Shakya comparison, the model is slightly _pessimistic_ for glass here, so the two sources bracket it.
-- **Wood** is under-predicted again, by 2 dB for 37 mm and 5 dB for 75 mm, which matches the Shakya door. The `wood` material (a 44 mm door) is therefore probably 2–3 dB optimistic.
-- **Brick and concrete** are far lossier at NIST than P.2040 predicts, by 12 dB for one wythe of brick and up to 30 dB for 203 mm of concrete. The report doesn't give the specimens' moisture when tested, and wet concrete is much lossier; the brick is cored clay brick with mortar joints. This is a known disagreement, tracked in [#55](https://github.com/NC4321/SignalPlan/issues/55). Per D9 the values aren't changed to match one source.
+- **Wood** is under-predicted again, by 2 dB for 37 mm and 5 dB for 75 mm, which matches the Shakya door. Muqaibel's 44.5 mm door is also lossier than the model, but only by 0.4–0.5 dB (see [below](#masonry-and-wood-second-sources)), so how far the model falls short depends on the wood.
+- **Brick and concrete** are far lossier at NIST than P.2040 predicts, by 12 dB for one wythe of brick and up to 30 dB for 203 mm of concrete. The report doesn't give the specimens' moisture when tested; the brick is cored clay brick with 13–14 mm mortar joints (Table 3.1.1). Second sources and the likely causes are [below](#masonry-and-wood-second-sources); per D9 the values aren't changed to match the measurements.
 
 A unit test copies NIST's coefficients, checks each curve against the report's plot at 5 GHz, and keeps the drywall, glass and lumber samples within 5 dB in both bands. The 75 mm lumber is 4.97 dB under at 5 GHz, just inside that limit. A panel listed as 16 mm drywall (D625H) is left out, because the report's measured drywall panels are 6.94, 9.44 and 12.52 mm and it's unclear which one it is.
 
@@ -201,6 +201,42 @@ The paper doesn't give the stud cavity, so the drywall row uses the `drywall` co
 
 Real homes are still unvalidated in every band until Phase 7.
 
+### Masonry and wood: second sources
+
+**Muqaibel (Virginia Tech).** A dissertation measured single walls and panels head on from about 1 to 14 GHz, and fitted each insertion loss as a straight line in frequency, a·f + b (Table 4.3). The table averages that line over each band as power. Loss in dB:
+
+| Sample                             | 2.4 GHz measured / model | 5 GHz measured / model | 6 GHz measured / model |
+| ---------------------------------- | ------------------------ | ---------------------- | ---------------------- |
+| Wooden door, 44.5 mm               | 1.0 / 0.7                | 2.2 / 1.8              | 2.6 / 2.1              |
+| Glass, 2.36 mm                     | 0.8 / 0.5                | 1.7 / 1.7              | 2.0 / 2.1              |
+| **Brick wall, 87.1 mm**            | 3.6 / 2.8                | 6.9 / 3.3              | 7.9 / 3.2              |
+| Concrete block wall, 194.5 mm      | —                        | 13.6 / —               | —                      |
+| NIST concrete block, 203 mm (CB1H) | —                        | 15.3 / —               | 16.3 / —               |
+
+The brick fit is stated for 1–7 GHz, so the top of the 6 GHz band (to 7.125 GHz) is a slight extrapolation; the block was flat at 13.62 dB from 2.0 to 6.8 GHz. The door and glass agree within about 0.5 dB in every band. The dissertation's "wallboard" and "structure wood" samples are left out, because it doesn't say what they're made of.
+
+- **Brick:** both sources measured single-wythe, three-cored clay brick, and both find more loss than P.2040's brick: 0.8–4.8 dB more for Muqaibel's wall, 12 dB more at NIST. Muqaibel's bricks were dry-stacked without mortar (Figure B2.1), while NIST's were laid in mortar, which may explain part of the 8.5 dB between them. But NIST's 3–8 GHz brick is also out of line with NIST's own 2.0 GHz value for the same wall (15.1 dB at 3.0 GHz against 5.4 dB at 2.0 GHz, [above](#near-24-ghz-nist-at-20-ghz-and-anderson-and-rappaport-at-25-ghz)), and with Muqaibel's wall, which rises smoothly to 4.2 dB at 3.0 GHz. So the 12 dB gap is probably specific to NIST's high-range brick measurement, and the gap the other data support is Muqaibel's 1–5 dB. P.2040's brick conductivity would have to be 2.6 times higher to match Muqaibel at 5 GHz and 6.2 times higher to match NIST.
+- **Concrete block:** the two sources agree within 1.7 dB, which suggests NIST's set-up isn't lossy in general. P.2040 has no hollow-block class and the model has no block material.
+
+**Concrete and moisture.** P.2040-4 doesn't say how dry its concrete and brick samples were: Table 3 is a curve fit to "examples of measured electrical characteristics" from the literature, with no note on moisture. Rhim (MIT) measured the permittivity of 4-week-old concrete cylinders of one mix, wet, saturated, air dried and oven dried, from 0.1 to 20 GHz (Table 3-3, ε′ and ε″ as straight lines in frequency). Putting those into the same slab calculation gives loss in dB:
+
+| Concrete                   | 102 mm: 2.4 / 5 / 6 GHz   | 203 mm: 2.4 / 5 / 6 GHz   |
+| -------------------------- | ------------------------- | ------------------------- |
+| Rhim, oven dried           | 1.8 / 2.3 / 2.7           | 2.5 / 3.6 / 4.4           |
+| Rhim, air dried            | 2.7 / 4.0 / 5.0           | 1.4 / 6.6 / 8.7           |
+| Rhim, saturated            | 8.1 / 16.1 / 18.8         | 14.0 / 29.7 / 35.0        |
+| Rhim, wet (watery surface) | 14.0 / 27.4 / 31.8        | 24.1 / 50.8 / 59.2        |
+| **Model (P.2040)**         | 8.1 / 14.2 / 16.0         | 14.9 / 26.9 / 30.3        |
+| NIST                       | — / 17.9–26.8 / 19.4–28.8 | — / 54.6–57.2 / 59.2–62.4 |
+
+When the loss is low, thickness resonances can make a thicker slab lose less, as for air-dried concrete at 2.4 GHz.
+
+- Moisture alone spans most of the range: from a few dB for dry concrete to more than NIST's 102 mm panels for wet concrete. **P.2040's concrete behaves like Rhim's saturated concrete**, so for a dry, above-ground wall the model is probably pessimistic rather than optimistic. NIST's panels sit between saturated and wet at 102 mm and beyond wet at 203 mm; its 2.0 GHz values (12.6–18.0 dB at 102 mm, [above](#near-24-ghz-nist-at-20-ghz-and-anderson-and-rappaport-at-25-ghz)) are likewise above the saturated case.
+- NIST's 203 mm panels lose more per millimetre than its 102 mm panels of the same mix (mix 3: 22.6 dB at 102 mm, 56.4 dB at 203 mm; mix 5: 23.9 and 54.6; mix 8: 26.8 and 57.2, at 5 GHz). A uniform slab this lossy can lose at most about twice as much at twice the thickness. One explanation is thicker panels holding more water because they dry more slowly; the report doesn't give the specimens' age or moisture, so this can't be checked.
+- 3GPP TR 38.901 (Table 7.4.3-1) gives concrete as 5 + 4f dB, which is 14.7, 27.1 and 31.1 dB at the band midpoints, close to the model's 200 mm wall. It doesn't state a thickness, so this is context rather than validation.
+
+A unit test keeps the Muqaibel door and glass within 1 dB in all three bands, and records that the model is below Muqaibel's brick wall by less than 5 dB at 2.4 and 5 GHz. Whether to change `brick` or `concrete` is an open decision (D33, [#55](https://github.com/NC4321/SignalPlan/issues/55)).
+
 ### Against the ITU-R P.1238-13 indoor model
 
 Recommendation ITU-R P.1238-13 gives an empirical site-general model for indoor path loss: L_b = 10α·log10(d) + β + 10γ·log10(f), with d in metres and f in GHz (eq. 1). It no longer publishes separate residential coefficients and advises using office values for homes. The office, no-line-of-sight coefficients (Table 2: α = 2.39, β = 30.13, γ = 2.40, σ = 5.01 dB) fold typical walls and clutter into the distance term.
@@ -235,5 +271,8 @@ With the one or two interior walls a path typically crosses at these distances, 
 - D. Shakya, M. Ying, T. S. Rappaport, H. Poddar, P. Ma, Y. Wang and I. Al-Wazani, "Wideband Penetration Loss through Building Materials and Partitions at 6.75 GHz in FR1(C) and 16.95 GHz in the FR3 Upper Mid-band spectrum", IEEE GLOBECOM 2024. [arXiv:2405.01362](https://arxiv.org/abs/2405.01362). Table II.
 - W. C. Stone, _Electromagnetic Signal Attenuation in Construction Materials_, NIST Construction Automation Program Report No. 3, NISTIR 6055, National Institute of Standards and Technology, 1997. [doi:10.6028/NIST.IR.6055](https://doi.org/10.6028/NIST.IR.6055). Tables 3.5.3, 3.6.2, 3.8.2, 4.1b, 4.1d, 4.4b–4.11b, 4.4d–4.11d, 4.13b–4.15b and 4.13d–4.15d.
 - C. R. Anderson and T. S. Rappaport, "In-building wideband partition loss measurements at 2.5 and 60 GHz", _IEEE Transactions on Wireless Communications_, vol. 3, no. 3, pp. 922–928, May 2004. [arXiv:1701.03415](https://arxiv.org/abs/1701.03415). Table III.
+- A. H. Muqaibel, _Characterization of Ultra Wideband Communication Channels_, PhD dissertation, Virginia Polytechnic Institute and State University, 2003. [VTechWorks](https://vtechworks.lib.vt.edu/server/api/core/bitstreams/43984a35-3d29-47bb-ab73-3fe4a685cabb/content). Table 4.3, Figure B2.1.
+- H. C. Rhim, _Nondestructive Evaluation of Concrete Using Wideband Microwave Techniques_, PhD thesis, Massachusetts Institute of Technology, 1995. [hdl:1721.1/11745](https://hdl.handle.net/1721.1/11745). Table 3-3.
+- 3GPP TR 38.901 V17.0.0 (ETSI TR 138 901, 2022-04), _Study on channel model for frequencies from 0.5 to 100 GHz_. Table 7.4.3-1.
 - COST Action 231, _Digital mobile radio towards future generation systems: final report_, European Commission, 1999. Indoor multi-wall model.
 - 47 CFR §§ 15.247 and 15.407 (FCC Part 15), and the matching ISED rules RSS-247 and RSS-248.
