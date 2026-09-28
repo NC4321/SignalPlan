@@ -101,6 +101,14 @@ A running log of project decisions, newest last. Each entry records what was dec
 - **Why:** placing and editing access points is the core of planning coverage (Phase 3). Warning instead of refusing keeps the numbers honest without blocking unusual set-ups.
 - **Revisit if:** regions beyond North America arrive (D8), or channel planning (Phase 6) makes the 5 GHz limit depend on the chosen channel.
 
+### D27. Coverage summary — 2026-09-27
+
+- **Decision:** under the heatmap legend, one line gives the share of the floor area that reaches a target for the band on show, e.g. "86% of 150 m² at Fair or better on 5 GHz". It updates live, is rounded down (so 100% means all of it) and is a polite status for screen readers.
+- **Floor area:** the cells inside the outer walls, found by flooding in from the grid's edge; a step between cell centres that touches a wall is blocked. Doors and windows count as closed, since they sit on walls. Until the outline is closed, the line asks for that instead of showing a share. A cell whose centre lies exactly on a wall counts as inside, so the area can run up to half a cell over along such walls, but the flood can't leak through a closed outline. The sample home measures its stated 150 m².
+- **Target:** one of the D12 bands (Excellent, Good, Fair, Weak), picked from a list showing what each is good for. The default is Fair, −67 dBm, for calls and streaming. It's stored in the plan as the optional `coverageTarget`, so it's saved and undoable; adding an optional field needs no schema version bump.
+- **Why:** the whole grid would count the 1 m outdoor margin and change as you draw; rooms don't exist in the schema. Reusing the D12 bands avoids new thresholds that would each need a source.
+- **Revisit if:** rooms or room importance arrive (Phase 4 scoring), or a floor has courtyards or holes that should be left out.
+
 ## Phase 1: editor
 
 ### D14. Canvas 2D for the editor — 2026-09-27

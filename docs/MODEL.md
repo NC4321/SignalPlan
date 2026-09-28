@@ -32,6 +32,10 @@ The engine evaluates the equation at the centre of every cell in a regular grid 
 
 Access points on other floors are ignored until multi-floor support in Phase 5.
 
+### Coverage summary
+
+The editor reports the share of the **floor area** at or above a target level (D27). Floor area is the set of cells inside the outer walls (`floorArea.ts`): the outside is flooded in from the grid's edge, stepping between neighbouring cell centres, and a step that touches a wall is blocked. Cells the flood can't reach are inside. Doors and windows sit on walls, so they count as closed. The sample home measures exactly its stated 150 m². A cell whose centre lies exactly on a wall also counts as inside, so the area can run over by up to half a cell along such walls.
+
 ### Speed
 
 The Phase 2 budget is a 100 m² floor at 10 cm cells in under 200 ms. `pnpm speed` (`packages/engine/src/coverage.speed.ts`) times each band 30 times after 5 warm-up runs, on two plans: the sample home, and a deliberately busy "room grid" of 25 rooms, each 2 m square, in 10 × 10 m (60 walls, a door or window in every wall, 2 access points). Median per band, from 2026-09-27:
