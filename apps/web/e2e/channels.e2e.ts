@@ -40,6 +40,109 @@ test.describe('in a US browser', () => {
   })
 })
 
+test.describe('channel and width per radio', () => {
+  test.use({ locale: 'en-US' })
+
+  const width = (page: Page) => panel(page).getByLabel('5 GHz width')
+  const channel = (page: Page) => panel(page).getByLabel('5 GHz channel')
+
+  test('sets a width, then a channel, each undoable', async ({ page }) => {
+    await openEditor(page)
+    await page.keyboard.press('a')
+    await clickPlan(page, 3, 2)
+    await expect(channel(page)).toBeDisabled()
+    await width(page).selectOption({ label: '80 MHz' })
+    await expect(channel(page)).toBeEnabled()
+    // With DFS off, 58 (5250–5330 MHz) isn't offered; 42 is.
+    await expect(channel(page).locator('option')).toHaveText([
+      'Auto',
+      '42 (5210 MHz)',
+      '155 (5775 MHz)',
+    ])
+    await channel(page).selectOption({ label: '42 (5210 MHz)' })
+    await expect(channel(page)).toHaveValue('42')
+
+    await page.getByRole('button', { name: 'Undo' }).click()
+    await expect(channel(page)).toHaveValue('')
+    await expect(width(page)).toHaveValue('80')
+    await page.getByRole('button', { name: 'Undo' }).click()
+    await expect(width(page)).toHaveValue('')
+    await expect(channel(page)).toBeDisabled()
+  })
+
+  test('flags a DFS channel when DFS is turned off', async ({ page }) => {
+    await openEditor(page)
+    await dfs(page).check()
+    await page.keyboard.press('a')
+    await clickPlan(page, 3, 2)
+    await width(page).selectOption({ label: '20 MHz' })
+    await channel(page).selectOption({ label: '52 (5260 MHz, DFS)' })
+    await page.keyboard.press('Escape')
+    await page.keyboard.press('Escape')
+
+    await dfs(page).uncheck()
+    const flagged = panel(page).getByRole('button', {
+      name: 'Access point 1, 5 GHz',
+    })
+    await expect(flagged).toBeVisible()
+    await flagged.click()
+    // Still on 52, marked, with a note saying why.
+    await expect(channel(page)).toHaveValue('52')
+    await expect(channel(page)).toHaveAttribute('aria-invalid', 'true')
+    await expect(panel(page).getByText('is a DFS channel')).toBeVisible()
+  })
+
+  test('flags a channel the new region lacks', async ({ page }) => {
+    await openEditor(page)
+    await page.keyboard.press('a')
+    await clickPlan(page, 3, 2)
+    await width(page).selectOption({ label: '20 MHz' })
+    await channel(page).selectOption({ label: '149 (5745 MHz)' })
+    await page.keyboard.press('Escape')
+    await page.keyboard.press('Escape')
+
+    await region(page).selectOption({ label: 'European Union' })
+    await expect(panel(page).getByText('One radio has a channel')).toBeVisible()
+    await page.getByRole('button', { name: 'Undo' }).click()
+    await expect(panel(page).getByText('One radio has a channel')).toBeHidden()
+  })
+})
+
+test.describe('flagged radios on another floor', () => {
+  test.use({ locale: 'en-US' })
+
+  test('the Channels list goes to the floor and selects the access point', async ({
+    page,
+  }) => {
+    await openEditor(page)
+    const stack = page.getByRole('navigation', { name: 'Floors' })
+    await stack.getByRole('button', { name: '+ Floor above' }).click()
+    await page.keyboard.press('a')
+    await clickPlan(page, 3, 2)
+    await panel(page)
+      .getByLabel('5 GHz width')
+      .selectOption({ label: '20 MHz' })
+    await panel(page)
+      .getByLabel('5 GHz channel')
+      .selectOption({ label: '149 (5745 MHz)' })
+    await page.keyboard.press('Escape')
+    await page.keyboard.press('Escape')
+    await stack.getByRole('button', { name: 'Main floor' }).click()
+
+    await region(page).selectOption({ label: 'European Union' })
+    await panel(page)
+      .getByRole('button', { name: 'Access point 1, 5 GHz (Upper floor)' })
+      .click()
+    await expect(
+      stack.getByRole('button', { name: 'Upper floor' }),
+    ).toHaveAttribute('aria-current', 'true')
+    await expect(
+      panel(page).getByRole('heading', { name: 'Access point 1' }),
+    ).toBeVisible()
+    await expect(panel(page).getByLabel('5 GHz channel')).toHaveValue('149')
+  })
+})
+
 test.describe('in a German browser', () => {
   test.use({ locale: 'de-DE' })
 

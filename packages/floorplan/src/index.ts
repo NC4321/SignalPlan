@@ -38,8 +38,10 @@ export {
   EIRP_RANGE_DBM,
   NEW_ACCESS_POINT_HEIGHT_M,
   nextAccessPointName,
+  setRadioChannel,
   setRadioOn,
   setRadioPower,
+  setRadioWidth,
 } from './accessPoints.ts'
 export {
   addOpening,

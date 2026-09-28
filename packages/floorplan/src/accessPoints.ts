@@ -1,5 +1,12 @@
 import type { Point } from './geometry.ts'
-import { BANDS, type AccessPoint, type Band, type Plan } from './schema.ts'
+import {
+  BANDS,
+  type AccessPoint,
+  type Band,
+  type ChannelWidth,
+  type Plan,
+  type Radio,
+} from './schema.ts'
 
 /**
  * Editing operations on access points (D25). Like the floor operations in
@@ -92,8 +99,7 @@ export function setRadioPower(
   band: Band,
   dbm: number | undefined,
 ) {
-  const radio = find(plan, id).radios.find((r) => r.band === band)
-  if (!radio) throw new Error(`Access point "${id}" has no ${band} radio.`)
+  const radio = findRadio(plan, id, band)
   if (dbm === undefined) delete radio.txPowerDbm
   else {
     radio.txPowerDbm = Math.min(
@@ -101,4 +107,53 @@ export function setRadioPower(
       Math.max(EIRP_RANGE_DBM.min, dbm),
     )
   }
+}
+
+function findRadio(plan: Plan, id: string, band: Band): Radio {
+  const radio = find(plan, id).radios.find((r) => r.band === band)
+  if (!radio) throw new Error(`Access point "${id}" has no ${band} radio.`)
+  return radio
+}
+
+/**
+ * Sets a radio's channel width, or leaves it to the planner when undefined
+ * (D63). Channel numbers depend on the width, so a new width also leaves the
+ * channel to the planner. Returns false when nothing changed.
+ */
+export function setRadioWidth(
+  plan: Plan,
+  id: string,
+  band: Band,
+  width: ChannelWidth | undefined,
+): boolean {
+  const radio = findRadio(plan, id, band)
+  if (radio.channelWidthMHz === width) return false
+  delete radio.channel
+  if (width === undefined) delete radio.channelWidthMHz
+  else radio.channelWidthMHz = width
+  return true
+}
+
+/**
+ * Fixes a radio's channel at its current width, or leaves the channel to the
+ * planner when undefined (D63). A channel needs a width, so setting one on a
+ * radio without a width throws. Returns false when nothing changed.
+ */
+export function setRadioChannel(
+  plan: Plan,
+  id: string,
+  band: Band,
+  channel: number | undefined,
+): boolean {
+  const radio = findRadio(plan, id, band)
+  if (radio.channel === channel) return false
+  if (channel === undefined) {
+    delete radio.channel
+    return true
+  }
+  if (radio.channelWidthMHz === undefined) {
+    throw new Error(`Set a width before a channel on "${id}" ${band}.`)
+  }
+  radio.channel = channel
+  return true
 }

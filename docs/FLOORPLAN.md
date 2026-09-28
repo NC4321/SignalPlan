@@ -27,7 +27,8 @@ Plan
 │  └─ background?      { imageId | dataUrl, x, y, metresPerPixel, widthPx, heightPx,
 │                        opacity, visible, locked }
 ├─ accessPoints[]
-│  └─ { id, name, floorId, x, y, heightM, radios[]: { band, txPowerDbm? } }
+│  └─ { id, name, floorId, x, y, heightM,
+│       radios[]: { band, txPowerDbm?, channelWidthMHz?, channel? } }
 ├─ coverageTarget?     excellent | good | fair | weak
 ├─ region?             US | EU
 └─ allowDfs?           boolean
@@ -45,6 +46,8 @@ An access point with `locked: true` can't be moved, by hand or by the placement 
 
 `coverageTarget` is the signal level the coverage summary counts towards, named after the heatmap bands; without it the summary uses `fair`. See [D27](DECISIONS.md#d27-coverage-summary--2026-09-27).
 
+A radio's optional `channelWidthMHz` (20, 40, 80 or 160) and `channel` (its IEEE 802.11 channel number at that width) are set by hand; without them the channel planner chooses, and a hand-set channel stays fixed for it. A channel needs a width, but a width can be set alone. Validation doesn't check them against the plan's region, so a plan keeps its channels when the region changes; the engine's `radioChannelIssue` says whether the region and DFS setting allow them, and the editor flags the ones they don't. `setRadioWidth` and `setRadioChannel` in `accessPoints.ts` edit them; a new width clears the channel. Turning a band off drops its radio, channel and width included, as it does its power. See [D63](DECISIONS.md#d63-channel-and-width-per-radio--2026-09-28).
+
 `region` says whose channel and power rules the plan follows; without it the plan is `US`. `allowDfs: true` lets 5 GHz DFS channels be used; without it they aren't. The rules themselves live in the engine, not the plan ([MODEL.md](MODEL.md#channels-and-regions), [D62](DECISIONS.md#d62-channels-by-region--2026-09-28)).
 
 A floor may have a **background** image to trace over. `x` and `y` place its top-left corner and `metresPerPixel` sets its scale. In the browser the image lives in its own store and is referenced by `imageId`; saved files embed it as a `dataUrl` instead. At least one of the two is needed. `widthPx` and `heightPx` are the image's size in pixels, `opacity` runs from 0 to 1, and `locked` stops the image being dragged by accident. See [D22](DECISIONS.md#d22-tracing-over-a-floor-plan-image--2026-09-27).
@@ -57,6 +60,7 @@ A floor may have a **background** image to trace over. `x` and `y` place its top
 - **References:** walls point at nodes on the same floor, openings at walls on the same floor, access points at existing floors.
 - **Geometry:** walls are at least 1 cm long, openings fit inside their wall and don't overlap.
 - **Uniqueness:** ids are unique within each list, and each access point has at most one radio per band.
+- **Channels:** a radio with a `channel` also has a `channelWidthMHz`.
 
 ## Versions and migrations
 

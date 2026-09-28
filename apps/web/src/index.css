@@ -654,7 +654,8 @@ dd {
   font-variant-numeric: tabular-nums;
 }
 
-.field input[aria-invalid='true'] {
+.field input[aria-invalid='true'],
+.field select[aria-invalid='true'] {
   border-color: #d55e00;
 }
 
@@ -691,6 +692,39 @@ dd {
 
 .radio-row .power-field {
   margin: 0.3rem 0 0 1.5rem;
+}
+
+.channel-fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0 0.5rem;
+  margin-left: 1.5rem;
+}
+
+.channel-fields .field {
+  margin-bottom: 0.3rem;
+  min-width: 0;
+}
+
+.channel-fields select {
+  width: 100%;
+  min-width: 0;
+}
+
+.channel-fields .field-note {
+  grid-column: 1 / -1;
+}
+
+.field-note.field-warning {
+  color: #d55e00;
+}
+
+.channel-issues {
+  margin-top: 0.5rem;
+}
+
+.channel-issues .object-list {
+  margin-top: 0.3rem;
 }
 
 .field-note {

@@ -1,4 +1,11 @@
-import { DEFAULT_REGION, type Band, type Region } from '@signalplan/floorplan'
+import {
+  CHANNEL_WIDTHS,
+  DEFAULT_REGION,
+  type Band,
+  type ChannelWidth,
+  type Radio,
+  type Region,
+} from '@signalplan/floorplan'
 import data from './regions.json'
 
 /**
@@ -7,12 +14,7 @@ import data from './regions.json'
  * code. Sources are in docs/MODEL.md, under Channels and regions.
  */
 
-/**
- * Channel widths, in MHz. 320 MHz waits for a primary source for its channel
- * numbers (D62).
- */
-export const CHANNEL_WIDTHS = [20, 40, 80, 160] as const
-export type ChannelWidth = (typeof CHANNEL_WIDTHS)[number]
+export { CHANNEL_WIDTHS, type ChannelWidth }
 
 export interface RegionBand {
   /** Frequency ranges channels may occupy, in MHz. */
@@ -105,4 +107,27 @@ export function availableChannels(
     })
   }
   return result
+}
+
+/**
+ * Why a radio's hand-set width or channel isn't allowed by the plan's rules:
+ * `region` when the region doesn't have it at all, `dfs` when it's a DFS
+ * channel and DFS is off. Undefined when it's allowed or left to the planner.
+ * The editor flags these rather than changing them (D63).
+ */
+export type ChannelIssue = 'region' | 'dfs'
+
+export function radioChannelIssue(
+  region: Region | undefined,
+  allowDfs: boolean | undefined,
+  radio: Radio,
+): ChannelIssue | undefined {
+  const width = radio.channelWidthMHz
+  if (width === undefined) return undefined
+  if (!channelWidths(region, radio.band).includes(width)) return 'region'
+  if (radio.channel === undefined) return undefined
+  const all = availableChannels(region, radio.band, width, true)
+  const found = all.find((c) => c.channel === radio.channel)
+  if (!found) return 'region'
+  return found.dfs && allowDfs !== true ? 'dfs' : undefined
 }

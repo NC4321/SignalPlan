@@ -152,6 +152,8 @@ Channels step by 4 at 20 MHz, 8 at 40 MHz, 16 at 80 MHz and 32 at 160 MHz. Every
 - 20 MHz channels 32, 68 and 96 (EN 301 893 eq. (1) allows them in the EU; they also fit US rules), and 6 GHz channel 2 (5935 MHz, its own IEEE operating class). Each is a 20 MHz-only edge channel that never joins a wider one.
 - 320 MHz on 6 GHz. The FCC allows it (§ 15.407(a)(11)), but its channel numbers are only in IEEE working-group drafts so far.
 
+A radio can have its width and channel set by hand ([D63](DECISIONS.md#d63-channel-and-width-per-radio--2026-09-28)). `radioChannelIssue` checks them against these lists: a width the region doesn't have on the band, or a channel not in its list at that width, is not allowed, and a DFS channel needs the plan's DFS setting. Nothing in the coverage model uses channels yet; interference comes with #113.
+
 To add a region, or change one when the rules change: add or edit its entry in `regions.json` (ranges, DFS ranges, channel lists per width, highest EIRP and the note the editor shows), add its code to `REGIONS` in the floorplan schema, add a row above with its sources, and bump the file's `version` date. The unit tests check every channel against the ranges.
 
 ## Wall materials

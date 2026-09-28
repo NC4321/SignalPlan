@@ -47,6 +47,12 @@ export const REGIONS = ['US', 'EU'] as const
 /** The region assumed when a plan doesn't say: plans made before D62. */
 export const DEFAULT_REGION: Region = 'US'
 
+/**
+ * Channel widths, in MHz. 320 MHz waits for a primary source for its channel
+ * numbers (D62).
+ */
+export const CHANNEL_WIDTHS = [20, 40, 80, 160] as const
+
 /** Signal levels a plan can aim for, named after the heatmap bands (D12). */
 export const COVERAGE_TARGETS = ['excellent', 'good', 'fair', 'weak'] as const
 
@@ -137,14 +143,30 @@ export const floorSchema = z.object({
   background: backgroundSchema.optional(),
 })
 
-export const radioSchema = z.object({
-  band: bandSchema,
-  /**
-   * Effective radiated power (EIRP) in dBm, antenna gain included. Omitted
-   * means the engine's default for the band.
-   */
-  txPowerDbm: z.number().min(-10).max(40).optional(),
-})
+export const radioSchema = z
+  .object({
+    band: bandSchema,
+    /**
+     * Effective radiated power (EIRP) in dBm, antenna gain included. Omitted
+     * means the engine's default for the band.
+     */
+    txPowerDbm: z.number().min(-10).max(40).optional(),
+    /**
+     * IEEE 802.11 channel number at `channelWidthMHz`, set by hand and fixed
+     * for the channel planner (D61, D63). Omitted means the planner chooses.
+     * Whether the plan's region allows it is checked by the engine, not here,
+     * so a plan keeps its channels when its region changes.
+     */
+    channel: z.number().int().min(1).max(233).optional(),
+    /** Channel width in MHz. Omitted means the planner chooses. */
+    channelWidthMHz: z
+      .union(CHANNEL_WIDTHS.map((w) => z.literal(w)))
+      .optional(),
+  })
+  .refine((r) => r.channel === undefined || r.channelWidthMHz !== undefined, {
+    message: 'A radio with a channel needs a channel width',
+    path: ['channelWidthMHz'],
+  })
 
 export const accessPointSchema = z.object({
   id,
@@ -178,6 +200,7 @@ export const planSchema = z.object({
 export type WallMaterial = z.infer<typeof wallMaterialSchema>
 export type FloorMaterial = (typeof FLOOR_MATERIALS)[number]
 export type Region = (typeof REGIONS)[number]
+export type ChannelWidth = (typeof CHANNEL_WIDTHS)[number]
 export type OpeningMaterial = z.infer<typeof openingMaterialSchema>
 export type Band = z.infer<typeof bandSchema>
 export type PlanNode = z.infer<typeof nodeSchema>

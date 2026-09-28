@@ -7,6 +7,7 @@ import {
   channelCentreMHz,
   channelSpanMHz,
   channelWidths,
+  radioChannelIssue,
   REGION_RULES,
   regionBand,
 } from './regions.ts'
@@ -137,5 +138,64 @@ describe('available channels', () => {
       CHANNEL_WIDTHS.map((w) => availableChannels(region, '6GHz', w).length)
     expect(count('US')).toEqual([59, 29, 14, 7])
     expect(count('EU')).toEqual([24, 12, 6, 3])
+  })
+})
+
+describe('radioChannelIssue', () => {
+  it('has nothing to say about radios left to the planner', () => {
+    expect(radioChannelIssue('EU', false, { band: '5GHz' })).toBeUndefined()
+    expect(
+      radioChannelIssue('EU', false, { band: '5GHz', channelWidthMHz: 160 }),
+    ).toBeUndefined()
+  })
+
+  it('flags a width the region lacks on the band', () => {
+    // 2.4 GHz allows 20 and 40 MHz only (D62).
+    expect(
+      radioChannelIssue('US', true, { band: '2.4GHz', channelWidthMHz: 80 }),
+    ).toBe('region')
+  })
+
+  it('flags channels outside the region', () => {
+    // 2.4 GHz channel 12 is EU-only; 5 GHz 149 (5735–5755 MHz) is above the
+    // EU's 5725 MHz edge.
+    const ch12 = { band: '2.4GHz', channel: 12, channelWidthMHz: 20 } as const
+    expect(radioChannelIssue('US', false, ch12)).toBe('region')
+    expect(radioChannelIssue('EU', false, ch12)).toBeUndefined()
+    const ch149 = { band: '5GHz', channel: 149, channelWidthMHz: 20 } as const
+    expect(radioChannelIssue('US', false, ch149)).toBeUndefined()
+    expect(radioChannelIssue('EU', true, ch149)).toBe('region')
+  })
+
+  it('flags DFS channels only while DFS is off', () => {
+    // 52 at 20 MHz spans 5250–5270 MHz, inside the 5250–5350 DFS range; 50
+    // at 160 MHz spans 5170–5330 MHz, so part of it is DFS too.
+    for (const radio of [
+      { band: '5GHz', channel: 52, channelWidthMHz: 20 },
+      { band: '5GHz', channel: 50, channelWidthMHz: 160 },
+    ] as const) {
+      expect(radioChannelIssue('US', false, radio)).toBe('dfs')
+      expect(radioChannelIssue('US', true, radio)).toBeUndefined()
+      expect(radioChannelIssue('EU', undefined, radio)).toBe('dfs')
+    }
+    // 36 at 20 MHz ends at 5190 MHz, clear of DFS.
+    expect(
+      radioChannelIssue('US', false, {
+        band: '5GHz',
+        channel: 36,
+        channelWidthMHz: 20,
+      }),
+    ).toBeUndefined()
+  })
+
+  it('flags a channel number that belongs to another width', () => {
+    // 38 is a 40 MHz channel, not a 20 MHz one.
+    expect(
+      radioChannelIssue('US', true, {
+        band: '5GHz',
+        channel: 38,
+        channelWidthMHz: 20,
+      }),
+    ).toBe('region')
   })
 })
