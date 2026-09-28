@@ -112,6 +112,13 @@ A running log of project decisions, newest last. Each entry records what was dec
 - **Limits:** 2.0 and 2.5 GHz bracket the band rather than sit in it; the model's own 2.0 GHz values are within about 1 dB of its 2.4 GHz band averages for these samples.
 - **Revisit if:** an in-band lab source becomes readable (the Energy Procedia paper is the first to try), or #55 changes the masonry or wood constructions.
 
+### D33. Masonry and wood validation, second source — 2026-09-27
+
+- **Decision:** add Muqaibel (Virginia Tech, 2003) as a second measurement source and Rhim (MIT, 1995) for how moisture changes concrete, with a test that keeps the wooden door and glass within 1 dB in all three bands and records that the model under-predicts dry-stacked brick by less than 5 dB. No material values change yet: whether to change `brick` or `concrete` is **pending the user's decision** on #55.
+- **Findings:** the model is below every wood measurement, but by only 0.4–0.5 dB for Muqaibel's 44.5 mm door, against 2–5 dB for NIST's lumber and the Shakya fire door. Brick is under-predicted by every source: 0.8–4.8 dB for Muqaibel's dry-stacked wall and 12 dB for NIST's mortared one at 5 GHz, but NIST's 3–8 GHz brick is out of line with its own 2.0 GHz value (D32) and with Muqaibel, so the supported gap is about 1–5 dB. Concrete loss is dominated by moisture: with Rhim's measured permittivities, 102 mm of concrete loses 4.0 dB at 5 GHz air dried, 16.1 dB saturated and 27.4 dB wet; P.2040's concrete (14.2 dB) behaves like saturated concrete, and NIST's (17.9–26.8 dB) lies between saturated and wet. P.2040-4 doesn't state the moisture of its samples. Details are in [MODEL.md](MODEL.md#masonry-and-wood-second-sources).
+- **Why:** D9 keeps measurements for validating rather than setting values, and D31 asked for a second source before retuning masonry. The second source confirms the direction for brick but not the size, and for concrete it shows the answer depends on moisture, which a plan doesn't record.
+- **Revisit if:** the user picks a change on #55, or Phase 7 measurements in real homes show a consistent error behind brick or concrete walls.
+
 ## Phase 3
 
 ### D12. Heatmap colours — 2026-09-27

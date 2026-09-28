@@ -286,3 +286,78 @@ describe('validation against NIST measurements at 2.0 GHz', () => {
     expect(Math.abs(model - measured)).toBeLessThan(4)
   })
 })
+
+/**
+ * Model against insertion loss measured head on by A. H. Muqaibel,
+ * "Characterization of Ultra Wideband Communication Channels", PhD
+ * dissertation, Virginia Tech, 2003, Table 4.3. The table gives each sample's
+ * loss as a straight line in frequency, a·f + b dB (f in GHz), and its loss at
+ * 5 GHz; thicknesses are the table's. The brick wall is dry-stacked cored clay
+ * brick (Figure B2.1), which the model under-predicts; see MODEL.md.
+ */
+describe('validation against Muqaibel measurements at 2.4, 5 and 6 GHz', () => {
+  const specimens = {
+    door: {
+      name: 'wooden door, 44.5 mm',
+      layers: [{ material: 'wood', thicknessM: mm(44.4754) }] as Layer[],
+      line: [0.3777, 0.1258],
+      tableAt5GHz: 2.0,
+    },
+    glass: {
+      name: 'glass, 2.36 mm',
+      layers: [{ material: 'glass', thicknessM: mm(2.35661) }] as Layer[],
+      line: [0.2895, 0.1005],
+      tableAt5GHz: 1.25,
+    },
+    brick: {
+      name: 'brick wall, 87.1 mm',
+      layers: [{ material: 'brick', thicknessM: mm(87.1474) }] as Layer[],
+      line: [1.0702, 0.9757],
+      tableAt5GHz: 6.45,
+    },
+  }
+
+  const lineDb = ([a, b]: number[], f: number) => a! * f + b!
+  /** Measured loss averaged over the band as power, like `slabLossDb`. */
+  const measuredLossDb = (line: number[], frequencies: number[]) => {
+    const power = frequencies.map((f) => 10 ** (-lineDb(line, f) / 10))
+    return -10 * Math.log10(power.reduce((a, b) => a + b) / power.length)
+  }
+
+  it.each(Object.values(specimens))(
+    'copies the line for $name',
+    ({ line, tableAt5GHz }) => {
+      // The table's 5 GHz value is measured; the line is a fit to it.
+      expect(Math.abs(lineDb(line, 5) - tableAt5GHz)).toBeLessThan(0.35)
+    },
+  )
+
+  for (const band of ['2.4GHz', '5GHz', '6GHz'] as const) {
+    const frequencies = bandSamples(BAND_PROFILES[band])
+    it.each([specimens.door, specimens.glass])(
+      `is within 1 dB at ${band} for $name`,
+      ({ layers, line }) => {
+        const model = slabLossDb(layers, frequencies)
+        const measured = measuredLossDb(line, frequencies)
+        expect(Math.abs(model - measured)).toBeLessThan(1)
+      },
+    )
+  }
+
+  // The line is stated for 1–7 GHz, so the 6 GHz band isn't checked here.
+  it.each(['2.4GHz', '5GHz'] as const)(
+    'under-predicts the brick wall by less than 5 dB at %s',
+    (band) => {
+      const frequencies = bandSamples(BAND_PROFILES[band])
+      const { layers, line } = specimens.brick
+      const shortfall =
+        measuredLossDb(line, frequencies) - slabLossDb(layers, frequencies)
+      expect(shortfall).toBeGreaterThan(0)
+      expect(shortfall).toBeLessThan(5)
+    },
+  )
+
+  it('averages a flat line to its own value', () => {
+    expect(measuredLossDb([0, 3], [5, 6])).toBeCloseTo(3, 10)
+  })
+})
