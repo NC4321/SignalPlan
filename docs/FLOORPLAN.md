@@ -23,6 +23,7 @@ Plan
 │  ├─ nodes[]          { id, x, y }
 │  ├─ walls[]          { id, from, to, material }
 │  ├─ openings[]       { id, wallId, kind: door | window, offsetM, widthM, material }
+│  ├─ floorOpenings[]? { id, points[]: { x, y } }  holes in the slab: stairwells, atriums
 │  └─ background?      { imageId | dataUrl, x, y, metresPerPixel, widthPx, heightPx,
 │                        opacity, visible, locked }
 ├─ accessPoints[]
@@ -33,6 +34,8 @@ Plan
 Wall materials are `drywall`, `brick`, `concrete`, `glass`, `low-e-glass`, `wood` and `metal`; each stands for a typical North American construction described in [MODEL.md](MODEL.md#wall-materials). Openings can use any of these, or `open` for a doorway with no door. Bands are `2.4GHz`, `5GHz` and `6GHz`. `txPowerDbm` is the radio's EIRP (antenna gain included); a radio without it uses the engine's default for its band.
 
 A floor's `material` is its slab, the floor under its rooms, which signal crosses to and from the storey below: `timber-joist` or `concrete-slab`, described in [MODEL.md](MODEL.md#floor-materials). Without it the floor is `timber-joist`. The lowest floor's slab is never crossed. See [D51](DECISIONS.md#d51-signal-between-floors--2026-09-28).
+
+A floor's optional `floorOpenings` are holes in its slab, such as stairwells and atriums: each is a polygon of at least three corners in order, in plan metres. Signal crossing the slab inside one pays no floor loss, and its area isn't counted as floor. Validation checks that ids are unique within the floor and that each opening has some area. `addFloorOpening`, `moveFloorOpening`, `moveFloorOpeningCorner` and `deleteFloorOpening` in `floorOpenings.ts` edit them; adding refuses an outline under 0.01 m², and moving a corner refuses a move that would leave one. The field was added without a version bump, since older plans simply have none. See [D54](DECISIONS.md#d54-stairwells-and-atriums--2026-09-28).
 
 Floors stack by `elevationM`; their order in `floors[]` doesn't matter. `addFloor`, `moveFloor` and `deleteFloor` in `floors.ts` add a floor on top or at the bottom (on a slab of the construction's real thickness), swap a floor with its neighbour, and delete a floor with its access points. See [D52](DECISIONS.md#d52-the-floor-list--2026-09-28).
 

@@ -410,3 +410,83 @@ describe('ghostFloor (D53)', () => {
     expect(ghostFloor(store.getState())).toBeUndefined()
   })
 })
+
+describe('floor openings (D54)', () => {
+  /** The sample home with an upper floor added and on show. */
+  function twoStoreys() {
+    const store = createEditorStore(sample())
+    store.getState().addFloor('above')
+    store.getState().setTool('floorOpening')
+    return store
+  }
+  const corners = [
+    { x: 1, y: 1 },
+    { x: 3, y: 1 },
+    { x: 3, y: 2 },
+    { x: 1, y: 2 },
+  ]
+
+  it('adds an opening as one undo step when the first corner is clicked again', () => {
+    const store = twoStoreys()
+    const steps = store.getState().past.length
+    for (const p of corners) store.getState().clickOutlinePoint(p)
+    expect(store.getState().outline).toHaveLength(4)
+    expect(store.getState().past).toHaveLength(steps)
+    store.getState().clickOutlinePoint({ x: 1, y: 1 })
+    const state = store.getState()
+    expect(state.outline).toBeUndefined()
+    expect(state.past).toHaveLength(steps + 1)
+    expect(state.past.at(-1)!.label).toBe('Add floor opening')
+    const floor = state.plan.floors.find((f) => f.id === state.floorId)!
+    expect(floor.floorOpenings).toEqual([{ id: 'hole1', points: corners }])
+    expect(state.selection).toEqual([{ kind: 'floorOpening', id: 'hole1' }])
+    store.getState().undo()
+    const after = store.getState()
+    expect(
+      after.plan.floors.find((f) => f.id === after.floorId)!.floorOpenings,
+    ).toBeUndefined()
+    expect(after.selection).toEqual([])
+  })
+
+  it('closes on Enter (finishOutline) only with three corners and some area', () => {
+    const store = twoStoreys()
+    const steps = store.getState().past.length
+    store.getState().clickOutlinePoint({ x: 0, y: 0 })
+    store.getState().clickOutlinePoint({ x: 1, y: 0 })
+    store.getState().finishOutline()
+    expect(store.getState().outline).toBeUndefined()
+    expect(store.getState().past).toHaveLength(steps)
+    for (const p of corners.slice(0, 3)) store.getState().clickOutlinePoint(p)
+    store.getState().finishOutline()
+    expect(store.getState().past).toHaveLength(steps + 1)
+  })
+
+  it('undo steps back one corner while drawing, and Esc drops the outline', () => {
+    const store = twoStoreys()
+    const steps = store.getState().past.length
+    for (const p of corners.slice(0, 3)) store.getState().clickOutlinePoint(p)
+    store.getState().undo()
+    expect(store.getState().outline).toEqual(corners.slice(0, 2))
+    store.getState().cancelOutline()
+    expect(store.getState().outline).toBeUndefined()
+    expect(store.getState().past).toHaveLength(steps)
+  })
+
+  it('is not available on the lowest floor', () => {
+    const store = createEditorStore(sample())
+    store.getState().setTool('floorOpening')
+    expect(store.getState().tool).toBe('select')
+    // Switching to the lowest floor leaves the tool.
+    const upper = twoStoreys()
+    upper.getState().setFloor('main')
+    expect(upper.getState().tool).toBe('select')
+  })
+
+  it('leaves the tool when the floor below is deleted', () => {
+    const store = twoStoreys()
+    store.getState().clickOutlinePoint({ x: 0, y: 0 })
+    store.getState().deleteFloor('main')
+    expect(store.getState().tool).toBe('select')
+    expect(store.getState().outline).toBeUndefined()
+  })
+})

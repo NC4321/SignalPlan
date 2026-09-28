@@ -1,11 +1,16 @@
-import type { AccessPoint, Floor, Point } from '@signalplan/floorplan'
+import {
+  polygonArea,
+  type AccessPoint,
+  type Floor,
+  type Point,
+} from '@signalplan/floorplan'
 import type { Selection, SelectionItem } from './store.ts'
-import { formatLength, type Units } from './units.ts'
+import { formatArea, formatLength, type Units } from './units.ts'
 import { WALL_STYLES } from './wallStyles.ts'
 
 /**
  * Keyboard selection on the canvas (D23). Tab visits walls, then doors and
- * windows, then corners, then access points; each group in reading order
+ * windows, then corners, then openings in the floor (D54), then access points; each group in reading order
  * (top to bottom, then left to right) so the order matches what's on screen.
  */
 export function keyboardOrder(
@@ -52,6 +57,10 @@ export function keyboardOrder(
     ...group(
       'node',
       floor.nodes.map((n) => ({ id: n.id, at: n })),
+    ),
+    ...group(
+      'floorOpening',
+      (floor.floorOpenings ?? []).map((o) => ({ id: o.id, at: o.points[0] })),
     ),
     ...group(
       'accessPoint',
@@ -136,6 +145,12 @@ export function describeForScreenReader(
     ).length
     const joins = `joining ${walls} wall${walls === 1 ? '' : 's'}`
     return `Corner ${joins}, ${at(corner)}${position}`
+  }
+  if (item.kind === 'floorOpening') {
+    const opening = floor.floorOpenings?.find((o) => o.id === item.id)
+    if (!opening) return 'Nothing selected'
+    const area = formatArea(polygonArea(opening.points), units)
+    return `Floor opening, ${area}, ${at(opening.points[0]!)}${position}`
   }
   const ap = accessPoints.find((a) => a.id === item.id)
   if (!ap) return 'Nothing selected'

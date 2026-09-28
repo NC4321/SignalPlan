@@ -1,5 +1,6 @@
 import {
   addFloor,
+  addFloorOpening,
   adjacentFloorId,
   addWall,
   deleteFloor,
@@ -48,13 +49,19 @@ export const HISTORY_LIMIT = 200
 
 /** `calibrate` is the step after adding a tracing image: click two points. */
 export type Tool =
-  'select' | 'wall' | 'door' | 'window' | 'accessPoint' | 'calibrate'
+  | 'select'
+  | 'wall'
+  | 'door'
+  | 'window'
+  | 'floorOpening'
+  | 'accessPoint'
+  | 'calibrate'
 
 /** Sizes for new openings (D19): a 32″ door and a 48″ window. */
 export const DEFAULT_OPENING_WIDTH_M = { door: 0.8128, window: 1.2192 } as const
 
 export type SelectionItem = {
-  kind: 'accessPoint' | 'wall' | 'node' | 'opening'
+  kind: 'accessPoint' | 'wall' | 'node' | 'opening' | 'floorOpening'
   id: string
 }
 
@@ -92,6 +99,11 @@ export interface EditorState {
   wallMaterial: WallMaterial
   /** The chain of walls being drawn, if any. */
   chain: Chain | undefined
+  /**
+   * Floor opening tool: the corners clicked so far of the opening being
+   * drawn (D54). It becomes an edit only when it closes.
+   */
+  outline: Point[] | undefined
   /** Calibration: the points clicked on the tracing image so far. */
   calibrationPoints: Point[]
   /** Material for new doors and windows: the last one picked for each. */
@@ -173,6 +185,18 @@ export interface EditorState {
   clickWallPoint: (point: Point) => void
   /** Finishes the chain being drawn, keeping its walls. */
   endChain: () => void
+  /**
+   * Floor opening tool: a click at a (snapped) point adds a corner; on the
+   * first corner it closes the outline.
+   */
+  clickOutlinePoint: (point: Point) => void
+  /**
+   * Closes the outline being drawn into a floor opening, if it has at least
+   * three corners and some area, or else drops it.
+   */
+  finishOutline: () => void
+  /** Drops the outline being drawn without adding anything. */
+  cancelOutline: () => void
 }
 
 const samePoint = (a: Point, b: Point) =>
@@ -231,8 +255,10 @@ function keptFloorId(before: Plan, after: Plan, floorId: string): string {
 function afterChange(
   state: EditorState,
   next: Plan,
-): Pick<EditorState, 'plan' | 'floorId' | 'selection'> {
+): Pick<EditorState, 'plan' | 'floorId' | 'selection' | 'tool' | 'outline'> {
   const floorId = keptFloorId(state.plan, next, state.floorId)
+  // A floor that is now the lowest has no slab to cut (D54).
+  const uncut = state.tool === 'floorOpening' && !canCutFloor(next, floorId)
   return {
     plan: next,
     floorId,
@@ -240,6 +266,8 @@ function afterChange(
       floorId === state.floorId
         ? validSelection(next, floorId, state.selection)
         : [],
+    tool: uncut ? 'select' : state.tool,
+    outline: uncut || floorId !== state.floorId ? undefined : state.outline,
   }
 }
 
@@ -256,6 +284,8 @@ function validSelection(plan: Plan, floorId: string, selection: Selection) {
         return floor?.nodes.some((n) => n.id === item.id) ?? false
       case 'opening':
         return floor?.openings.some((o) => o.id === item.id) ?? false
+      case 'floorOpening':
+        return floor?.floorOpenings?.some((o) => o.id === item.id) ?? false
     }
   }
   const kept = selection.filter(exists)
@@ -279,6 +309,7 @@ export function createEditorStore(
     pointer: undefined,
     wallMaterial: 'drywall',
     chain: undefined,
+    outline: undefined,
     openingMaterial: { door: 'wood', window: 'glass' },
     calibrationPoints: [],
     past: [],
@@ -334,7 +365,12 @@ export function createEditorStore(
     },
 
     undo: () => {
-      const { past, plan, gesture, chain } = get()
+      const { past, plan, gesture, chain, outline } = get()
+      if (outline) {
+        // Mid-outline, undo steps back one corner, as for walls (D16).
+        set({ outline: outline.length > 1 ? outline.slice(0, -1) : undefined })
+        return
+      }
       if (chain) {
         // Mid-chain, undo steps back one click (D16).
         const last = chain.at(-1)!
@@ -382,6 +418,7 @@ export function createEditorStore(
         selection: [],
         camera: undefined,
         chain: undefined,
+        outline: undefined,
         optimizer: undefined,
       })
     },
@@ -411,8 +448,14 @@ export function createEditorStore(
         floorId,
         selection: [],
         chain: undefined,
+        outline: undefined,
         calibrationPoints: [],
-        tool: state.tool === 'calibrate' ? 'select' : state.tool,
+        // The lowest floor has no slab to cut (D54).
+        tool:
+          state.tool === 'calibrate' ||
+          (state.tool === 'floorOpening' && !canCutFloor(state.plan, floorId))
+            ? 'select'
+            : state.tool,
         notice: undefined,
         ...dropOptimizer(state.optimizer, 'the floor changed'),
       })
@@ -459,7 +502,17 @@ export function createEditorStore(
     setUnits: (units) => set({ units }),
     setShowHeatmap: (showHeatmap) => set({ showHeatmap }),
     setShowGhost: (showGhost) => set({ showGhost }),
-    setTool: (tool) => set({ tool, chain: undefined, calibrationPoints: [] }),
+    setTool: (tool) =>
+      set((state) =>
+        tool === 'floorOpening' && !canCutFloor(state.plan, state.floorId)
+          ? {}
+          : {
+              tool,
+              chain: undefined,
+              outline: undefined,
+              calibrationPoints: [],
+            },
+      ),
     addCalibrationPoint: (point) =>
       set((state) => ({
         calibrationPoints: [...state.calibrationPoints, point].slice(-2),
@@ -536,7 +589,43 @@ export function createEditorStore(
     },
 
     endChain: () => set({ chain: undefined }),
+
+    clickOutlinePoint: (point) => {
+      const { outline } = get()
+      if (!outline) {
+        set({ outline: [point], selection: [] })
+        return
+      }
+      if (samePoint(outline.at(-1)!, point)) return // e.g. a double-click
+      if (outline.length >= 3 && samePoint(outline[0]!, point)) {
+        get().finishOutline()
+        return
+      }
+      set({ outline: [...outline, point] })
+    },
+
+    finishOutline: () => {
+      const { outline, floorId } = get()
+      set({ outline: undefined })
+      if (!outline) return
+      let created: string | undefined
+      get().edit('Add floor opening', (draft) => {
+        const target = draft.floors.find((f) => f.id === floorId)!
+        created = addFloorOpening(target, outline)
+      })
+      if (created) get().select([{ kind: 'floorOpening', id: created }])
+    },
+
+    cancelOutline: () => set({ outline: undefined }),
   }))
+}
+
+/**
+ * Whether a floor has a slab worth cutting: any floor but the lowest, whose
+ * slab no signal crosses (D51, D54).
+ */
+export function canCutFloor(plan: Plan, floorId: string): boolean {
+  return adjacentFloorId(plan.floors, floorId, -1) !== undefined
 }
 
 /**

@@ -101,6 +101,8 @@ function App({
         state.setTool('door')
       } else if (!mod && !event.altKey && key === 'n') {
         state.setTool('window')
+      } else if (!mod && !event.altKey && key === 'o') {
+        state.setTool('floorOpening')
       } else if (!mod && !event.altKey && key === 'a') {
         state.setTool('accessPoint')
       } else if (
@@ -118,6 +120,8 @@ function App({
         if (next) state.setFloor(next)
       } else if (key === 'enter' && state.chain) {
         state.endChain()
+      } else if (key === 'enter' && state.outline) {
+        state.finishOutline()
       } else if (key === 'delete' || key === 'backspace') {
         if (state.selection.length === 0) return
         event.preventDefault()
@@ -127,8 +131,10 @@ function App({
         )
       } else if (key === 'escape') {
         // Esc finishes the chain; pressed again, it returns to Select (D16).
-        // It also stops a search or dismisses a suggestion (D44).
+        // It also stops a search or dismisses a suggestion (D44), and drops a
+        // floor opening being drawn (D54).
         if (state.chain) state.endChain()
+        else if (state.outline) state.cancelOutline()
         else if (state.optimizer) state.setOptimizer(undefined)
         else if (state.tool !== 'select') state.setTool('select')
         else state.select([])

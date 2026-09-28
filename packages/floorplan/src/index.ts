@@ -7,6 +7,13 @@ export {
   SLAB_THICKNESS_M,
   stackedFloors,
 } from './floors.ts'
+export {
+  addFloorOpening,
+  deleteFloorOpening,
+  MIN_FLOOR_OPENING_AREA_M2,
+  moveFloorOpening,
+  moveFloorOpeningCorner,
+} from './floorOpenings.ts'
 export { migrate, MigrationError } from './migrate.ts'
 export {
   checkStructure,
@@ -19,6 +26,8 @@ export {
 export {
   materialSegments,
   openingSpans,
+  pointInPolygon,
+  polygonArea,
   type MaterialSegment,
   type OpeningSpan,
   type Point,

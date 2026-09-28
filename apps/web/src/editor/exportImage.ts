@@ -200,6 +200,7 @@ export function renderExport(
     selection: [],
     wallLines: [],
     openings: openingSpans(floor),
+    floorOpenings: floor.floorOpenings ?? [],
     corners: [],
   })
   context.restore()

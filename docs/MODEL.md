@@ -34,7 +34,7 @@ Access points on other floors count too (D51); see [Signal between floors](#sign
 
 ### Coverage summary
 
-The editor reports the share of the **floor area** at or above a target level (D27). Floor area is the set of cells inside the outer walls (`floorArea.ts`): the outside is flooded in from the grid's edge, stepping between neighbouring cell centres, and a step that touches a wall is blocked. Cells the flood can't reach are inside. Doors and windows sit on walls, so they count as closed. The sample home measures exactly its stated 150 m². A cell whose centre lies exactly on a wall also counts as inside, so the area can run over by up to half a cell along such walls.
+The editor reports the share of the **floor area** at or above a target level (D27). Floor area is the set of cells inside the outer walls (`floorArea.ts`): the outside is flooded in from the grid's edge, stepping between neighbouring cell centres, and a step that touches a wall is blocked. Cells the flood can't reach are inside. Doors and windows sit on walls, so they count as closed. The sample home measures exactly its stated 150 m². A cell whose centre lies exactly on a wall also counts as inside, so the area can run over by up to half a cell along such walls. Cells whose centre lies in an opening in the floor, such as a stairwell (D54), aren't floor: nobody stands there, so they're left out of the summary, and the optimizer never places an access point there. The heatmap is still drawn over them.
 
 ### Placement optimizer
 
@@ -82,7 +82,7 @@ The Phase 2 budget is a 100 m² floor at 10 cm cells in under 200 ms. Large home
 - the sample home;
 - a deliberately busy "room grid" of 25 rooms, each 2 m square, in 10 × 10 m, with 60 walls, a door or window in every wall and 2 access points;
 - a "big house" of 25 rooms, each 4 × 3 m, in 20 × 15 m, laid out the same way;
-- a two-storey house (D51): two floors of 25 rooms, each 3 × 2 m, in 15 × 10 m, laid out the same way, with a timber joist floor between, the router downstairs and one access point upstairs. It's 300 m² in all, so it has the big house's budget, and each floor is timed with both access points, one of them through the floor.
+- a two-storey house (D51): two floors of 25 rooms, each 3 × 2 m, in 15 × 10 m, laid out the same way, with a timber joist floor between, a 1 × 3 m stairwell through it (D54), the router downstairs and one access point upstairs. It's 300 m² in all, so it has the big house's budget, and each floor is timed with both access points, one of them through the floor.
 
 Median per band, from 2026-09-27:
 
@@ -189,7 +189,9 @@ A path from an access point on one floor to a point on another is still one stra
 
 Walls count along the part of the path inside each storey, between that floor's surface and its ceiling (or the next floor's surface, if that's lower). The path is split where its height passes each ceiling and surface, and each floor's walls are checked along its own stretch, including floors in between. For example, a router 2 m up on the ground floor (ceiling 2.4 m) and a phone 3 m across upstairs (floor at 2.7 m, phone at 3.7 m): the path leaves the ground floor 0.7 m across, passes through the slab until 1.24 m across, and is upstairs from there. A ground-floor wall 1 m from the router isn't crossed, and nor is an upstairs wall at that spot. Straight above an access point the path crosses no walls at all, only slabs. If an access point is mounted higher than a receiver on the floor above, which can't happen in a real storey, the path is split halfway.
 
-Every slab covers the whole plan, including outside the upper floor's walls, where the lower floor's roof or ceiling would be; roofs aren't modelled otherwise. Stairwells and atriums (#90) will cut holes in slabs.
+Every slab covers the whole plan, including outside the upper floor's walls, where the lower floor's roof or ceiling would be; roofs aren't modelled otherwise.
+
+**Stairwells and atriums (D54).** A floor can have openings: polygons cut out of its slab. A path skips a slab's loss if it passes through one of that slab's openings at the slab's middle height, halfway between the ceiling below and the floor's surface. So a phone straight above the router, over a stairwell, gets only the 3D distance, while a phone beside the stairwell pays the slab if the path meets the slab outside the opening. The path is still one straight line: signal doesn't bend round the edge of the opening, and a path that clips the slab near an edge counts as fully in or fully out. Walls on each floor count along their stretch as before, so a stairwell's own walls still cost what they're made of. An opening belongs to the floor it's cut from, the upper of the two, and only that slab is spared: a path to the floor above it still pays that floor's slab, unless that floor has an opening there too. Openings on the lowest floor change no signal, since its slab is never crossed; they only leave their area out of the floor's.
 
 Two consequences follow from the geometry. Adding floors between, or making a storey taller, never raises the signal on a plan with no walls (a property test checks this), since the path only gets longer and crosses more slabs. With walls it can: a steeper path spends less of its length in each storey and may pass fewer walls there. And the loss is the same in both directions (property tested).
 

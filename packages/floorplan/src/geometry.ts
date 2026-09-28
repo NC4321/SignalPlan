@@ -111,3 +111,33 @@ export function openingSpans(floor: Floor): OpeningSpan[] {
   }
   return spans
 }
+
+/**
+ * Whether a point lies inside a polygon given by its corners in order, by the
+ * even-odd rule. Points exactly on an edge may fall either way.
+ */
+export function pointInPolygon(p: Point, polygon: readonly Point[]): boolean {
+  let inside = false
+  for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+    const a = polygon[i]!
+    const b = polygon[j]!
+    if (
+      a.y > p.y !== b.y > p.y &&
+      p.x < ((b.x - a.x) * (p.y - a.y)) / (b.y - a.y) + a.x
+    ) {
+      inside = !inside
+    }
+  }
+  return inside
+}
+
+/** Area of a simple polygon given by its corners in order, in m². */
+export function polygonArea(polygon: readonly Point[]): number {
+  let twice = 0
+  for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+    const a = polygon[j]!
+    const b = polygon[i]!
+    twice += a.x * b.y - b.x * a.y
+  }
+  return Math.abs(twice) / 2
+}

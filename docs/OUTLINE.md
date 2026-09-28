@@ -181,7 +181,7 @@ Goal: plan a whole house, with signal passing between floors, and show it as a r
 - [ ] Floor list: add, rename, reorder, set height, and pick a floor material
 - [ ] Ghosted view of the floor below while drawing, to line up walls and stairs
 - [ ] Engine: 3D distance plus floor loss for points on other floors
-- [ ] Stairwells and open atriums as floor openings with no floor loss
+- [x] Stairwells and open atriums as floor openings with no floor loss
 - [ ] Optimizer extended across floors
 - [ ] 3D view with three.js: stacked floors, walls extruded, heatmap on each floor
 

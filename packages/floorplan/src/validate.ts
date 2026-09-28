@@ -1,3 +1,4 @@
+import { polygonArea } from './geometry.ts'
 import { migrate, MigrationError } from './migrate.ts'
 import { planSchema, type Floor, type Plan } from './schema.ts'
 
@@ -91,6 +92,12 @@ function checkFloor(
   checkUniqueIds(floor.nodes, `${path}.nodes`, report)
   checkUniqueIds(floor.walls, `${path}.walls`, report)
   checkUniqueIds(floor.openings, `${path}.openings`, report)
+  checkUniqueIds(floor.floorOpenings ?? [], `${path}.floorOpenings`, report)
+  floor.floorOpenings?.forEach((opening, o) => {
+    if (polygonArea(opening.points) < 1e-6) {
+      report(`${path}.floorOpenings[${o}]`, 'Floor opening has no area.')
+    }
+  })
 
   const nodes = new Map(floor.nodes.map((node) => [node.id, node]))
   const wallLengths = new Map<string, number>()

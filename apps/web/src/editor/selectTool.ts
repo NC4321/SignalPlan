@@ -1,13 +1,17 @@
 import {
   deleteAccessPoint,
+  deleteFloorOpening,
   alongWall,
   collapseShortWalls,
   deleteNode,
   deleteOpening,
   deleteWall,
   joinNode,
+  moveFloorOpening,
+  moveFloorOpeningCorner,
   moveNodes,
   moveOpening,
+  pointInPolygon,
   splitWall,
   type AccessPoint,
   type Floor,
@@ -16,7 +20,7 @@ import {
   type Point,
 } from '@signalplan/floorplan'
 import type { Draft } from 'immer'
-import { toScreen, type Camera } from './camera.ts'
+import { toPlan, toScreen, type Camera } from './camera.ts'
 import { AP_RADIUS_PX, baseWallWidth } from './render.ts'
 import { nearestOnSegment, snapPoint } from './snap.ts'
 import type { Recipe, Selection, SelectionItem, Tool } from './store.ts'
@@ -53,13 +57,16 @@ export function pressGrabsAccessPoint(
   drawingChain: boolean,
   altKey: boolean,
 ): boolean {
-  if (tool === 'wall') return !drawingChain && !altKey
+  if (tool === 'wall' || tool === 'floorOpening') {
+    return !drawingChain && !altKey
+  }
   return tool !== 'calibrate'
 }
 
 /**
  * What is under a screen point, in order of priority: an access point, a
- * corner, a door or window, then a wall.
+ * corner, a door or window, a wall, then an opening in the floor, by its
+ * edge or anywhere inside it.
  */
 export function hitTest(
   camera: Camera,
@@ -103,7 +110,73 @@ export function hitTest(
       best = { item: { kind: 'wall', id: wall.id }, d }
     }
   }
-  return best?.item
+  return best?.item ?? floorOpeningAt(camera, floor, screen)
+}
+
+/** The opening in the floor under a screen point: near its edge or inside. */
+function floorOpeningAt(
+  camera: Camera,
+  floor: Floor,
+  screen: Point,
+): SelectionItem | undefined {
+  const plan = toPlan(camera, screen)
+  let best: { id: string; d: number } | undefined
+  for (const { id, points } of floor.floorOpenings ?? []) {
+    let d = pointInPolygon(plan, points) ? 0 : Number.POSITIVE_INFINITY
+    points.forEach((a, i) => {
+      const sa = toScreen(camera, a)
+      const sb = toScreen(camera, points[(i + 1) % points.length]!)
+      d = Math.min(d, distance(nearestOnSegment(sa, sb, screen), screen))
+    })
+    if (d <= NODE_GRAB_PX && (!best || d < best.d)) best = { id, d }
+  }
+  return best && { kind: 'floorOpening', id: best.id }
+}
+
+/**
+ * A corner of a selected floor opening under a screen point, which a press
+ * drags on its own (D54).
+ */
+export function floorOpeningCornerAt(
+  camera: Camera,
+  floor: Floor,
+  selection: Selection,
+  screen: Point,
+): { id: string; index: number; point: Point } | undefined {
+  let best: { id: string; index: number; point: Point; d: number } | undefined
+  for (const { id, points } of floor.floorOpenings ?? []) {
+    if (!selection.some((s) => s.kind === 'floorOpening' && s.id === id)) {
+      continue
+    }
+    points.forEach((point, index) => {
+      const d = distance(toScreen(camera, point), screen)
+      if (d <= NODE_GRAB_PX && (!best || d < best.d)) {
+        best = { id, index, point, d }
+      }
+    })
+  }
+  return best && { id: best.id, index: best.index, point: best.point }
+}
+
+/** Moves a whole floor opening by a vector from where it started. */
+export function moveFloorOpeningRecipe(
+  floorId: string,
+  id: string,
+  delta: Point,
+): Recipe {
+  return (plan) =>
+    moveFloorOpening(floorOf(plan, floorId), id, delta.x, delta.y)
+}
+
+/** Moves one corner of a floor opening to a point. */
+export function moveFloorOpeningCornerRecipe(
+  floorId: string,
+  id: string,
+  index: number,
+  to: Point,
+): Recipe {
+  return (plan) =>
+    void moveFloorOpeningCorner(floorOf(plan, floorId), id, index, to)
 }
 
 /** The wall under a screen point and how far along it the point is. */
@@ -253,6 +326,9 @@ export function nudgeRecipe(
         )
       }
       if (item.kind === 'node') nodeIds.add(item.id)
+      if (item.kind === 'floorOpening') {
+        moveFloorOpening(floor, item.id, delta.x, delta.y)
+      }
       if (item.kind === 'wall') {
         const wall = floor.walls.find((w) => w.id === item.id)
         if (wall) {
@@ -295,6 +371,7 @@ export function deleteRecipe(floorId: string, selection: Selection): Recipe {
     for (const item of selection) {
       if (item.kind === 'accessPoint') deleteAccessPoint(plan, item.id)
       if (item.kind === 'opening') deleteOpening(floor, item.id)
+      if (item.kind === 'floorOpening') deleteFloorOpening(floor, item.id)
     }
     for (const item of selection) {
       if (item.kind === 'wall') deleteWall(floor, item.id)
@@ -327,5 +404,6 @@ export function describeSelection(selection: Selection): string {
     wall: 'wall',
     node: 'corner',
     opening: 'opening',
+    floorOpening: 'floor opening',
   }[selection[0]!.kind]
 }

@@ -7,6 +7,7 @@ import {
   FLOOR_MATERIALS,
   MIN_WALL_LENGTH_M,
   NEW_ACCESS_POINT_HEIGHT_M,
+  polygonArea,
   setRadioOn,
   setRadioPower,
   type Plan,
@@ -21,6 +22,7 @@ import {
   stackedFloors,
   type Floor,
   type FloorMaterial,
+  type FloorOpening,
   type Opening,
   type OpeningMaterial,
   type PlanNode,
@@ -41,12 +43,14 @@ import { useEditor, useEditorStore } from './context.ts'
 import { deleteRecipe, describeSelection } from './selectTool.ts'
 import { bearingDeg } from './snap.ts'
 import {
+  formatArea,
   formatLength,
   parseLength,
   parseSignedLength,
   type Units,
 } from './units.ts'
 import {
+  canCutFloor,
   DEFAULT_OPENING_WIDTH_M,
   heatmapShown,
   tracingHidesHeatmap,
@@ -202,6 +206,14 @@ const TOOLS = [
   { tool: 'door', name: 'Door', icon: '⌷', key: 'D', title: 'Add doors' },
   { tool: 'window', name: 'Window', icon: '▤', key: 'N', title: 'Add windows' },
   {
+    tool: 'floorOpening',
+    name: 'Opening',
+    label: 'Floor opening',
+    icon: '▨',
+    key: 'O',
+    title: 'Add stairwells and atriums: openings in the floor',
+  },
+  {
     tool: 'accessPoint',
     name: 'AP',
     label: 'Access point',
@@ -218,6 +230,8 @@ const TOOLS = [
 export function Toolbar() {
   const store = useEditorStore()
   const tool = useEditor((s) => s.tool)
+  // The lowest floor has no slab to cut (D54).
+  const canCut = useEditor((s) => canCutFloor(s.plan, s.floorId))
   const buttons = useRef<(HTMLButtonElement | null)[]>([])
   const current = Math.max(
     0,
@@ -247,24 +261,32 @@ export function Toolbar() {
         buttons.current[target]?.focus()
       }}
     >
-      {TOOLS.map((t, i) => (
-        <button
-          key={t.tool}
-          ref={(element) => {
-            buttons.current[i] = element
-          }}
-          type="button"
-          tabIndex={i === current ? 0 : -1}
-          aria-pressed={tool === t.tool}
-          aria-keyshortcuts={t.key}
-          aria-label={'label' in t ? t.label : undefined}
-          onClick={() => store.getState().setTool(t.tool)}
-          title={`${t.title} (${t.key})`}
-        >
-          <span aria-hidden="true">{t.icon}</span>
-          <span className="tool-name">{t.name}</span>
-        </button>
-      ))}
+      {TOOLS.map((t, i) => {
+        const unavailable = t.tool === 'floorOpening' && !canCut
+        return (
+          <button
+            key={t.tool}
+            ref={(element) => {
+              buttons.current[i] = element
+            }}
+            type="button"
+            tabIndex={i === current ? 0 : -1}
+            aria-pressed={tool === t.tool}
+            aria-keyshortcuts={t.key}
+            aria-label={'label' in t ? t.label : undefined}
+            aria-disabled={unavailable || undefined}
+            onClick={() => store.getState().setTool(t.tool)}
+            title={
+              unavailable
+                ? 'The lowest floor has nothing below to open onto: pick or add a floor above'
+                : `${t.title} (${t.key})`
+            }
+          >
+            <span aria-hidden="true">{t.icon}</span>
+            <span className="tool-name">{t.name}</span>
+          </button>
+        )
+      })}
     </div>
   )
 }
@@ -301,6 +323,10 @@ export function PropertiesPanel({
     only?.kind === 'opening'
       ? floor.openings.find((o) => o.id === only.id)
       : undefined
+  const floorOpening =
+    only?.kind === 'floorOpening'
+      ? floor.floorOpenings?.find((o) => o.id === only.id)
+      : undefined
 
   let details
   if (tool === 'wall' && selection.length === 0) details = <WallToolSection />
@@ -308,6 +334,10 @@ export function PropertiesPanel({
     details = <AccessPointToolSection />
   } else if ((tool === 'door' || tool === 'window') && selection.length === 0) {
     details = <OpeningToolSection kind={tool} />
+  } else if (tool === 'floorOpening' && selection.length === 0) {
+    details = <FloorOpeningToolSection />
+  } else if (floorOpening) {
+    details = <FloorOpeningSection opening={floorOpening} floor={floor} />
   } else if (opening)
     details = <OpeningSection opening={opening} floor={floor} />
   else if (ap) details = <AccessPointSection key={ap.id} ap={ap} />
@@ -1427,6 +1457,64 @@ function OpeningToolSection({ kind }: { kind: 'door' | 'window' }) {
         <li>Near a corner or another opening, it slides to fit.</li>
         <li>Esc returns to Select.</li>
       </ul>
+    </section>
+  )
+}
+
+function FloorOpeningToolSection() {
+  return (
+    <section>
+      <h2>Floor opening tool</h2>
+      <p className="kind">
+        Click to place the corners of a stairwell or atrium
+      </p>
+      <ul className="hint tips">
+        <li>
+          Signal through it crosses no floor between this floor and the one
+          below, and its area isn't counted as floor.
+        </li>
+        <li>
+          Click the first corner, double-click or press Enter to close it; Esc
+          drops it.
+        </li>
+        <li>
+          Snaps to corners, walls, the floor below, 15° steps and the grid. Hold
+          Alt to place freely.
+        </li>
+        <li>{MOD_KEY}Z steps back one corner.</li>
+      </ul>
+    </section>
+  )
+}
+
+function FloorOpeningSection({
+  opening,
+  floor,
+}: {
+  opening: FloorOpening
+  floor: Floor
+}) {
+  const units = useEditor((s) => s.units)
+  const lowest = useEditor((s) => !canCutFloor(s.plan, floor.id))
+  return (
+    <section>
+      <h2>Floor opening</h2>
+      <p className="kind">Stairwell or atrium</p>
+      <dl>
+        <dt>Area</dt>
+        <dd>{formatArea(polygonArea(opening.points), units)}</dd>
+        <dt>Corners</dt>
+        <dd>{opening.points.length}</dd>
+      </dl>
+      <p className="hint">
+        {lowest
+          ? "Nothing is below the lowest floor, so it only leaves its area out of the floor's."
+          : "Signal through it crosses no floor between this floor and the one below, and its area isn't counted as floor."}{' '}
+        Drag it to move it, or drag its corners.
+      </p>
+      <div className="actions">
+        <DeleteButton />
+      </div>
     </section>
   )
 }

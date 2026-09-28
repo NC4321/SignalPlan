@@ -81,13 +81,13 @@ describe('coverage grid speed at 10 cm cells', () => {
     ],
     // Each floor counts both access points, one of them through the floor.
     [
-      'Two-storey house, ground floor (2 × 150 m², 60 walls each, 1 access point per floor)',
+      'Two-storey house, ground floor (2 × 150 m², 60 walls each, 1 access point per floor, stairwell)',
       twoStoreyHouse(),
       'main',
       LARGE_HOME_BUDGET_MS,
     ],
     [
-      'Two-storey house, upstairs (2 × 150 m², 60 walls each, 1 access point per floor)',
+      'Two-storey house, upstairs (2 × 150 m², 60 walls each, 1 access point per floor, stairwell)',
       twoStoreyHouse(),
       'up',
       LARGE_HOME_BUDGET_MS,

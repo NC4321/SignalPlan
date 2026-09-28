@@ -1,8 +1,14 @@
 import type { Floor, Plan } from '@signalplan/floorplan'
 import { describe, expect, it } from 'vitest'
+import { produce } from 'immer'
 import {
   accessPointAt,
+  deleteRecipe,
+  describeSelection,
+  floorOpeningCornerAt,
   hitTest,
+  moveFloorOpeningCornerRecipe,
+  moveFloorOpeningRecipe,
   nudgeRecipe,
   pressGrabsAccessPoint,
   selectionHasLocked,
@@ -179,5 +185,72 @@ describe('locked access points (D43)', () => {
         { kind: 'wall', id: 'fixed' },
       ]),
     ).toBe(false)
+  })
+})
+
+describe('floor openings (D54)', () => {
+  const holed: Floor = {
+    ...floor,
+    floorOpenings: [
+      {
+        id: 'hole',
+        points: [
+          { x: 1, y: 1 },
+          { x: 2, y: 1 },
+          { x: 2, y: 2 },
+          { x: 1, y: 2 },
+        ],
+      },
+    ],
+  }
+  const plan: Plan = {
+    schemaVersion: 1,
+    name: 'p',
+    floors: [holed],
+    accessPoints: [],
+  }
+  const points = (p: Plan) => p.floors[0]!.floorOpenings![0]!.points
+
+  it('hits an opening inside it or near its edge, after walls', () => {
+    const hole = { kind: 'floorOpening', id: 'hole' }
+    expect(hitTest(camera, holed, [], [], { x: 150, y: 150 })).toEqual(hole)
+    expect(hitTest(camera, holed, [], [], { x: 95, y: 150 })).toEqual(hole)
+    expect(hitTest(camera, holed, [], [], { x: 80, y: 150 })).toBeUndefined()
+    expect(hitTest(camera, holed, [], [], { x: 150, y: 5 })).toEqual({
+      kind: 'wall',
+      id: 'ab',
+    })
+  })
+
+  it('grabs corners only of a selected opening', () => {
+    const at = { x: 198, y: 103 }
+    expect(floorOpeningCornerAt(camera, holed, [], at)).toBeUndefined()
+    expect(
+      floorOpeningCornerAt(
+        camera,
+        holed,
+        [{ kind: 'floorOpening', id: 'hole' }],
+        at,
+      ),
+    ).toEqual({ id: 'hole', index: 1, point: { x: 2, y: 1 } })
+  })
+
+  it('moves, nudges, reshapes and deletes an opening', () => {
+    const moved = produce(
+      plan,
+      moveFloorOpeningRecipe('f', 'hole', { x: 1, y: 0.5 }),
+    )
+    expect(points(moved)[0]).toEqual({ x: 2, y: 1.5 })
+    const selection = [{ kind: 'floorOpening' as const, id: 'hole' }]
+    const nudged = produce(plan, nudgeRecipe('f', selection, { x: 0, y: -1 }))
+    expect(points(nudged)[2]).toEqual({ x: 2, y: 1 })
+    const reshaped = produce(
+      plan,
+      moveFloorOpeningCornerRecipe('f', 'hole', 2, { x: 3, y: 3 }),
+    )
+    expect(points(reshaped)[2]).toEqual({ x: 3, y: 3 })
+    const deleted = produce(plan, deleteRecipe('f', selection))
+    expect(deleted.floors[0]!.floorOpenings).toBeUndefined()
+    expect(describeSelection(selection)).toBe('floor opening')
   })
 })
