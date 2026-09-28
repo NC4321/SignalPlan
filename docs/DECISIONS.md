@@ -87,6 +87,14 @@ A running log of project decisions, newest last. Each entry records what was dec
 - **Decision:** the demo and tests use a 150 m² bungalow with a concrete utility room, a steel door and low-E windows, instead of the original 80 m² flat.
 - **Why:** one router covered the flat almost entirely, so the demo showed little contrast.
 
+### D25. Access point tool — 2026-09-27
+
+- **Decision:** an Access point tool (A) adds one where you click. A new access point is named "Access point N", mounted 1 m above the floor (a router on a desk or shelf, as in a New plan), with a radio on 2.4, 5 and 6 GHz at each band's typical EIRP (D8). It stays selected and the tool stays active, like the door and window tools.
+- **Editing:** the panel sets the name, mounting height (0 m up to the floor's height), which bands are on and each band's EIRP. An empty power field means the band's typical value. Every access point keeps at least one band on, as the schema requires; the last band's checkbox is disabled. Delete (key or button) now removes access points too, and deleting the last one on a floor is allowed: the heatmap goes blank and a notice points to the tool.
+- **Power limits:** any EIRP from −10 to 40 dBm is accepted. Above the band's highest FCC limit a note says so: 36 dBm at 2.4 GHz (1 W with antennas up to 6 dBi, 47 CFR § 15.247(b)(3), (b)(4)), 36 dBm at 5 GHz (U-NII-1, 3 and 4; U-NII-2A/2C allow 30 dBm, § 15.407(a)(1)–(3)) and 30 dBm for indoor 6 GHz (§ 15.407(a)(5)). Values aren't refused, so routers certified elsewhere can still be modelled.
+- **Why:** placing and editing access points is the core of planning coverage (Phase 3). Warning instead of refusing keeps the numbers honest without blocking unusual set-ups.
+- **Revisit if:** regions beyond North America arrive (D8), or channel planning (Phase 6) makes the 5 GHz limit depend on the chosen channel.
+
 ## Phase 1: editor
 
 ### D14. Canvas 2D for the editor — 2026-09-27
