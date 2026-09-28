@@ -8,7 +8,7 @@ import {
   type Radio,
 } from '@signalplan/floorplan'
 import { BAND_PROFILES } from './bands.ts'
-import { preparedWallLoss, wallLoss } from './crossings.ts'
+import { indexedWallLoss, indexWalls, wallLoss } from './crossings.ts'
 import { floorAreaMask } from './floorArea.ts'
 import { crossingLossDb, floorCrossing, prepareStack } from './floors.ts'
 import { MATERIAL_LOSS_DB } from './materials.ts'
@@ -168,10 +168,12 @@ export function evaluateCoverage(
   })
   sources.forEach(({ ap, radio, from }, index) => {
     const apZ = stack[from]!.floor.elevationM + ap.heightM
+    // Walls sorted by direction from the access point (D56).
     const crossing =
       from === here
         ? undefined
-        : floorCrossing(stack, from, apZ, here, receiverZ)
+        : floorCrossing(stack, from, apZ, here, receiverZ, ap)
+    const sorted = crossing ? undefined : indexWalls(walls, ap.x, ap.y)
     // On its own floor, exactly as `predictDbm` works it out.
     const dz = crossing ? apZ - receiverZ : ap.heightM - RECEIVER_HEIGHT_M
     for (let row = 0; row < grid.rows; row++) {
@@ -181,7 +183,7 @@ export function evaluateCoverage(
         const i = row * grid.cols + col
         const loss = crossing
           ? crossingLossDb(crossing, ap.x, ap.y, x, y)
-          : preparedWallLoss(walls, ap.x, ap.y, x, y)
+          : indexedWallLoss(sorted!, ap.x, ap.y, x, y)
         const value = signalDbm(ap, radio, x, y, loss, dz)
         if (value > dbm[i]!) {
           dbm[i] = value

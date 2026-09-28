@@ -9,7 +9,13 @@ import {
 import fc from 'fast-check'
 import { describe, expect, it } from 'vitest'
 import { cellCentre, evaluateCoverage, predictDbm } from './coverage.ts'
-import { prepareWalls, preparedWallLoss, wallLoss } from './crossings.ts'
+import {
+  indexedWallLoss,
+  indexWalls,
+  prepareWalls,
+  preparedWallLoss,
+  wallLoss,
+} from './crossings.ts'
 import {
   CONSTRUCTIONS,
   constructionLossDb,
@@ -335,6 +341,43 @@ describe('the grid fast path (#45)', () => {
         },
       ),
       { ...RUNS, numRuns: 2000 },
+    )
+  })
+
+  it('gives the same loss with walls sorted by direction (D56)', () => {
+    // From a point that is often a wall's corner or on a wall, along part of
+    // a ray from it, as a storey's stretch of a path between floors is.
+    const fraction = fc.oneof(
+      fc.constant(0),
+      fc.constant(1),
+      fc.double({ min: 0, max: 1, noNaN: true }),
+    )
+    fc.assert(
+      fc.property(
+        fc.array(snappedWall, { maxLength: 12 }),
+        snappedPoint,
+        snappedPoint,
+        fraction,
+        fraction,
+        band,
+        (walls, origin, far, a, b, band) => {
+          const segments = materialSegments(floor(walls))
+          const lossOf = (m: WallMaterial) => MATERIAL_LOSS_DB[band][m]
+          const prepared = prepareWalls(segments, lossOf)
+          const index = indexWalls(prepared, origin.x, origin.y)
+          const [s, e] = a <= b ? [a, b] : [b, a]
+          const at = (t: number) => ({
+            x: origin.x + t * (far.x - origin.x),
+            y: origin.y + t * (far.y - origin.y),
+          })
+          const from = at(s)
+          const to = at(e)
+          expect(indexedWallLoss(index, from.x, from.y, to.x, to.y)).toBe(
+            preparedWallLoss(prepared, from.x, from.y, to.x, to.y),
+          )
+        },
+      ),
+      { ...RUNS, numRuns: 5000 },
     )
   })
 

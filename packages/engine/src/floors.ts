@@ -9,9 +9,12 @@ import {
   type Point,
 } from '@signalplan/floorplan'
 import {
+  indexedWallLoss,
+  indexWalls,
   prepareWalls,
   preparedWallLoss,
   type PreparedWalls,
+  type WallIndex,
 } from './crossings.ts'
 import { FLOOR_LOSS_DB, MATERIAL_LOSS_DB } from './materials.ts'
 
@@ -91,6 +94,8 @@ export function prepareStack(plan: Plan, band: Band): Storey[] {
 /** Where a path's stretch through one storey starts and ends, from 0 to 1. */
 export interface StoreyStretch {
   walls: PreparedWalls
+  /** The walls sorted by direction from the path's start, if given (D56). */
+  index: WallIndex | undefined
   fromT: number
   toT: number
 }
@@ -125,7 +130,15 @@ export function floorCrossing(
   fromZ: number,
   to: number,
   toZ: number,
+  /**
+   * Where every path with these heights starts on the plan, such as an
+   * access point, if they all do: each storey's walls are then sorted by
+   * direction from there, which gives the same losses faster (D56).
+   */
+  origin?: Point,
 ): FloorCrossing {
+  const indexOf = (walls: PreparedWalls) =>
+    origin && indexWalls(walls, origin.x, origin.y)
   const step = to > from ? 1 : -1
   const rise = (toZ - fromZ) * step
   // Where the path's height reaches z, from 0 at the start to 1 at the end.
@@ -141,7 +154,12 @@ export function floorCrossing(
     const next = stack[i + step]!
     // Leaving through the ceiling going up, or the surface going down.
     const exit = Math.max(enter, at(step > 0 ? here.topM : here.bottomM))
-    stretches.push({ walls: here.walls, fromT: enter, toT: exit })
+    stretches.push({
+      walls: here.walls,
+      index: indexOf(here.walls),
+      fromT: enter,
+      toT: exit,
+    })
     enter = Math.max(exit, at(step > 0 ? next.bottomM : next.topM))
     // Going up crosses the next storey's slab; going down, this one's.
     const slab = step > 0 ? next : here
@@ -155,7 +173,12 @@ export function floorCrossing(
       slabLossDb += slab.slabLossDb
     }
   }
-  stretches.push({ walls: stack[to]!.walls, fromT: enter, toT: 1 })
+  stretches.push({
+    walls: stack[to]!.walls,
+    index: indexOf(stack[to]!.walls),
+    fromT: enter,
+    toT: 1,
+  })
   return { slabLossDb, holedSlabs, stretches }
 }
 
@@ -176,15 +199,15 @@ export function crossingLossDb(
   for (const { holes, lossDb, t } of crossing.holedSlabs) {
     if (!inHole(holes, fromX + t * dx, fromY + t * dy)) total += lossDb
   }
-  for (const { walls, fromT, toT } of crossing.stretches) {
+  for (const { walls, index, fromT, toT } of crossing.stretches) {
     if (toT <= fromT) continue
-    total += preparedWallLoss(
-      walls,
-      fromX + fromT * dx,
-      fromY + fromT * dy,
-      fromX + toT * dx,
-      fromY + toT * dy,
-    )
+    const x0 = fromX + fromT * dx
+    const y0 = fromY + fromT * dy
+    const x1 = fromX + toT * dx
+    const y1 = fromY + toT * dy
+    total += index
+      ? indexedWallLoss(index, x0, y0, x1, y1)
+      : preparedWallLoss(walls, x0, y0, x1, y1)
   }
   return total
 }
