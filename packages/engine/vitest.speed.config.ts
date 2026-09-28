@@ -7,5 +7,7 @@ export default defineConfig({
     fileParallelism: false,
     // Print the timings for passing tests too, so CI logs show them.
     silent: false,
+    // 35 grid runs per test take ~6 s on a CI runner, over the 5 s default.
+    testTimeout: 60_000,
   },
 })

@@ -15,13 +15,21 @@ import { evaluateCoverage } from './coverage.ts'
  * 10 cm cells in under 200 ms (OUTLINE.md, D11). Run with `pnpm speed`, one
  * file at a time so other tests don't compete for the CPU.
  *
- * MARGIN: to be set from the CI timings.
+ * The budget is for a Web Worker on a laptop, but this check runs on CI.
+ * GitHub's ubuntu-latest runners measured about 2.1× slower than a desktop
+ * i5-12600K (sample home 40 vs 18 ms, room grid 170 vs 80 ms), and runner
+ * hardware varies. The room grid, far busier than a real 100 m² home, lands
+ * at ~170 ms there: within budget, but too close for a check that must not
+ * flake. So CI fails at 1.5× the budget. That still catches the room grid
+ * getting ~1.8× slower, or the sample home ~7× slower, while normal runner
+ * variation passes. The budget itself is printed with every result.
  */
 // Both exist in Node and in Web Workers; the engine's lib has no DOM or Node types.
 declare const performance: { now(): number }
 declare const console: { log(...data: unknown[]): void }
 
 const BUDGET_MS = 200
+const LIMIT_MS = BUDGET_MS * 1.5
 const WARM_UP_RUNS = 5
 const RUNS = 30
 
@@ -42,7 +50,7 @@ function measure(plan: Plan, floorId: string, band: Band) {
 
 function report(name: string, band: Band, r: ReturnType<typeof measure>) {
   console.log(
-    `${name}, ${band}: median ${r.median.toFixed(1)} ms, p95 ${r.p95.toFixed(1)} ms over ${RUNS} runs (${r.areaM2.toFixed(0)} m² grid, budget ${BUDGET_MS} ms)`,
+    `${name}, ${band}: median ${r.median.toFixed(1)} ms, p95 ${r.p95.toFixed(1)} ms over ${RUNS} runs (${r.areaM2.toFixed(0)} m² grid, budget ${BUDGET_MS} ms, CI limit ${LIMIT_MS} ms)`,
   )
 }
 
@@ -146,7 +154,7 @@ describe('coverage grid speed at 10 cm cells', () => {
         const r = measure(plan, 'main', band)
         report(name, band, r)
         expect(r.areaM2).toBeGreaterThanOrEqual(100)
-        expect(r.median).toBeLessThan(BUDGET_MS)
+        expect(r.median).toBeLessThan(LIMIT_MS)
       })
     }
   }
