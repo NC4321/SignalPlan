@@ -19,13 +19,18 @@ export { crossings, wallLoss, type Crossing } from './crossings.ts'
 export {
   CONSTRUCTIONS,
   constructionLossDb,
+  FLOOR_ANGLE_CAP_DEG,
+  FLOOR_ANGLE_STEP_DEG,
   FLOOR_CONSTRUCTIONS,
   FLOOR_LOSS_DB,
   floorConstructionLossDb,
+  floorLossAtDb,
+  floorLossTable,
   LOW_E_SHEET_RESISTANCE_OHMS,
   MATERIAL_LOSS_DB,
   type Construction,
   type FloorConstruction,
+  type FloorLossTable,
 } from './materials.ts'
 export { freeSpacePathLoss, SPEED_OF_LIGHT } from './pathLoss.ts'
 export {

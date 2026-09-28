@@ -16,7 +16,12 @@ import {
   type PreparedWalls,
   type WallIndex,
 } from './crossings.ts'
-import { FLOOR_LOSS_DB, MATERIAL_LOSS_DB } from './materials.ts'
+import {
+  floorLossAtDb,
+  floorLossTable,
+  MATERIAL_LOSS_DB,
+  type FloorLossTable,
+} from './materials.ts'
 
 /**
  * One storey of a plan in one band: where its rooms sit in height, the loss
@@ -31,8 +36,8 @@ export interface Storey {
    * the two lies the slab of the storey above.
    */
   topM: number
-  /** Loss in dB through this floor's slab, head-on (D50). */
-  slabLossDb: number
+  /** Loss in dB through this floor's slab by angle (D50, D60). */
+  slabLoss: FloorLossTable
   /** Holes in the slab, such as stairwells, that cost nothing (D54). */
   holes: SlabHoles | undefined
   walls: PreparedWalls
@@ -75,7 +80,6 @@ export function inHole(holes: SlabHoles, x: number, y: number): boolean {
  */
 export function prepareStack(plan: Plan, band: Band): Storey[] {
   const wallLosses = MATERIAL_LOSS_DB[band]
-  const slabLosses = FLOOR_LOSS_DB[band]
   const floors = stackedFloors(plan.floors)
   return floors.map((floor, i) => {
     const next = floors[i + 1]
@@ -84,7 +88,7 @@ export function prepareStack(plan: Plan, band: Band): Storey[] {
       floor,
       bottomM: floor.elevationM,
       topM: next ? Math.min(ceiling, next.elevationM) : ceiling,
-      slabLossDb: slabLosses[floor.material ?? DEFAULT_FLOOR_MATERIAL],
+      slabLoss: floorLossTable(band, floor.material ?? DEFAULT_FLOOR_MATERIAL),
       holes: prepareHoles(floor),
       walls: prepareWalls(materialSegments(floor), (m) => wallLosses[m]),
     }
@@ -104,7 +108,9 @@ export interface StoreyStretch {
  * A straight path from a point in one storey to a point in another, at
  * heights `fromZ` and `toZ` above the lowest floor (D51). It pays the slab of
  * every storey boundary it crosses, and each storey's walls along the stretch
- * of the path inside that storey, between its surface and its ceiling. Every
+ * of the path inside that storey, between its surface and its ceiling. A
+ * slab's loss follows the path's angle from the vertical, up to a cap (D60).
+ * Every
  * slab covers the whole plan except its openings (D54): where the path
  * passes through the slab's middle height inside one, that slab costs nothing.
  *
@@ -113,16 +119,20 @@ export interface StoreyStretch {
  * (an access point mounted above the next floor up) splits halfway.
  */
 export interface FloorCrossing {
-  /** Total loss of the slabs crossed that have no openings, in dB. */
-  slabLossDb: number
+  /** How far the path rises or falls, in metres, for the slabs' angle. */
+  riseM: number
+  /** Total loss of the slabs crossed that have no openings, by angle. */
+  slabLoss: FloorLossTable
   /**
    * Slabs crossed that have openings, with where along the path (0 to 1) it
    * passes their middle height.
    */
-  holedSlabs: { holes: SlabHoles; lossDb: number; t: number }[]
+  holedSlabs: { holes: SlabHoles; loss: FloorLossTable; t: number }[]
   /** One stretch per storey, from the start's storey to the end's. */
   stretches: StoreyStretch[]
 }
+
+const NO_SLAB: FloorLossTable = [0, 0]
 
 export function floorCrossing(
   stack: readonly Storey[],
@@ -145,7 +155,7 @@ export function floorCrossing(
   const at = (z: number) =>
     rise > 0 ? Math.min(Math.max((z - fromZ) / (toZ - fromZ), 0), 1) : 0.5
 
-  let slabLossDb = 0
+  let slabLoss: number[] | undefined
   const holedSlabs: FloorCrossing['holedSlabs'] = []
   const stretches: StoreyStretch[] = []
   let enter = 0
@@ -166,11 +176,13 @@ export function floorCrossing(
     if (slab.holes) {
       holedSlabs.push({
         holes: slab.holes,
-        lossDb: slab.slabLossDb,
+        loss: slab.slabLoss,
         t: (exit + enter) / 2,
       })
     } else {
-      slabLossDb += slab.slabLossDb
+      slabLoss = slabLoss
+        ? slabLoss.map((loss, i) => loss + slab.slabLoss[i]!)
+        : [...slab.slabLoss]
     }
   }
   stretches.push({
@@ -179,7 +191,12 @@ export function floorCrossing(
     fromT: enter,
     toT: 1,
   })
-  return { slabLossDb, holedSlabs, stretches }
+  return {
+    riseM: Math.abs(toZ - fromZ),
+    slabLoss: slabLoss ?? NO_SLAB,
+    holedSlabs,
+    stretches,
+  }
 }
 
 /**
@@ -195,9 +212,13 @@ export function crossingLossDb(
 ): number {
   const dx = toX - fromX
   const dy = toY - fromY
-  let total = crossing.slabLossDb
-  for (const { holes, lossDb, t } of crossing.holedSlabs) {
-    if (!inHole(holes, fromX + t * dx, fromY + t * dy)) total += lossDb
+  // Every slab meets the straight path at the same angle.
+  const across = Math.hypot(dx, dy)
+  let total = floorLossAtDb(crossing.slabLoss, across, crossing.riseM)
+  for (const { holes, loss, t } of crossing.holedSlabs) {
+    if (!inHole(holes, fromX + t * dx, fromY + t * dy)) {
+      total += floorLossAtDb(loss, across, crossing.riseM)
+    }
   }
   for (const { walls, index, fromT, toT } of crossing.stretches) {
     if (toT <= fromT) continue
