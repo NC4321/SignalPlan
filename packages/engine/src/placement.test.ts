@@ -168,6 +168,56 @@ describe('createScorer', () => {
     expect(scorer.areaM2).toBeCloseTo(summary.areaM2, 9)
     expect(scorer.share([scorer.signal(router)])).toBeCloseTo(summary.share!, 9)
   })
+  it('counts fixed access points on other floors, as the summary does (D52)', () => {
+    const result = parsePlan(sampleHome)
+    if (!result.ok) throw new Error('fixture is invalid')
+    const ground = result.plan
+    const floorId = ground.floors[0]!.id
+    const router = ground.accessPoints[0]!
+    const upstairs: AccessPoint = {
+      ...router,
+      id: 'up-ap',
+      floorId: 'up',
+      x: 13,
+      y: 8,
+      heightM: 1.5,
+    }
+    const home: Plan = {
+      ...ground,
+      floors: [
+        ...ground.floors,
+        {
+          id: 'up',
+          name: 'Upstairs',
+          elevationM: 2.7,
+          heightM: 2.4,
+          material: 'concrete-slab',
+          nodes: [],
+          walls: [],
+          openings: [],
+        },
+      ],
+      accessPoints: [router, upstairs],
+    }
+    const problem = {
+      plan: home,
+      floorId,
+      band: '5GHz' as const,
+      minDbm: -60,
+      template: router,
+    }
+    const alone = createScorer({ ...problem, fixed: [] })!
+    const withUpstairs = createScorer({ ...problem, fixed: [upstairs] })!
+    const summary = summariseCoverage(
+      evaluateCoverage(home, floorId, '5GHz', 0.25),
+      -60,
+    )
+    const signals = [withUpstairs.signal(router)]
+    expect(withUpstairs.share(signals)).toBeCloseTo(summary.share!, 9)
+    expect(withUpstairs.share(signals)).toBeGreaterThan(
+      alone.share([alone.signal(router)]),
+    )
+  })
 })
 
 describe('candidatePositions', () => {

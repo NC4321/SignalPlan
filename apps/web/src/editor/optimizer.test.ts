@@ -67,6 +67,29 @@ function ready(job: SearchJob | undefined) {
 }
 
 describe('planSearch: find the best spots', () => {
+  it('keeps access points on other floors fixed, and only moves this floor’s (D52)', () => {
+    const plan = sample()
+    plan.floors.push({
+      ...plan.floors[0]!,
+      id: 'up',
+      name: 'Upstairs',
+      elevationM: 2.7,
+      nodes: [],
+      walls: [],
+      openings: [],
+    })
+    plan.accessPoints.push({
+      ...plan.accessPoints[0]!,
+      id: 'up-ap',
+      floorId: 'up',
+    })
+    const job = ready(planSearch(plan, 'main', '5GHz', []))
+    expect(job.movers.map((m) => m.apId)).toEqual(['router'])
+    expect(job.request.problem.fixed.map((ap) => ap.id)).toEqual(['up-ap'])
+    const howMany = ready(planSearch(plan, 'main', '5GHz', [], 'how-many'))
+    expect(howMany.request.problem.fixed.map((ap) => ap.id)).toEqual(['up-ap'])
+  })
+
   it('moves the selected access point', () => {
     const job = ready(planSearch(twoAccessPoints(), 'main', '5GHz', [router]))
     expect(job.label).toBe('Find a better spot for Wi-Fi 6E router')

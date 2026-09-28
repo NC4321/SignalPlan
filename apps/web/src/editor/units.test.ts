@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { formatArea, formatLength, parseLength } from './units.ts'
+import {
+  formatArea,
+  formatLength,
+  parseLength,
+  parseSignedLength,
+} from './units.ts'
 
 const inches = (n: number) => n * 0.0254
 const feet = (n: number) => inches(n * 12)
@@ -70,4 +75,26 @@ describe('parseLength', () => {
       expect(parseLength(text, 'imperial')).toBeUndefined()
     },
   )
+})
+
+describe('parseSignedLength', () => {
+  it.each([
+    ['-2.7', -2.7],
+    ['−2.7 m', -2.7],
+    ['- 270 cm', -2.7],
+    ['2.7', 2.7],
+  ])('reads metric "%s"', (text, metres) => {
+    expect(parseSignedLength(text, 'metric')).toBeCloseTo(metres, 9)
+  })
+
+  it('reads imperial and round-trips a negative formatted length', () => {
+    expect(parseSignedLength(`-9'`, 'imperial')).toBeCloseTo(-feet(9), 9)
+    const shown = formatLength(-2.7432, 'imperial')
+    expect(parseSignedLength(shown, 'imperial')).toBeCloseTo(-2.7432, 9)
+    expect(parseSignedLength(formatLength(-2.7, 'metric'), 'metric')).toBe(-2.7)
+  })
+
+  it('rejects a lone minus sign', () => {
+    expect(parseSignedLength('-', 'metric')).toBeUndefined()
+  })
 })

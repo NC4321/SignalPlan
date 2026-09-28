@@ -93,3 +93,17 @@ export function parseLength(text: string, units: Units): number | undefined {
 
   return undefined
 }
+
+/**
+ * As `parseLength`, but a leading minus sign makes it negative, as for the
+ * elevation of a basement (D52).
+ */
+export function parseSignedLength(
+  text: string,
+  units: Units,
+): number | undefined {
+  const match = /^\s*[-−]\s*(.*)$/.exec(text)
+  if (!match) return parseLength(text, units)
+  const value = parseLength(match[1]!, units)
+  return value === undefined ? undefined : -value
+}

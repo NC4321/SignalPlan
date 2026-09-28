@@ -2,7 +2,9 @@ import { BAND_PROFILES, MAX_ADDED, type Coverage } from '@signalplan/engine'
 import {
   BANDS,
   COVERAGE_TARGETS,
+  DEFAULT_FLOOR_MATERIAL,
   EIRP_RANGE_DBM,
+  FLOOR_MATERIALS,
   MIN_WALL_LENGTH_M,
   NEW_ACCESS_POINT_HEIGHT_M,
   setRadioOn,
@@ -16,7 +18,9 @@ import {
   type CoverageTarget,
   OPENING_MATERIALS,
   setOpeningWidth,
+  stackedFloors,
   type Floor,
+  type FloorMaterial,
   type Opening,
   type OpeningMaterial,
   type PlanNode,
@@ -36,7 +40,12 @@ import { BAND_LABELS, settledAnnouncement } from './coverageText.ts'
 import { useEditor, useEditorStore } from './context.ts'
 import { deleteRecipe, describeSelection } from './selectTool.ts'
 import { bearingDeg } from './snap.ts'
-import { formatLength, parseLength, type Units } from './units.ts'
+import {
+  formatLength,
+  parseLength,
+  parseSignedLength,
+  type Units,
+} from './units.ts'
 import {
   DEFAULT_OPENING_WIDTH_M,
   heatmapShown,
@@ -309,6 +318,7 @@ export function PropertiesPanel({
     details = (
       <>
         <PlanSection />
+        <FloorSection floor={floor} />
         {floor.background && <TracingSection background={floor.background} />}
       </>
     )
@@ -1164,6 +1174,134 @@ function PlanSection() {
   )
 }
 
+/** Floor-to-ceiling heights the panel accepts, in metres. */
+const FLOOR_HEIGHT_RANGE_M = { min: 1.5, max: 10 } as const
+
+/** Elevations the panel accepts, in metres: a deep basement to a tall tower. */
+const ELEVATION_RANGE_M = { min: -30, max: 300 } as const
+
+const FLOOR_MATERIAL_LABELS: Record<FloorMaterial, string> = {
+  'timber-joist': 'Timber joists (wood-framed)',
+  'concrete-slab': 'Concrete slab',
+}
+
+/** The floor on show: its name, place in the stack and construction (D52). */
+function FloorSection({ floor }: { floor: Floor }) {
+  const store = useEditorStore()
+  const units = useEditor((s) => s.units)
+  const floors = useEditor((s) => s.plan.floors)
+  const constructionId = useId()
+  const stack = stackedFloors(floors)
+  const index = stack.findIndex((f) => f.id === floor.id)
+  const below = stack[index - 1]
+  const name = floor.name || 'Unnamed floor'
+  const edit = (label: string, change: (target: Draft<Floor>) => void) =>
+    store.getState().edit(label, (plan) => {
+      const target = plan.floors.find((f) => f.id === floor.id)
+      if (target) change(target)
+    })
+
+  return (
+    <section aria-label="Floor">
+      <h2>{name}</h2>
+      <p className="kind">Floor</p>
+      <TextField
+        label="Floor name"
+        value={floor.name}
+        maxLength={100}
+        onCommit={(value) => {
+          const trimmed = value.trim()
+          if (!trimmed || trimmed === floor.name) return
+          edit(`Rename ${name}`, (f) => {
+            f.name = trimmed
+          })
+        }}
+      />
+      <LengthField
+        label="Elevation"
+        metres={floor.elevationM}
+        units={units}
+        signed
+        min={ELEVATION_RANGE_M.min}
+        max={ELEVATION_RANGE_M.max}
+        onCommit={(elevationM) =>
+          edit(`Change ${name} elevation`, (f) => {
+            f.elevationM = elevationM
+          })
+        }
+      />
+      <p className="hint">
+        Height of the floor’s surface; negative for a basement.
+      </p>
+      <LengthField
+        label="Floor to ceiling"
+        metres={floor.heightM}
+        units={units}
+        min={FLOOR_HEIGHT_RANGE_M.min}
+        max={FLOOR_HEIGHT_RANGE_M.max}
+        onCommit={(heightM) =>
+          edit(`Change ${name} height`, (f) => {
+            f.heightM = heightM
+          })
+        }
+      />
+      <div className="field">
+        <label htmlFor={constructionId}>Floor construction</label>
+        <select
+          id={constructionId}
+          value={floor.material ?? DEFAULT_FLOOR_MATERIAL}
+          onChange={(event) => {
+            const material = event.target.value as FloorMaterial
+            edit(`Change ${name} construction`, (f) => {
+              f.material = material
+            })
+          }}
+        >
+          {FLOOR_MATERIALS.map((m) => (
+            <option key={m} value={m}>
+              {FLOOR_MATERIAL_LABELS[m]}
+            </option>
+          ))}
+        </select>
+      </div>
+      <p className="hint">
+        {below
+          ? `The floor under ${name}, which signal crosses to and from ${below.name || 'the floor below'}.`
+          : `Nothing is below ${name}, so its construction doesn’t change the signal.`}
+      </p>
+      <div className="actions">
+        <button
+          type="button"
+          disabled={index === stack.length - 1}
+          onClick={() => store.getState().moveFloor(floor.id, 'up')}
+        >
+          Move up
+        </button>
+        <button
+          type="button"
+          disabled={index === 0}
+          onClick={() => store.getState().moveFloor(floor.id, 'down')}
+        >
+          Move down
+        </button>
+        <button
+          type="button"
+          className="danger"
+          disabled={floors.length <= 1}
+          title={
+            floors.length <= 1
+              ? 'A plan needs at least one floor'
+              : `Delete ${name} with its walls and access points`
+          }
+          onClick={() => store.getState().deleteFloor(floor.id)}
+        >
+          Delete floor
+        </button>
+      </div>
+    </section>
+  )
+}
+
 /** Deletes everything selected. */
 function DeleteButton() {
   const store = useEditorStore()
@@ -1197,6 +1335,7 @@ function LengthField({
   units,
   min = MIN_WALL_LENGTH_M,
   max,
+  signed = false,
   onCommit,
 }: {
   label: string
@@ -1205,6 +1344,8 @@ function LengthField({
   /** Smallest value accepted, in metres; a wall's minimum length by default. */
   min?: number
   max?: number | undefined
+  /** Whether a leading minus sign is allowed, as for an elevation. */
+  signed?: boolean
   onCommit: (metres: number) => void
 }) {
   const formatted = formatLength(metres, units)
@@ -1220,7 +1361,7 @@ function LengthField({
   }
   const commit = () => {
     if (draft === undefined || draft === formatted) return reset()
-    const value = parseLength(draft, units)
+    const value = (signed ? parseSignedLength : parseLength)(draft, units)
     if (
       value === undefined ||
       value < min ||

@@ -299,3 +299,99 @@ describe('notice', () => {
     expect(store.getState().notice).toBeUndefined()
   })
 })
+
+describe('floors (D52)', () => {
+  it('adds a floor above and shows it, as one undo step', () => {
+    const store = createEditorStore(sample())
+    store.getState().select([{ kind: 'accessPoint', id: 'router' }])
+    store.getState().addFloor('above')
+    const state = store.getState()
+    expect(state.plan.floors).toHaveLength(2)
+    const added = state.plan.floors[1]!
+    expect(state.floorId).toBe(added.id)
+    expect(state.selection).toEqual([])
+    expect(state.past.at(-1)!.label).toBe('Add floor above')
+    // Undo removes it and goes back to the nearest floor.
+    store.getState().undo()
+    expect(store.getState().plan.floors).toHaveLength(1)
+    expect(store.getState().floorId).toBe('main')
+  })
+
+  it('switches floors without an undo step, dropping selection and chain', () => {
+    const store = createEditorStore(sample())
+    store.getState().addFloor('below')
+    const basement = store.getState().floorId
+    store.getState().setFloor('main')
+    store.getState().select([{ kind: 'accessPoint', id: 'router' }])
+    store.getState().setTool('wall')
+    store.getState().clickWallPoint({ x: 0, y: 0 })
+    const steps = store.getState().past.length
+    store.getState().setFloor(basement)
+    const state = store.getState()
+    expect(state.floorId).toBe(basement)
+    expect(state.selection).toEqual([])
+    expect(state.chain).toBeUndefined()
+    expect(state.past).toHaveLength(steps)
+  })
+
+  it('ignores an unknown floor', () => {
+    const store = createEditorStore(sample())
+    store.getState().setFloor('nope')
+    expect(store.getState().floorId).toBe('main')
+  })
+
+  it('stops a search when the floor changes, and says why', () => {
+    const store = createEditorStore(sample())
+    store.getState().addFloor('above')
+    store
+      .getState()
+      .setOptimizer({ status: 'searching', fraction: 0.5, what: 'a spot' })
+    store.getState().setFloor('main')
+    expect(store.getState().optimizer).toBeUndefined()
+    expect(store.getState().notice).toBe('Search stopped: the floor changed.')
+  })
+
+  it('deletes the floor on show with its access points, and undo restores it', () => {
+    const store = createEditorStore(sample())
+    store.getState().deleteFloor('main')
+    // The last floor stays.
+    expect(store.getState().plan.floors).toHaveLength(1)
+
+    store.getState().addFloor('above')
+    const upper = store.getState().floorId
+    store.getState().edit('Add AP', (plan) => {
+      plan.accessPoints.push({
+        ...plan.accessPoints[0]!,
+        id: 'up-ap',
+        floorId: upper,
+      })
+    })
+    store.getState().deleteFloor(upper)
+    let state = store.getState()
+    expect(state.plan.floors.map((f) => f.id)).toEqual(['main'])
+    expect(state.plan.accessPoints.map((ap) => ap.id)).toEqual(['router'])
+    expect(state.floorId).toBe('main')
+    expect(state.notice).toBe(
+      'Deleted Upper floor and everything on it. Undo brings it back.',
+    )
+
+    store.getState().undo()
+    state = store.getState()
+    expect(state.plan.floors).toHaveLength(2)
+    expect(state.plan.accessPoints.map((ap) => ap.id)).toContain('up-ap')
+  })
+
+  it('moves a floor down the stack as one undo step', () => {
+    const store = createEditorStore(sample())
+    store.getState().addFloor('above')
+    const upper = store.getState().floorId
+    store.getState().moveFloor(upper, 'down')
+    const byId = (id: string) =>
+      store.getState().plan.floors.find((f) => f.id === id)!
+    expect(byId(upper).elevationM).toBe(0)
+    expect(byId('main').elevationM).toBeGreaterThan(0)
+    expect(store.getState().past.at(-1)!.label).toBe('Move Upper floor down')
+    store.getState().undo()
+    expect(byId('main').elevationM).toBe(0)
+  })
+})

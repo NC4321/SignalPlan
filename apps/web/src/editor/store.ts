@@ -1,6 +1,10 @@
 import {
+  addFloor,
   addWall,
+  deleteFloor,
   JOIN_TOLERANCE_M,
+  moveFloor,
+  stackedFloors,
   type Band,
   type CoverageTarget,
   type Floor,
@@ -128,6 +132,15 @@ export interface EditorState {
   renamePlan: (name: string) => void
   setCoverageTarget: (target: CoverageTarget) => void
 
+  /** Shows another floor. Not an edit, so it isn't undone (D52). */
+  setFloor: (floorId: string) => void
+  /** Adds an empty floor on top or at the bottom, and shows it. */
+  addFloor: (where: 'above' | 'below') => void
+  /** Deletes a floor and everything on it; undo brings it back. */
+  deleteFloor: (floorId: string) => void
+  /** Swaps a floor with the one above or below it. */
+  moveFloor: (floorId: string, direction: 'up' | 'down') => void
+
   setBand: (band: Band) => void
   setUnits: (units: Units) => void
   setShowHeatmap: (show: boolean) => void
@@ -191,6 +204,38 @@ function dropOptimizer(
 const sameSelection = (a: Selection, b: Selection) =>
   a.length === b.length && a.every((item, i) => sameItem(item, b[i]!))
 
+/**
+ * The floor to show after a change: the same one if it still exists, or else
+ * the remaining floor nearest it in elevation (D52).
+ */
+function keptFloorId(before: Plan, after: Plan, floorId: string): string {
+  if (after.floors.some((f) => f.id === floorId)) return floorId
+  const gone = before.floors.find((f) => f.id === floorId)?.elevationM ?? 0
+  const nearest = stackedFloors(after.floors).reduce((a, b) =>
+    Math.abs(b.elevationM - gone) < Math.abs(a.elevationM - gone) ? b : a,
+  )
+  return nearest.id
+}
+
+/**
+ * State after the plan changes to `next`: the floor on show if it still
+ * exists (or the nearest), and the selection items that remain on it.
+ */
+function afterChange(
+  state: EditorState,
+  next: Plan,
+): Pick<EditorState, 'plan' | 'floorId' | 'selection'> {
+  const floorId = keptFloorId(state.plan, next, state.floorId)
+  return {
+    plan: next,
+    floorId,
+    selection:
+      floorId === state.floorId
+        ? validSelection(next, floorId, state.selection)
+        : [],
+  }
+}
+
 /** Drops selected items that no longer exist. */
 function validSelection(plan: Plan, floorId: string, selection: Selection) {
   const floor = plan.floors.find((f) => f.id === floorId)
@@ -241,13 +286,12 @@ export function createEditorStore(
       const [next, patches, inverse] = produceWithPatches(get().plan, recipe)
       if (patches.length === 0) return
       set((state) => ({
-        plan: next,
+        ...afterChange(state, next),
         past: [...state.past, { label, patches, inverse }].slice(
           -HISTORY_LIMIT,
         ),
         future: [],
         pristine: false,
-        selection: validSelection(next, state.floorId, state.selection),
         notice: undefined,
         ...dropOptimizer(state.optimizer, 'the plan changed'),
       }))
@@ -297,10 +341,9 @@ export function createEditorStore(
       if (!entry || gesture) return
       const next = applyPatches(plan, entry.inverse)
       set((state) => ({
-        plan: next,
+        ...afterChange(state, next),
         past: state.past.slice(0, -1),
         future: [...state.future, entry],
-        selection: validSelection(next, state.floorId, state.selection),
         ...dropOptimizer(state.optimizer, 'the plan changed'),
       }))
     },
@@ -312,10 +355,9 @@ export function createEditorStore(
       const next = applyPatches(plan, entry.patches)
       set((state) => ({
         chain: undefined,
-        plan: next,
+        ...afterChange(state, next),
         past: [...state.past, entry],
         future: state.future.slice(0, -1),
-        selection: validSelection(next, state.floorId, state.selection),
         ...dropOptimizer(state.optimizer, 'the plan changed'),
       }))
     },
@@ -351,6 +393,53 @@ export function createEditorStore(
       get().edit('Change coverage target', (draft) => {
         draft.coverageTarget = target
       })
+    },
+
+    setFloor: (floorId) => {
+      const state = get()
+      if (floorId === state.floorId || state.gesture) return
+      if (!state.plan.floors.some((f) => f.id === floorId)) return
+      set({
+        floorId,
+        selection: [],
+        chain: undefined,
+        calibrationPoints: [],
+        tool: state.tool === 'calibrate' ? 'select' : state.tool,
+        notice: undefined,
+        ...dropOptimizer(state.optimizer, 'the floor changed'),
+      })
+    },
+
+    addFloor: (where) => {
+      let id: string | undefined
+      get().edit(
+        where === 'above' ? 'Add floor above' : 'Add floor below',
+        (draft) => {
+          id = addFloor(draft, where)
+        },
+      )
+      if (id) get().setFloor(id)
+    },
+
+    deleteFloor: (floorId) => {
+      const { plan } = get()
+      const floor = plan.floors.find((f) => f.id === floorId)
+      if (!floor || plan.floors.length <= 1) return
+      get().edit(`Delete ${floor.name}`, (draft) => {
+        deleteFloor(draft, floorId)
+      })
+      set({
+        notice: `Deleted ${floor.name} and everything on it. Undo brings it back.`,
+      })
+    },
+
+    moveFloor: (floorId, direction) => {
+      const floor = get().plan.floors.find((f) => f.id === floorId)
+      if (!floor) return
+      get().edit(
+        `Move ${floor.name} ${direction}`,
+        (draft) => void moveFloor(draft, floorId, direction),
+      )
     },
 
     setBand: (band) =>

@@ -10,10 +10,15 @@ type Job = Omit<EngineRequest, 'id'>
 
 /**
  * Computes coverage in a Web Worker. While one job runs, only the newest
- * request waits behind it, so dragging never builds a backlog.
+ * request waits behind it, so dragging never builds a backlog. A result for
+ * another floor than the one on show is held back, so switching floors never
+ * shows one floor's heatmap under another's walls (D52).
  */
 export function useCoverage(plan: Plan, floorId: string, band: Band) {
-  const [coverage, setCoverage] = useState<Coverage>()
+  const [result, setResult] = useState<{
+    coverage: Coverage
+    floorId: string
+  }>()
   const [error, setError] = useState<string>()
   const submit = useRef<(job: Job) => void>(undefined)
 
@@ -24,17 +29,21 @@ export function useCoverage(plan: Plan, floorId: string, band: Band) {
     let busy = false
     let pending: Job | undefined
     let nextId = 0
+    const floorOf = new Map<number, string>()
 
     const send = (job: Job) => {
       busy = true
+      floorOf.set(nextId, job.floorId)
       worker.postMessage({ ...job, id: nextId++ } satisfies EngineRequest)
     }
     worker.addEventListener(
       'message',
       (event: MessageEvent<EngineResponse>) => {
         const response = event.data
+        const jobFloor = floorOf.get(response.id)!
+        floorOf.delete(response.id)
         if (response.kind === 'coverage') {
-          setCoverage(response.coverage)
+          setResult({ coverage: response.coverage, floorId: jobFloor })
           setError(undefined)
         } else {
           setError(response.message)
@@ -59,5 +68,6 @@ export function useCoverage(plan: Plan, floorId: string, band: Band) {
     submit.current?.({ kind: 'coverage', plan, floorId, band })
   }, [plan, floorId, band])
 
+  const coverage = result?.floorId === floorId ? result.coverage : undefined
   return { coverage, error }
 }

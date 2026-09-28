@@ -1,7 +1,8 @@
-import type { PlanIssue } from '@signalplan/floorplan'
+import { adjacentFloorId, type PlanIssue } from '@signalplan/floorplan'
 import { useEffect, useMemo, useState } from 'react'
 import { useEditor, useEditorStore } from './editor/context.ts'
 import { EditorCanvas } from './editor/EditorCanvas.tsx'
+import { FloorStack } from './editor/FloorStack.tsx'
 import { useSaveStatus } from './editor/autosave.ts'
 import { CalibrationBar } from './editor/CalibrationBar.tsx'
 import { TracingProvider } from './editor/TracingProvider.tsx'
@@ -66,10 +67,12 @@ function App({
   const hasAccessPoint = shownPlan.accessPoints.some(
     (ap) => ap.floorId === floorId,
   )
-  const broadcasting = shownPlan.accessPoints.some(
-    (ap) =>
-      ap.floorId === floorId && ap.radios.some((radio) => radio.band === band),
+  const onBand = shownPlan.accessPoints.filter((ap) =>
+    ap.radios.some((radio) => radio.band === band),
   )
+  // Signal from other floors counts too (D51, D52).
+  const broadcasting = onBand.length > 0
+  const broadcastingHere = onBand.some((ap) => ap.floorId === floorId)
   const { coverage, error } = useCoverage(shownPlan, floorId, band)
   const shown = broadcasting ? coverage : undefined
   const summary = useCoverageMessage(shown)
@@ -100,6 +103,19 @@ function App({
         state.setTool('window')
       } else if (!mod && !event.altKey && key === 'a') {
         state.setTool('accessPoint')
+      } else if (
+        (event.key === 'PageUp' || event.key === 'PageDown') &&
+        !mod &&
+        !state.gesture
+      ) {
+        // Up and down the floor stack (D52).
+        const next = adjacentFloorId(
+          state.plan.floors,
+          state.floorId,
+          event.key === 'PageUp' ? 1 : -1,
+        )
+        event.preventDefault()
+        if (next) state.setFloor(next)
       } else if (key === 'enter' && state.chain) {
         state.endChain()
       } else if (key === 'delete' || key === 'backspace') {
@@ -137,11 +153,17 @@ function App({
             <h1 className="visually-hidden">SignalPlan editor</h1>
             <EditorCanvas coverage={shown} />
             {tool === 'calibrate' && <CalibrationBar />}
-            {!broadcasting && (
+            <FloorStack />
+            {!broadcastingHere && (
               <p className="notice">
-                {hasAccessPoint
-                  ? 'No access point on this floor broadcasts on this band. Select one and turn the band on under Bands.'
-                  : 'No access points on this floor. Add one with the Access point tool.'}
+                {(hasAccessPoint
+                  ? 'No access point on this floor broadcasts on this band.'
+                  : 'No access points on this floor.') +
+                  (broadcasting
+                    ? ' The heatmap shows signal from other floors.'
+                    : hasAccessPoint
+                      ? ' Select one and turn the band on under Bands.'
+                      : ' Add one with the Access point tool.')}
               </p>
             )}
             {error && (
