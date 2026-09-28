@@ -19,6 +19,7 @@ import {
 import { createStore, type StoreApi } from 'zustand/vanilla'
 import { DEFAULT_TARGET } from '../quality.ts'
 import type { Camera } from './camera.ts'
+import { suggestionRecipe, type OptimizerState } from './optimizer.ts'
 import type { Units } from './units.ts'
 
 enablePatches()
@@ -93,6 +94,8 @@ export interface EditorState {
    * didn't move (D43). Cleared by the next edit or selection change.
    */
   notice: string | undefined
+  /** The optimizer's search, its suggestion, or why it has none (D44). */
+  optimizer: OptimizerState | undefined
 
   /** Applies one undoable edit. */
   edit: (label: string, recipe: Recipe) => void
@@ -126,6 +129,9 @@ export interface EditorState {
   setCamera: (camera: Camera | undefined) => void
   setPointer: (pointer: Point | undefined) => void
   setNotice: (notice: string | undefined) => void
+  setOptimizer: (optimizer: OptimizerState | undefined) => void
+  /** Moves or adds the suggested access point as one edit, and selects it. */
+  applySuggestion: () => void
   setWallMaterial: (material: WallMaterial) => void
   addCalibrationPoint: (point: Point) => void
   setOpeningMaterial: (
@@ -149,6 +155,26 @@ function wouldAddWall(
   material: WallMaterial,
 ) {
   return addWall(structuredClone(floor), a, b, material).length > 0
+}
+
+/**
+ * A search or suggestion is for the plan and band as they were, so a change
+ * drops it, with a note saying why (D44).
+ */
+function dropOptimizer(
+  optimizer: OptimizerState | undefined,
+  why: string,
+): Partial<EditorState> {
+  switch (optimizer?.status) {
+    case 'searching':
+      return { optimizer: undefined, notice: `Search stopped: ${why}.` }
+    case 'suggestion':
+      return { optimizer: undefined, notice: `Suggestion dismissed: ${why}.` }
+    case 'message':
+      return { optimizer: undefined }
+    case undefined:
+      return {}
+  }
 }
 
 const sameSelection = (a: Selection, b: Selection) =>
@@ -197,6 +223,7 @@ export function createEditorStore(
     planId: options.id,
     gesture: undefined,
     notice: undefined,
+    optimizer: undefined,
 
     edit: (label, recipe) => {
       const [next, patches, inverse] = produceWithPatches(get().plan, recipe)
@@ -210,6 +237,7 @@ export function createEditorStore(
         pristine: false,
         selection: validSelection(next, state.floorId, state.selection),
         notice: undefined,
+        ...dropOptimizer(state.optimizer, 'the plan changed'),
       }))
     },
 
@@ -221,7 +249,11 @@ export function createEditorStore(
       const { gesture } = get()
       if (!gesture) return
       const [next] = produceWithPatches(gesture.base, recipe)
-      set({ plan: next, gesture: { base: gesture.base, recipe } })
+      set((state) => ({
+        plan: next,
+        gesture: { base: gesture.base, recipe },
+        ...dropOptimizer(state.optimizer, 'the plan changed'),
+      }))
     },
 
     endGesture: (label) => {
@@ -257,6 +289,7 @@ export function createEditorStore(
         past: state.past.slice(0, -1),
         future: [...state.future, entry],
         selection: validSelection(next, state.floorId, state.selection),
+        ...dropOptimizer(state.optimizer, 'the plan changed'),
       }))
     },
 
@@ -271,6 +304,7 @@ export function createEditorStore(
         past: [...state.past, entry],
         future: state.future.slice(0, -1),
         selection: validSelection(next, state.floorId, state.selection),
+        ...dropOptimizer(state.optimizer, 'the plan changed'),
       }))
     },
 
@@ -286,6 +320,7 @@ export function createEditorStore(
         selection: [],
         camera: undefined,
         chain: undefined,
+        optimizer: undefined,
       })
     },
 
@@ -306,7 +341,12 @@ export function createEditorStore(
       })
     },
 
-    setBand: (band) => set({ band }),
+    setBand: (band) =>
+      set((state) =>
+        band === state.band
+          ? {}
+          : { band, ...dropOptimizer(state.optimizer, 'the band changed') },
+      ),
     setUnits: (units) => set({ units }),
     setShowHeatmap: (showHeatmap) => set({ showHeatmap }),
     setTool: (tool) => set({ tool, chain: undefined, calibrationPoints: [] }),
@@ -330,6 +370,25 @@ export function createEditorStore(
     setCamera: (camera) => set({ camera }),
     setPointer: (pointer) => set({ pointer }),
     setNotice: (notice) => set({ notice }),
+    setOptimizer: (optimizer) => set({ optimizer }),
+    applySuggestion: () => {
+      const { optimizer, plan } = get()
+      if (optimizer?.status !== 'suggestion') return
+      const { suggestion } = optimizer
+      set({ optimizer: undefined })
+      get().edit(
+        suggestion.apId === undefined
+          ? `Add ${suggestion.name} at the suggested spot`
+          : `Move ${suggestion.name} to the suggested spot`,
+        suggestionRecipe(suggestion),
+      )
+      const id =
+        suggestion.apId ??
+        get().plan.accessPoints.find(
+          (ap) => !plan.accessPoints.some((old) => old.id === ap.id),
+        )?.id
+      if (id) get().select([{ kind: 'accessPoint', id }])
+    },
     setWallMaterial: (wallMaterial) => set({ wallMaterial }),
     setOpeningMaterial: (kind, material) =>
       set((state) => ({

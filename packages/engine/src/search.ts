@@ -37,6 +37,8 @@ export type SearchResult =
       weakestDbm: number
       /** The same share with it at `problem.current`, if given. */
       before: number | undefined
+      /** The weakest signal with it at `problem.current`, if given. */
+      beforeWeakestDbm: number | undefined
       /** True if the time budget ran out and the search stopped early. */
       stoppedEarly: boolean
     }
@@ -116,14 +118,16 @@ export function searchSinglePlacement(
   options.onProgress?.(1)
 
   if (!winner) return { kind: 'no-floor-area' }
+  const before = problem.current
+    ? fine.score([fine.signal(problem.current)])
+    : undefined
   return {
     kind: 'found',
     position: winner.at,
     share: winner.share,
     weakestDbm: winner.weakestDbm,
-    before: problem.current
-      ? fine.share([fine.signal(problem.current)])
-      : undefined,
+    before: before?.share,
+    beforeWeakestDbm: before?.weakestDbm,
     stoppedEarly,
   }
 }

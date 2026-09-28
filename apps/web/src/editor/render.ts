@@ -39,6 +39,12 @@ export interface Scene {
   accessPoints: readonly AccessPoint[]
   /** Access point tool: where a click would add one. */
   accessPointPreview?: Point | undefined
+  /**
+   * The optimizer's suggested spot (D44): the access point that would move
+   * (drawn faded where it is) or none when one would be added.
+   */
+  suggestion?:
+    { apId: string | undefined; from: Point | undefined; to: Point } | undefined
   selection: Selection
   /** Walls as lines between their corners, for selection highlights. */
   wallLines: readonly { id: string; a: Point; b: Point }[]
@@ -220,8 +226,12 @@ export function draw(
 
   context.font = '600 12px system-ui, sans-serif'
   context.textBaseline = 'middle'
+  if (scene.suggestion) drawSuggestion(context, colour, scene)
   for (const ap of scene.accessPoints) {
     const at = toScreen(camera, ap)
+    const moving = scene.suggestion?.apId === ap.id
+    context.save()
+    if (moving) context.globalAlpha = 0.45
     const selected = scene.selection.some(
       (s) => s.kind === 'accessPoint' && s.id === ap.id,
     )
@@ -250,7 +260,60 @@ export function draw(
     context.strokeText(ap.name, x, at.y)
     context.fillStyle = colour('--text')
     context.fillText(ap.name, x, at.y)
+    context.restore()
   }
+}
+
+/**
+ * The suggested spot as a ghost access point with a dashed ring, labelled,
+ * and a dashed line from where the access point is now.
+ */
+function drawSuggestion(
+  context: CanvasRenderingContext2D,
+  colour: (name: string) => string,
+  { camera, suggestion }: Scene,
+) {
+  if (!suggestion) return
+  const to = toScreen(camera, suggestion.to)
+  context.save()
+  context.lineJoin = 'round'
+  if (suggestion.from) {
+    const from = toScreen(camera, suggestion.from)
+    context.beginPath()
+    context.moveTo(from.x, from.y)
+    context.lineTo(to.x, to.y)
+    context.setLineDash([6, 4])
+    context.lineWidth = 4
+    context.strokeStyle = colour('--canvas')
+    context.stroke()
+    context.lineWidth = 2
+    context.strokeStyle = colour('--accent')
+    context.stroke()
+  }
+  context.setLineDash([])
+  context.beginPath()
+  context.arc(to.x, to.y, AP_RADIUS_PX + 5, 0, Math.PI * 2)
+  context.fillStyle = colour('--selection-halo')
+  context.fill()
+  context.beginPath()
+  context.arc(to.x, to.y, AP_RADIUS_PX, 0, Math.PI * 2)
+  context.globalAlpha = 0.6
+  context.fillStyle = colour('--ap')
+  context.fill()
+  context.globalAlpha = 1
+  context.setLineDash([4, 3])
+  context.lineWidth = 3
+  context.strokeStyle = colour('--accent')
+  context.stroke()
+  context.setLineDash([])
+
+  const x = to.x + AP_RADIUS_PX + 6
+  context.lineWidth = 4
+  context.strokeStyle = colour('--canvas')
+  context.strokeText('Suggested', x, to.y)
+  context.fillStyle = colour('--text')
+  context.fillText('Suggested', x, to.y)
+  context.restore()
 }
 
 const PADLOCK_WIDTH_PX = 9

@@ -47,6 +47,8 @@ import { TracingSection } from './TracingSection.tsx'
 import type { SaveStatus } from './autosave.ts'
 import { MOD_KEY, signalAt } from './util.ts'
 import { drawWall, WALL_STYLES } from './wallStyles.ts'
+import { chooseTarget, suggestionText } from './optimizer.ts'
+import { useOptimizer } from './optimizerContext.ts'
 
 const MODEL_URL = 'https://github.com/NC4321/SignalPlan/blob/main/docs/MODEL.md'
 
@@ -264,6 +266,7 @@ export function PropertiesPanel({
   const floorId = useEditor((s) => s.floorId)
   const selection = useEditor((s) => s.selection)
   const tool = useEditor((s) => s.tool)
+  const optimizing = useEditor((s) => s.optimizer !== undefined)
   const floor = plan.floors.find((f) => f.id === floorId)!
 
   const only = selection.length === 1 ? selection[0] : undefined
@@ -312,6 +315,10 @@ export function PropertiesPanel({
       aria-label="Properties"
     >
       {details}
+
+      {(optimizing || ap || (tool === 'select' && selection.length === 0)) && (
+        <OptimizerSection />
+      )}
 
       {tool !== 'wall' && (
         <section>
@@ -395,6 +402,117 @@ function CoverageSummary({ message }: { message: string }) {
       {/* Announced from the status bar, where it is always visible (D37). */}
       <p className="coverage-share">{message}</p>
     </div>
+  )
+}
+
+/**
+ * The placement optimizer (D44): a button to search, then progress and
+ * Cancel, then the suggestion with Apply and Dismiss. The canvas shows the
+ * suggested spot and the heatmap shows coverage with it applied.
+ */
+function OptimizerSection() {
+  const store = useEditorStore()
+  const optimizer = useOptimizer()
+  const state = useEditor((s) => s.optimizer)
+  const plan = useEditor((s) => s.plan)
+  const floorId = useEditor((s) => s.floorId)
+  const band = useEditor((s) => s.band)
+  const selection = useEditor((s) => s.selection)
+  const units = useEditor((s) => s.units)
+
+  // Keep focus in the section as its buttons come and go.
+  const focusInside = useRef(false)
+  const primary = useRef<HTMLButtonElement>(null)
+  const status = state?.status
+  useEffect(() => {
+    const active = document.activeElement
+    if (focusInside.current && (!active || active === document.body)) {
+      primary.current?.focus()
+    }
+  }, [status])
+
+  const target = chooseTarget(plan, floorId, band, selection)
+  let statusText = ''
+  let body
+  if (state?.status === 'searching') {
+    statusText = `Searching for a spot for ${state.name}…`
+    body = (
+      <>
+        <progress
+          className="optimizer-progress"
+          value={state.fraction}
+          max={1}
+          aria-label="Search progress"
+          aria-valuetext={`${Math.round(state.fraction * 100)}%`}
+        />
+        <div className="actions">
+          <button
+            ref={primary}
+            type="button"
+            onClick={() => optimizer.cancel()}
+          >
+            Cancel
+          </button>
+        </div>
+      </>
+    )
+  } else if (state?.status === 'suggestion') {
+    const { suggestion } = state
+    const at = `${formatLength(suggestion.position.x, units)}, ${formatLength(suggestion.position.y, units)}`
+    statusText = `${suggestion.apId === undefined ? `Add ${suggestion.name}` : `Move ${suggestion.name}`} to ${at}: ${suggestionText(suggestion, plan.coverageTarget)}${suggestion.stoppedEarly ? ' The search hit its 10 second limit, so this is the best spot found so far.' : ''}`
+    body = (
+      <div className="actions">
+        <button
+          ref={primary}
+          type="button"
+          className="primary"
+          onClick={() => store.getState().applySuggestion()}
+        >
+          Apply
+        </button>
+        <button type="button" onClick={() => optimizer.cancel()}>
+          Dismiss
+        </button>
+      </div>
+    )
+  } else {
+    if (state?.status === 'message') statusText = state.text
+    body =
+      target.kind === 'unavailable' ? (
+        state?.status !== 'message' && <p className="hint">{target.reason}</p>
+      ) : (
+        <div className="actions">
+          <button ref={primary} type="button" onClick={() => optimizer.start()}>
+            {target.kind === 'move'
+              ? `Find a better spot for ${target.ap.name}`
+              : 'Find the best spot for an access point'}
+          </button>
+        </div>
+      )
+  }
+
+  return (
+    <section
+      className="optimizer"
+      onFocus={() => {
+        focusInside.current = true
+      }}
+      onBlur={(event) => {
+        // Losing focus to a removed button keeps it; leaving the section doesn't.
+        if (event.relatedTarget) focusInside.current = false
+      }}
+    >
+      <h2>Suggest a spot</h2>
+      <p className="optimizer-status" role="status">
+        {statusText}
+      </p>
+      {body}
+      <p className="hint">
+        Maximises the share of the floor at the coverage target on the band on
+        show. It assumes a good link back to the router: mesh backhaul isn’t
+        modelled.
+      </p>
+    </section>
   )
 }
 

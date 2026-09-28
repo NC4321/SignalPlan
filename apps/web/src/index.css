@@ -361,6 +361,20 @@ dd {
   min-width: 0;
 }
 
+.optimizer-status {
+  margin: 0.5rem 0 0;
+}
+
+.optimizer-status:empty {
+  display: none;
+}
+
+.optimizer-progress {
+  width: 100%;
+  margin-top: 0.75rem;
+  accent-color: var(--accent);
+}
+
 .coverage-share {
   margin: 0;
   font-variant-numeric: tabular-nums;
