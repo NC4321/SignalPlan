@@ -932,6 +932,13 @@ function PlanSection() {
         <dt>Doors and windows</dt>
         <dd>{floor?.openings.length ?? 0}</dd>
       </dl>
+      {floor?.walls.length === 0 && (
+        <p className="hint start-hint">
+          To start, pick <strong>Wall</strong> (W) and click to place each
+          corner; click the first corner again to close a room. Drag an access
+          point to move it.
+        </p>
+      )}
       <h3>Access points</h3>
       <ul className="object-list">
         {plan.accessPoints

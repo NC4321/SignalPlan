@@ -101,7 +101,7 @@ function App({
           {!broadcasting && (
             <p className="notice">
               {hasAccessPoint
-                ? 'No access point on this floor broadcasts on this band.'
+                ? 'No access point on this floor broadcasts on this band. Select one and turn the band on under Bands.'
                 : 'No access points on this floor. Add one with the Access point tool.'}
             </p>
           )}

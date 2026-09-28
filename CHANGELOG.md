@@ -9,6 +9,7 @@ All notable changes to this project are documented here. The format follows [Kee
 - Engine: wall losses near 2.4 GHz checked against NIST at 2.0 GHz and in-building measurements at 2.5 GHz; drywall, glass and lumber stay within 4 dB of NIST in a unit test.
 - README demo GIF (draw walls, place an access point, drag it), recorded by `scripts/record-demo.mjs` so it can be regenerated.
 - Engine: second validation source for wall losses (Muqaibel, Virginia Tech) at 2.4, 5 and 6 GHz, with the wooden door and glass within 1 dB in a unit test; `docs/MODEL.md` now documents the brick gap and how moisture sets concrete loss (Rhim, MIT).
+- Usability: an agent cold-start walkthrough (`docs/usability/2026-09-27-agent-walkthrough.md`) and a script for testing with real people (`docs/usability/test-script.md`). An empty floor's panel now says how to start drawing, and the notice for a band nothing broadcasts on says how to turn it on.
 - Engine: wall losses validated against NIST measurements at 5 and 6 GHz; drywall, glass and lumber stay within 5 dB in a unit test, and the brick and concrete disagreement is documented in `docs/MODEL.md`.
 - File › Export image…: a PNG of the floor with its heatmap, access point names, legend, coverage summary and a scale bar, in three sizes and a light or dark theme, named after the plan and band.
 - Coverage summary: under the heatmap legend, the share of the floor inside the outer walls that reaches a chosen target (Excellent, Good, Fair or Weak; Fair by default), for the band on show. The target is saved with the plan as the optional `coverageTarget`.
@@ -36,3 +37,7 @@ All notable changes to this project are documented here. The format follows [Kee
 ### Changed
 
 - Engine: the coverage grid is 5–7× faster with identical results (a 300 m² house went from ~210 ms to 28 ms), so the heatmap keeps up while dragging on slower devices. `pnpm speed` adds the 300 m² house with a 50 ms budget.
+
+### Fixed
+
+- Access point tool: pressing on an existing access point now grabs it to move it, instead of stacking a new one on top.

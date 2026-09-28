@@ -31,6 +31,17 @@ const distance = (a: Point, b: Point) => Math.hypot(b.x - a.x, b.y - a.y)
 const wallReach = (camera: Camera) =>
   Math.max(baseWallWidth(camera) * 0.9 + 3, 6)
 
+/** The access point within grabbing distance of a screen point, if any. */
+export function accessPointAt(
+  camera: Camera,
+  accessPoints: readonly AccessPoint[],
+  screen: Point,
+): AccessPoint | undefined {
+  return accessPoints.find(
+    (a) => distance(toScreen(camera, a), screen) <= AP_GRAB_PX,
+  )
+}
+
 /**
  * What is under a screen point, in order of priority: an access point, a
  * corner, a door or window, then a wall.
@@ -42,9 +53,7 @@ export function hitTest(
   openings: readonly OpeningSpan[],
   screen: Point,
 ): SelectionItem | undefined {
-  const ap = accessPoints.find(
-    (a) => distance(toScreen(camera, a), screen) <= AP_GRAB_PX,
-  )
+  const ap = accessPointAt(camera, accessPoints, screen)
   if (ap) return { kind: 'accessPoint', id: ap.id }
 
   let best: { item: SelectionItem; d: number } | undefined

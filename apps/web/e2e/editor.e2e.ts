@@ -16,6 +16,25 @@ test('opens the sample home with a live heatmap', async ({ page }) => {
   await expect(page.locator('.readout')).toContainText(/-\d+ dBm · \w+/)
 })
 
+test('says how to start on an empty plan, until there are walls', async ({
+  page,
+}) => {
+  const properties = page.getByRole('complementary', { name: 'Properties' })
+  const hint = properties.getByText(/To start, pick Wall/)
+  await expect(hint).toBeHidden()
+  await page.getByText('File', { exact: true }).click()
+  await page.getByRole('button', { name: 'New plan' }).click()
+  await expect(hint).toBeVisible()
+
+  await page.keyboard.press('w')
+  const a = await screenPoint(page, 1, 1)
+  const b = await screenPoint(page, 3, 1)
+  await page.mouse.click(a.x, a.y)
+  await page.mouse.dblclick(b.x, b.y)
+  await page.keyboard.press('Escape')
+  await expect(hint).toBeHidden()
+})
+
 test('moves an access point with the keyboard, then undoes it', async ({
   page,
 }) => {

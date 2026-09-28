@@ -21,6 +21,7 @@ import { LengthInput } from './LengthInput.tsx'
 import { BLANK_BOUNDS } from './persistence.ts'
 import { draw, heatmapBitmap } from './render.ts'
 import {
+  accessPointAt,
   describeSelection,
   hitTest,
   moveNodeRecipe,
@@ -267,7 +268,9 @@ export function EditorCanvas({ coverage }: { coverage: Coverage | undefined }) {
         tool === 'calibrate'
           ? { points: calibrationPoints, cursor: pointer }
           : undefined,
-      accessPointPreview: tool === 'accessPoint' ? pointer : undefined,
+      // No ghost while over (or dragging) an existing access point.
+      accessPointPreview:
+        tool === 'accessPoint' && cursor === 'default' ? pointer : undefined,
       corners: floor.nodes,
       drawing:
         tool === 'wall' && preview
@@ -295,6 +298,7 @@ export function EditorCanvas({ coverage }: { coverage: Coverage | undefined }) {
     pointer,
     floor.nodes,
     tool,
+    cursor,
     preview,
     anchor,
     wallMaterial,
@@ -336,6 +340,9 @@ export function EditorCanvas({ coverage }: { coverage: Coverage | undefined }) {
     if (openingTool) {
       if (placementAt(screen)) return 'default'
       return wallAt(camera, floor, screen) ? 'not-allowed' : 'default'
+    }
+    if (tool === 'accessPoint') {
+      return accessPointAt(camera, accessPoints, screen) ? 'grab' : 'default'
     }
     if (tool !== 'select') return 'default'
     const hit = hitTest(camera, floor, accessPoints, openings, screen)
@@ -515,7 +522,12 @@ export function EditorCanvas({ coverage }: { coverage: Coverage | undefined }) {
             return
           }
 
-          if (tool === 'accessPoint') {
+          // A press on an existing access point grabs it, as with Select,
+          // rather than stacking a new one on top.
+          if (
+            tool === 'accessPoint' &&
+            !accessPointAt(camera, accessPoints, at)
+          ) {
             let created: string | undefined
             state.edit('Add access point', (draft) => {
               created = addAccessPoint(draft, floorId, toPlan(camera, at))

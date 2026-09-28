@@ -1,6 +1,11 @@
 import type { Floor } from '@signalplan/floorplan'
 import { describe, expect, it } from 'vitest'
-import { hitTest, snapDraggedNode, wallDragDelta } from './selectTool.ts'
+import {
+  accessPointAt,
+  hitTest,
+  snapDraggedNode,
+  wallDragDelta,
+} from './selectTool.ts'
 
 const floor: Floor = {
   id: 'f',
@@ -45,6 +50,20 @@ describe('hitTest', () => {
       id: 'ab',
     })
     expect(hitTest(camera, floor, [ap], [], { x: 150, y: 60 })).toBeUndefined()
+  })
+})
+
+describe('accessPointAt', () => {
+  // The access point is drawn at (200, 200) px; it can be grabbed up to
+  // 9 + 8 = 17 px from its centre.
+  it('finds an access point within grabbing distance', () => {
+    expect(accessPointAt(camera, [ap], { x: 212, y: 212 })).toBe(ap) // 17.0 px
+    expect(accessPointAt(camera, [ap], { x: 217, y: 200 })).toBe(ap)
+  })
+
+  it('ignores points just out of reach', () => {
+    expect(accessPointAt(camera, [ap], { x: 218, y: 200 })).toBeUndefined()
+    expect(accessPointAt(camera, [], { x: 200, y: 200 })).toBeUndefined()
   })
 })
 
