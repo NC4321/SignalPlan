@@ -12,6 +12,7 @@ import { evaluateCoverage } from './coverage.ts'
 import { summariseCoverage } from './floorArea.ts'
 import { MATERIAL_LOSS_DB } from './materials.ts'
 import {
+  betterScore,
   candidatePositions,
   createScorer,
   type PlacementProblem,
@@ -187,5 +188,22 @@ describe('candidatePositions', () => {
     expect(scorer.allows({ x: 2, y: 1 })).toBe(false)
     expect(scorer.allows({ x: -0.5, y: 1 })).toBe(false)
     expect(scorer.allows({ x: 9, y: 9 })).toBe(false)
+  })
+})
+
+describe('betterScore', () => {
+  it('prefers the larger share, then the stronger weakest spot', () => {
+    expect(
+      betterScore(
+        { share: 0.9, weakestDbm: -90 },
+        { share: 0.8, weakestDbm: -60 },
+      ),
+    ).toBe(true)
+    expect(
+      betterScore({ share: 1, weakestDbm: -60 }, { share: 1, weakestDbm: -61 }),
+    ).toBe(true)
+    expect(
+      betterScore({ share: 1, weakestDbm: -60 }, { share: 1, weakestDbm: -60 }),
+    ).toBe(false)
   })
 })

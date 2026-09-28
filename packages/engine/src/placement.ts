@@ -59,6 +59,24 @@ export interface Scorer {
    * fixed access points plus moving ones with these signals.
    */
   share(signals: readonly Float32Array[]): number
+  /** The share plus the weakest cell's signal, for breaking ties (D42). */
+  score(signals: readonly Float32Array[]): PlacementScore
+}
+
+export interface PlacementScore {
+  share: number
+  /** The weakest signal in dBm anywhere inside the walls. */
+  weakestDbm: number
+}
+
+/**
+ * Whether score a beats score b: a larger share wins, and on an equal share
+ * the stronger weakest spot, which leaves the most headroom (D42).
+ */
+export function betterScore(a: PlacementScore, b: PlacementScore): boolean {
+  return (
+    a.share > b.share || (a.share === b.share && a.weakestDbm > b.weakestDbm)
+  )
 }
 
 /** The scorer for a problem, or undefined when the floor has no closed outline. */
@@ -136,13 +154,18 @@ export function createScorer(problem: PlacementProblem): Scorer | undefined {
       return signalFrom({ x: at.x, y: at.y, heightM: template.heightM }, radio)
     },
     share(signals) {
+      return this.score(signals).share
+    },
+    score(signals) {
       let covered = 0
+      let weakest = Number.POSITIVE_INFINITY
       for (let k = 0; k < cells.length; k++) {
         let best = base[k]!
         for (const s of signals) if (s.length > 0 && s[k]! > best) best = s[k]!
         if (best >= minDbm) covered++
+        if (best < weakest) weakest = best
       }
-      return covered / cells.length
+      return { share: covered / cells.length, weakestDbm: weakest }
     },
   }
 }
