@@ -139,5 +139,6 @@ export function describeForScreenReader(
   }
   const ap = accessPoints.find((a) => a.id === item.id)
   if (!ap) return 'Nothing selected'
-  return `Access point ${ap.name}, ${at(ap)}${position}`
+  const locked = ap.locked ? ', locked' : ''
+  return `Access point ${ap.name}, ${at(ap)}${locked}${position}`
 }

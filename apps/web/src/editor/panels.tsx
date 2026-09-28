@@ -422,6 +422,7 @@ export function StatusBar({
   const next = settledAnnouncement(announced, coverageText, inGesture)
   if (next !== announced) setAnnounced(next)
   const pointer = useEditor((s) => s.pointer)
+  const notice = useEditor((s) => s.notice)
   const units = useEditor((s) => s.units)
   const showHeatmap = useEditor(heatmapShown)
   const tracing = useEditor((s) => s.showHeatmap && tracingHidesHeatmap(s))
@@ -465,6 +466,10 @@ export function StatusBar({
         {tracing && (
           <span className="tracing-note"> · Heatmap hidden while tracing</span>
         )}
+      </p>
+      {/* Rare and short, so it's announced (D43). */}
+      <p className="status-notice" role="status">
+        {notice}
       </p>
       <p
         className="save-status"
@@ -668,6 +673,22 @@ function AccessPointSection({ ap }: { ap: AccessPoint }) {
           {formatLength(ap.x, units)}, {formatLength(ap.y, units)}
         </dd>
       </dl>
+      <label className="check-field">
+        <input
+          type="checkbox"
+          checked={ap.locked === true}
+          onChange={(event) => {
+            const on = event.target.checked
+            edit(`${on ? 'Lock' : 'Unlock'} ${ap.name}`, (plan) => {
+              const a = target(plan)
+              if (!a) return
+              if (on) a.locked = true
+              else delete a.locked
+            })
+          }}
+        />
+        Locked (stays where it is)
+      </label>
       <fieldset className="radios">
         <legend>Bands</legend>
         {BANDS.map((band) => {
@@ -712,8 +733,10 @@ function AccessPointSection({ ap }: { ap: AccessPoint }) {
         })}
       </fieldset>
       <p className="hint">
-        Power is EIRP, antenna gain included. Drag the access point, or use the
-        arrow keys (Shift for bigger steps).
+        Power is EIRP, antenna gain included.{' '}
+        {ap.locked
+          ? 'Locked, so it can’t be moved; untick Locked to move it.'
+          : 'Drag the access point, or use the arrow keys (Shift for bigger steps).'}
       </p>
       <div className="actions">
         <DeleteButton />

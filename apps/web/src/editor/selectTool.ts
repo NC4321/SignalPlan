@@ -256,8 +256,9 @@ export function nudgeRecipe(
         }
       }
       if (item.kind === 'accessPoint') {
+        // Locked access points stay put; the rest of the selection moves (D43).
         const ap = plan.accessPoints.find((a) => a.id === item.id)
-        if (ap) {
+        if (ap && !ap.locked) {
           ap.x += delta.x
           ap.y += delta.y
         }
@@ -267,6 +268,18 @@ export function nudgeRecipe(
     collapseShortWalls(floor)
   }
 }
+
+/** Whether the selection includes an access point that is locked (D43). */
+export function selectionHasLocked(plan: Plan, selection: Selection): boolean {
+  return selection.some(
+    (item) =>
+      item.kind === 'accessPoint' &&
+      plan.accessPoints.some((ap) => ap.id === item.id && ap.locked),
+  )
+}
+
+/** The status bar's note when something locked is asked to move (D43). */
+export const LOCKED_NOTICE = 'Locked: unlock it in the panel to move it'
 
 /**
  * Deletes the selected access points, openings, walls and corners (D18, D25).

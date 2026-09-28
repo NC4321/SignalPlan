@@ -133,6 +133,21 @@ describe('describeForScreenReader', () => {
     )
   })
 
+  it('says when an access point is locked', () => {
+    const locked = accessPoints.map((a) =>
+      a.id === 'one' ? { ...a, locked: true } : a,
+    )
+    expect(
+      describeForScreenReader(
+        [{ kind: 'accessPoint', id: 'one' }],
+        floor,
+        locked,
+        'metric',
+        order,
+      ),
+    ).toBe('Access point Router one, at 1.00 m, 1.50 m, locked, 7 of 8')
+  })
+
   it('summarises empty and multiple selections', () => {
     expect(say([])).toBe('Nothing selected')
     expect(
