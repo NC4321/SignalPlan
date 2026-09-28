@@ -1,6 +1,11 @@
-import { BAND_PROFILES, type Coverage } from '@signalplan/engine'
+import {
+  BAND_PROFILES,
+  summariseCoverage,
+  type Coverage,
+} from '@signalplan/engine'
 import {
   BANDS,
+  COVERAGE_TARGETS,
   EIRP_RANGE_DBM,
   MIN_WALL_LENGTH_M,
   NEW_ACCESS_POINT_HEIGHT_M,
@@ -12,6 +17,7 @@ import {
   WALL_MATERIALS,
   type AccessPoint,
   type Band,
+  type CoverageTarget,
   OPENING_MATERIALS,
   setOpeningWidth,
   type Floor,
@@ -22,12 +28,18 @@ import {
 } from '@signalplan/floorplan'
 import type { Draft } from 'immer'
 import { useEffect, useId, useRef, useState } from 'react'
-import { cssColour, QUALITY_BANDS, qualityOf } from '../quality.ts'
+import {
+  cssColour,
+  DEFAULT_TARGET,
+  QUALITY_BANDS,
+  qualityOf,
+  targetBand,
+} from '../quality.ts'
 import { zoomAt } from './camera.ts'
 import { useEditor, useEditorStore } from './context.ts'
 import { deleteRecipe, describeSelection } from './selectTool.ts'
 import { bearingDeg } from './snap.ts'
-import { formatLength, parseLength, type Units } from './units.ts'
+import { formatArea, formatLength, parseLength, type Units } from './units.ts'
 import {
   DEFAULT_OPENING_WIDTH_M,
   heatmapShown,
@@ -249,7 +261,14 @@ export function Toolbar() {
   )
 }
 
-export function PropertiesPanel({ open }: { open: boolean }) {
+export function PropertiesPanel({
+  open,
+  coverage,
+}: {
+  open: boolean
+  /** The heatmap's coverage, or undefined when nothing broadcasts. */
+  coverage: Coverage | undefined
+}) {
   const plan = useEditor((s) => s.plan)
   const floorId = useEditor((s) => s.floorId)
   const selection = useEditor((s) => s.selection)
@@ -340,12 +359,64 @@ export function PropertiesPanel({ open }: { open: boolean }) {
             </span>
           </li>
         </ul>
+        <CoverageSummary coverage={coverage} />
         <p className="hint">
           Predictions come from a simplified model.{' '}
           <a href={MODEL_URL}>How it works and its limits</a>
         </p>
       </section>
     </aside>
+  )
+}
+
+/**
+ * The share of the floor inside the walls that reaches the plan's target,
+ * for the band on show (#43).
+ */
+function CoverageSummary({ coverage }: { coverage: Coverage | undefined }) {
+  const store = useEditorStore()
+  const target = useEditor((s) => s.plan.coverageTarget ?? DEFAULT_TARGET)
+  const units = useEditor((s) => s.units)
+  const id = useId()
+  const goal = targetBand(target)
+
+  let message = ''
+  if (coverage) {
+    const { share, areaM2 } = summariseCoverage(coverage, goal.minDbm)
+    // Rounded down, so 100% only ever means all of it.
+    message =
+      share === undefined
+        ? 'Close the outer walls to see how much of the floor is covered.'
+        : `${Math.floor(share * 100)}% of ${formatArea(areaM2, units)} at ${goal.label} or better on ${BAND_LABELS[coverage.band]}.`
+  }
+
+  return (
+    <div className="coverage-summary">
+      <div className="field">
+        <label htmlFor={id}>Coverage target</label>
+        <select
+          id={id}
+          value={target}
+          onChange={(event) =>
+            store
+              .getState()
+              .setCoverageTarget(event.target.value as CoverageTarget)
+          }
+        >
+          {COVERAGE_TARGETS.map((t) => {
+            const q = targetBand(t)
+            return (
+              <option key={t} value={t}>
+                {`${q.label}: ${q.meaning.toLowerCase()}`}
+              </option>
+            )
+          })}
+        </select>
+      </div>
+      <p className="coverage-share" role="status">
+        {message}
+      </p>
+    </div>
   )
 }
 

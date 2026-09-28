@@ -1,3 +1,5 @@
+import type { CoverageTarget } from '@signalplan/floorplan'
+
 /**
  * Signal quality bands for the heatmap. Colours are the viridis palette, which
  * stays distinguishable with common colour-vision deficiencies; brighter means
@@ -51,3 +53,13 @@ export function qualityOf(dbm: number): QualityBand | undefined {
 }
 
 export const cssColour = ({ rgb }: QualityBand) => `rgb(${rgb.join(' ')})`
+
+/** The coverage summary's target when a plan doesn't set one: calls and streaming. */
+export const DEFAULT_TARGET: CoverageTarget = 'fair'
+
+/** The heatmap band a coverage target names. */
+export function targetBand(
+  target: CoverageTarget = DEFAULT_TARGET,
+): QualityBand {
+  return QUALITY_BANDS.find((band) => band.label.toLowerCase() === target)!
+}

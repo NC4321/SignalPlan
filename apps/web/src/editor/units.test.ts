@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { formatLength, parseLength } from './units.ts'
+import { formatArea, formatLength, parseLength } from './units.ts'
 
 const inches = (n: number) => n * 0.0254
 const feet = (n: number) => inches(n * 12)
@@ -19,6 +19,14 @@ describe('formatLength', () => {
 
   it('carries 12 inches into a foot', () => {
     expect(formatLength(feet(2) + inches(11.9), 'imperial')).toBe('3′ 0″')
+  })
+})
+
+describe('formatArea', () => {
+  it('rounds to whole square metres or square feet', () => {
+    expect(formatArea(148.4, 'metric')).toBe('148 m²')
+    // 100 m² is 100 / 0.09290304 = 1076.39 sq ft.
+    expect(formatArea(100, 'imperial')).toBe('1,076 sq ft')
   })
 })
 

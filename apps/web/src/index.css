@@ -75,6 +75,7 @@ button:focus-visible,
 summary:focus-visible,
 a:focus-visible,
 input:not([type='radio']):focus-visible,
+select:focus-visible,
 input:focus-visible + *,
 .editor-canvas:focus-visible {
   outline: 2px solid var(--accent);
@@ -352,6 +353,23 @@ dd {
   color: var(--muted);
 }
 
+.coverage-summary {
+  margin-top: 1rem;
+}
+
+.coverage-summary select {
+  min-width: 0;
+}
+
+.coverage-share {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.coverage-share:empty {
+  display: none;
+}
+
 .status-bar {
   grid-area: status;
   display: flex;
@@ -520,7 +538,8 @@ dd {
   color: var(--muted);
 }
 
-.field input {
+.field input,
+.field select {
   font: inherit;
   color: var(--text);
   padding: 0.3rem 0.5rem;

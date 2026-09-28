@@ -2,6 +2,7 @@ import {
   addWall,
   JOIN_TOLERANCE_M,
   type Band,
+  type CoverageTarget,
   type Floor,
   type OpeningMaterial,
   type Plan,
@@ -16,6 +17,7 @@ import {
   type Patch,
 } from 'immer'
 import { createStore, type StoreApi } from 'zustand/vanilla'
+import { DEFAULT_TARGET } from '../quality.ts'
 import type { Camera } from './camera.ts'
 import type { Units } from './units.ts'
 
@@ -106,6 +108,7 @@ export interface EditorState {
   loadPlan: (plan: Plan, options?: { id?: string; pristine?: boolean }) => void
   setPlanId: (id: string) => void
   renamePlan: (name: string) => void
+  setCoverageTarget: (target: CoverageTarget) => void
 
   setBand: (band: Band) => void
   setUnits: (units: Units) => void
@@ -282,6 +285,13 @@ export function createEditorStore(
       if (trimmed === '' || trimmed === get().plan.name) return
       get().edit('Rename plan', (draft) => {
         draft.name = trimmed.slice(0, 200)
+      })
+    },
+
+    setCoverageTarget: (target) => {
+      if (target === (get().plan.coverageTarget ?? DEFAULT_TARGET)) return
+      get().edit('Change coverage target', (draft) => {
+        draft.coverageTarget = target
       })
     },
 
