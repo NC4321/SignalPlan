@@ -381,6 +381,18 @@ dd {
   background: var(--surface);
 }
 
+.coverage-status {
+  flex: none;
+  margin: 0;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.coverage-status:empty {
+  display: none;
+}
+
 .readout {
   min-width: 0;
   margin: 0;
@@ -879,6 +891,17 @@ button.danger-fill {
 
   .panel-toggle {
     display: inline-block;
+  }
+
+  /* The coverage summary gets its own line above the readout (D37). */
+  .status-bar {
+    flex-wrap: wrap;
+    row-gap: 0.15rem;
+  }
+
+  .coverage-status {
+    flex: 1 1 100%;
+    white-space: normal;
   }
 
   .properties {

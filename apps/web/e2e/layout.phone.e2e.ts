@@ -41,3 +41,17 @@ test('fits the calibration bar and status bar on a phone', async ({ page }) => {
   const field = (await input.boundingBox())!
   expect(field.x + field.width).toBeLessThanOrEqual(width)
 })
+
+test('shows the coverage summary in the bottom bar on a phone (D37)', async ({
+  page,
+}) => {
+  await openEditor(page)
+  const summary = page.locator('.status-bar .coverage-status')
+  await expect(summary).toHaveText('86% of 150 m² at Fair or better on 5 GHz.')
+  await expect(summary).toBeInViewport({ ratio: 1 })
+  // The Details drawer is closed, so the panel's copy is out of sight.
+  await expect(page.getByRole('button', { name: 'Details' })).toHaveAttribute(
+    'aria-expanded',
+    'false',
+  )
+})

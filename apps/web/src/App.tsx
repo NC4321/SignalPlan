@@ -14,6 +14,7 @@ import {
   TopBar,
   Toolbar,
 } from './editor/panels.tsx'
+import { useCoverageMessage } from './editor/useCoverageMessage.ts'
 import { deleteRecipe, describeSelection } from './editor/selectTool.ts'
 import { isTyping } from './editor/util.ts'
 import { useCoverage } from './useCoverage.ts'
@@ -39,6 +40,8 @@ function App({
       ap.floorId === floorId && ap.radios.some((radio) => radio.band === band),
   )
   const { coverage, error } = useCoverage(plan, floorId, band)
+  const shown = broadcasting ? coverage : undefined
+  const coverageText = useCoverageMessage(shown)
 
   // Global shortcuts: undo, redo and tools.
   useEffect(() => {
@@ -96,7 +99,7 @@ function App({
         <Toolbar />
         <main className="stage">
           <h1 className="visually-hidden">SignalPlan editor</h1>
-          <EditorCanvas coverage={broadcasting ? coverage : undefined} />
+          <EditorCanvas coverage={shown} />
           {tool === 'calibrate' && <CalibrationBar />}
           {!broadcasting && (
             <p className="notice">
@@ -109,12 +112,10 @@ function App({
             <p className="notice">Couldn’t compute coverage: {error}</p>
           )}
         </main>
-        <PropertiesPanel
-          open={panelOpen}
-          coverage={broadcasting ? coverage : undefined}
-        />
+        <PropertiesPanel open={panelOpen} coverageText={coverageText} />
         <StatusBar
-          coverage={broadcasting ? coverage : undefined}
+          coverage={shown}
+          coverageText={coverageText}
           saveStatus={saveStatus}
         />
         <Dialog

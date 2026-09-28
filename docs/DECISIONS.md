@@ -158,6 +158,7 @@ A running log of project decisions, newest last. Each entry records what was dec
 - **Target:** one of the D12 bands (Excellent, Good, Fair, Weak), picked from a list showing what each is good for. The default is Fair, −67 dBm, for calls and streaming. It's stored in the plan as the optional `coverageTarget`, so it's saved and undoable; adding an optional field needs no schema version bump.
 - **Why:** the whole grid would count the 1 m outdoor margin and change as you draw; rooms don't exist in the schema. Reusing the D12 bands avoids new thresholds that would each need a source.
 - **Revisit if:** rooms or room importance arrive (Phase 4 scoring), or a floor has courtyards or holes that should be left out.
+- **Update:** the line now also sits in the status bar, where it's always visible, and the status bar's copy is the one announced to screen readers; see D37.
 
 ### D28. Export as a PNG — 2026-09-27
 
@@ -173,6 +174,16 @@ A running log of project decisions, newest last. Each entry records what was dec
 - **Why:** the tool stays active after placing, so "place a router, then drag it" stacked an invisible duplicate that doubled the signal from that spot. A New plan's router is dual-band (D20), so 6 GHz starts blank, and the old notice didn't say what to do.
 - **Not changed here:** where the coverage summary sits (#61) and the Wall tool starting a wall on an access point (#62) are design choices left open. The walkthrough doesn't replace watching real people (#46); see the [test script](usability/test-script.md).
 - **Revisit if:** the human usability test shows people still stack or lose access points, or don't find how to start.
+- **Update:** the coverage summary is now also in the status bar (D37).
+
+### D37. Coverage summary always in view — 2026-09-28
+
+- **Decision:** the coverage summary line (D27) also appears at the left of the status bar, in bold, before the pointer readout. On phones the status bar is the bottom bar, and the summary gets its own line above the readout and zoom buttons. The panel keeps its copy with the target picker, since the target is changed there. When nothing broadcasts on the band, the status bar shows no summary, as the panel doesn't.
+- **Why:** the summary is the app's main answer, but it sat at the bottom of the Properties panel: below the fold at 1280×800 (further still with an access point selected), and on phones inside the Details drawer, whose name doesn't hint at it (#61, found in the D34 walkthrough). The status bar is visible at every width.
+- **One source:** the line is computed once in `useCoverageMessage` and passed to both places, so they can't disagree.
+- **Screen readers:** the visible line updates with every frame while dragging, so it's hidden from assistive tech. A separate polite live region beside it holds the last settled text during a drag and announces the result once the drag ends, in keeping with D23's quiet readout. The panel's copy is no longer a live region, so nothing is announced twice.
+- **Details** keeps its name: with the result in the bottom bar, the drawer holds the legends and settings, which "Details" describes well enough.
+- **Revisit if:** the human usability test (#46) shows people still miss the summary, or the status bar gets crowded at 1024 px wide.
 
 ## Phase 1: editor
 
