@@ -68,6 +68,7 @@ A running log of project decisions, newest last. Each entry records what was dec
 
 - **Decision:** 10 cm cells by default, with no spatial index.
 - **Why:** measured at ~20 ms for the 150 m² sample home, far inside the 200 ms budget.
+- **Update:** still no spatial index; the grid got 5–7× faster instead, and large homes have their own budget (D29).
 
 ### D24. Propagation scope for M1: omnidirectional, direct path only — 2026-09-27
 
@@ -80,6 +81,13 @@ A running log of project decisions, newest last. Each entry records what was dec
 - **Decision:** `pnpm speed` runs in CI and fails when the median coverage-grid time on the sample home or the busy room grid exceeds 300 ms, 1.5× the 200 ms budget (D11). The 200 ms budget itself stays the target on a real device.
 - **Why:** the CI runner is about 2.1× slower than the desktop (room grid: 80 ms there, 170 ms on CI), and runner hardware varies. Held to exactly 200 ms, the check would fail at random; at 300 ms it still catches the room grid getting about 1.8× slower. Timings are in [MODEL.md](MODEL.md#speed).
 - **Revisit if:** the check fails at random anyway, the room grid's CI time drifts near 300 ms, or a spatial index lands and the margin can tighten.
+
+### D29. Heatmap speed on slow devices — 2026-09-27
+
+- **Decision:** keep the current rendering: the worker computes the grid, and the page draws it as one ImageData bitmap, with only the newest request queued. Make the engine faster instead of coarsening the grid. Each wall segment is prepared once per grid (direction, length, bounding box, loss), segments clear of a path's bounding box are skipped, and nothing is allocated per cell. Large homes get a budget of 200 ms on a device 4× slower than the desktop (50 ms on it), checked in `pnpm speed` on a 300 m² "big house" at 1.5× on CI.
+- **Why:** measured with Chromium's CPU throttling, the page held 56–60 frames a second at 4× and 6× on both the sample home and the big house, so drawing isn't the bottleneck. The grid was: the big house took ~211 ms on the desktop, about 1 s on a 4–6× slower phone. Now it takes 28 ms (5–7× faster across all plans), and a drag updates the heatmap ~28 times a second instead of 4.5. The results are bit-for-bit the same: fingerprints of every grid matched before and after, and property tests compare against the reference path. A coarser grid while dragging wasn't needed.
+- **Limits:** Chromium doesn't throttle dedicated workers, so slow-phone worker times are the desktop times × 4–6, not measured.
+- **Revisit if:** a real phone or the usability test (#46) feels laggy, multi-floor or larger plans push the big house past its budget, or a spatial index becomes worthwhile.
 
 ## Phase 3
 

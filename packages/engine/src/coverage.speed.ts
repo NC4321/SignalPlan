@@ -1,14 +1,8 @@
-import {
-  parsePlan,
-  type Band,
-  type Opening,
-  type Plan,
-  type PlanNode,
-  type Wall,
-} from '@signalplan/floorplan'
+import { parsePlan, type Band, type Plan } from '@signalplan/floorplan'
 import sampleHome from '@signalplan/floorplan/fixtures/sample-home.json' with { type: 'json' }
 import { describe, expect, it } from 'vitest'
 import { evaluateCoverage } from './coverage.ts'
+import { bigHouse, roomGrid } from './testPlans.ts'
 
 /**
  * Speed of the coverage grid against the Phase 2 budget: a 100 m² floor at
@@ -16,20 +10,23 @@ import { evaluateCoverage } from './coverage.ts'
  * file at a time so other tests don't compete for the CPU.
  *
  * The budget is for a Web Worker on a laptop, but this check runs on CI.
- * GitHub's ubuntu-latest runners measured about 2.1× slower than a desktop
- * i5-12600K (sample home 40 vs 18 ms, room grid 170 vs 80 ms), and runner
- * hardware varies. The room grid, far busier than a real 100 m² home, lands
- * at ~170 ms there: within budget, but too close for a check that must not
- * flake. So CI fails at 1.5× the budget. That still catches the room grid
- * getting ~1.8× slower, or the sample home ~7× slower, while normal runner
- * variation passes. The budget itself is printed with every result.
+ * GitHub's ubuntu-latest runners measure about 1.8–2.1× slower than a desktop
+ * i5-12600K, and runner hardware varies, so CI fails at 1.5× each budget (D26).
+ * Large homes have a tighter budget: 200 ms on a device 4× slower than the
+ * desktop (D29). Timings are in docs/MODEL.md; each result prints its budget.
  */
 // Both exist in Node and in Web Workers; the engine's lib has no DOM or Node types.
 declare const performance: { now(): number }
 declare const console: { log(...data: unknown[]): void }
 
 const BUDGET_MS = 200
-const LIMIT_MS = BUDGET_MS * 1.5
+/**
+ * Large homes are held to the budget on a device 4× slower than the desktop
+ * (Lighthouse's mobile slowdown), so 50 ms here (D29).
+ */
+const LARGE_HOME_BUDGET_MS = BUDGET_MS / 4
+/** CI runners are slower and vary, so CI fails at 1.5× a budget (D26). */
+const CI_MARGIN = 1.5
 const WARM_UP_RUNS = 5
 const RUNS = 30
 
@@ -48,113 +45,39 @@ function measure(plan: Plan, floorId: string, band: Band) {
   return { median: at(0.5), p95: at(0.95), areaM2: cells * 0.01 }
 }
 
-function report(name: string, band: Band, r: ReturnType<typeof measure>) {
+function report(
+  name: string,
+  band: Band,
+  budget: number,
+  r: ReturnType<typeof measure>,
+) {
   console.log(
-    `${name}, ${band}: median ${r.median.toFixed(1)} ms, p95 ${r.p95.toFixed(1)} ms over ${RUNS} runs (${r.areaM2.toFixed(0)} m² grid, budget ${BUDGET_MS} ms, CI limit ${LIMIT_MS} ms)`,
+    `${name}, ${band}: median ${r.median.toFixed(1)} ms, p95 ${r.p95.toFixed(1)} ms over ${RUNS} runs (${r.areaM2.toFixed(0)} m² grid, budget ${budget} ms, CI limit ${budget * CI_MARGIN} ms)`,
   )
-}
-
-/**
- * A 10 × 10 m floor of 5 × 5 rooms, each 2 m square: 60 walls, a door in
- * every interior wall and a window in every outside wall, with two access
- * points. Far busier than a real home of this size.
- */
-function roomGrid(): Plan {
-  const rooms = 5
-  const size = 2
-  const nodes: PlanNode[] = []
-  for (let row = 0; row <= rooms; row++) {
-    for (let col = 0; col <= rooms; col++) {
-      nodes.push({ id: `n${row}-${col}`, x: col * size, y: row * size })
-    }
-  }
-  const walls: Wall[] = []
-  const openings: Opening[] = []
-  const addWall = (from: string, to: string, outside: boolean) => {
-    const id = `w${walls.length}`
-    walls.push({
-      id,
-      from,
-      to,
-      material: outside ? ('brick' as const) : ('drywall' as const),
-    })
-    openings.push(
-      outside
-        ? {
-            id: `o${openings.length}`,
-            wallId: id,
-            kind: 'window' as const,
-            offsetM: 0.4,
-            widthM: 1.2,
-            material: 'glass' as const,
-          }
-        : {
-            id: `o${openings.length}`,
-            wallId: id,
-            kind: 'door' as const,
-            offsetM: 0.6,
-            widthM: 0.81,
-            material: 'wood' as const,
-          },
-    )
-  }
-  for (let row = 0; row <= rooms; row++) {
-    for (let col = 0; col < rooms; col++) {
-      const outside = row === 0 || row === rooms
-      addWall(`n${row}-${col}`, `n${row}-${col + 1}`, outside)
-    }
-  }
-  for (let col = 0; col <= rooms; col++) {
-    for (let row = 0; row < rooms; row++) {
-      const outside = col === 0 || col === rooms
-      addWall(`n${row}-${col}`, `n${row + 1}-${col}`, outside)
-    }
-  }
-  const radios = [
-    { band: '2.4GHz' as const },
-    { band: '5GHz' as const },
-    { band: '6GHz' as const },
-  ]
-  const result = parsePlan({
-    schemaVersion: 1,
-    name: 'Room grid',
-    floors: [
-      {
-        id: 'main',
-        name: 'Main floor',
-        elevationM: 0,
-        heightM: 2.4,
-        nodes,
-        walls,
-        openings,
-      },
-    ],
-    accessPoints: [
-      { id: 'a', name: 'A', floorId: 'main', x: 3, y: 3, heightM: 1, radios },
-      { id: 'b', name: 'B', floorId: 'main', x: 7, y: 7, heightM: 1, radios },
-    ],
-  })
-  if (!result.ok) throw new Error('room grid is invalid')
-  return result.plan
 }
 
 describe('coverage grid speed at 10 cm cells', () => {
   const sample = parsePlan(sampleHome)
   if (!sample.ok) throw new Error('fixture is invalid')
 
-  const cases: [string, Plan][] = [
-    ['Sample home (150 m², 22 walls, 1 access point)', sample.plan],
-    ['Room grid (100 m², 60 walls, 2 access points)', roomGrid()],
+  const cases: [string, Plan, number][] = [
+    ['Sample home (150 m², 22 walls, 1 access point)', sample.plan, BUDGET_MS],
+    ['Room grid (100 m², 60 walls, 2 access points)', roomGrid(), BUDGET_MS],
+    [
+      'Big house (300 m², 60 walls, 2 access points)',
+      bigHouse(),
+      LARGE_HOME_BUDGET_MS,
+    ],
   ]
   const bands: Band[] = ['2.4GHz', '5GHz', '6GHz']
 
-  for (const [name, plan] of cases) {
+  for (const [name, plan, budget] of cases) {
     for (const band of bands) {
       it(`${name}, ${band}`, () => {
         const r = measure(plan, 'main', band)
-        report(name, band, r)
+        report(name, band, budget, r)
         expect(r.areaM2).toBeGreaterThanOrEqual(100)
-        expect(r.median).toBeLessThan(LIMIT_MS)
+        expect(r.median).toBeLessThan(budget * CI_MARGIN)
       })
     }
   }

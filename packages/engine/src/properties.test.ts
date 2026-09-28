@@ -9,7 +9,7 @@ import {
 import fc from 'fast-check'
 import { describe, expect, it } from 'vitest'
 import { cellCentre, evaluateCoverage, predictDbm } from './coverage.ts'
-import { wallLoss } from './crossings.ts'
+import { prepareWalls, preparedWallLoss, wallLoss } from './crossings.ts'
 import {
   CONSTRUCTIONS,
   constructionLossDb,
@@ -289,6 +289,70 @@ describe('adding an access point', () => {
             const next = after.get(key)
             expect(next).toBeDefined()
             expect(next!).toBeGreaterThanOrEqual(value)
+          }
+        },
+      ),
+      { ...RUNS, numRuns: 50 },
+    )
+  })
+})
+
+describe('the grid fast path (#45)', () => {
+  // Whole and half metres as well as any value, so walls share corners, paths
+  // touch wall ends and some walls line up with the path.
+  const snapped = fc.oneof(
+    coordinate,
+    fc.integer({ min: -10, max: 10 }),
+    fc.integer({ min: -20, max: 20 }).map((n) => n / 2),
+  )
+  const snappedPoint = fc.record({ x: snapped, y: snapped })
+  const snappedWall: fc.Arbitrary<WallSpec> = fc
+    .tuple(snapped, snapped, snapped, snapped, fc.constantFrom(...MATERIALS))
+    .filter(([x1, y1, x2, y2]) => Math.hypot(x2 - x1, y2 - y1) >= 0.01)
+
+  it('gives exactly the wall loss of the reference', () => {
+    fc.assert(
+      fc.property(
+        fc.array(snappedWall, { maxLength: 12 }),
+        snappedPoint,
+        snappedPoint,
+        band,
+        (walls, from, to, b) => {
+          const segments = materialSegments(floor(walls))
+          const lossOf = (m: WallMaterial) => MATERIAL_LOSS_DB[b][m]
+          const prepared = prepareWalls(segments, lossOf)
+          expect(preparedWallLoss(prepared, from.x, from.y, to.x, to.y)).toBe(
+            wallLoss(segments, from, to, lossOf),
+          )
+        },
+      ),
+      { ...RUNS, numRuns: 2000 },
+    )
+  })
+
+  it('fills every cell exactly as predictDbm would', () => {
+    fc.assert(
+      fc.property(
+        fc.array(snappedWall, { maxLength: 8 }),
+        accessPoint(0),
+        (walls, ap) => {
+          const f = floor(walls)
+          const radio = ap.radios[0]!
+          const cellM = 0.5
+          const { grid, dbm } = evaluateCoverage(
+            plan(f, [ap]),
+            'f',
+            radio.band,
+            cellM,
+          )
+          const segments = materialSegments(f)
+          for (let row = 0; row < grid.rows; row++) {
+            for (let col = 0; col < grid.cols; col++) {
+              const expected = Math.fround(
+                predictDbm(segments, ap, radio, cellCentre(grid, col, row)),
+              )
+              expect(dbm[row * grid.cols + col]).toBe(expected)
+            }
           }
         },
       ),

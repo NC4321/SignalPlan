@@ -9,7 +9,7 @@ import {
   type Radio,
 } from '@signalplan/floorplan'
 import { BAND_PROFILES } from './bands.ts'
-import { wallLoss } from './crossings.ts'
+import { prepareWalls, preparedWallLoss, wallLoss } from './crossings.ts'
 import { floorAreaMask } from './floorArea.ts'
 import { MATERIAL_LOSS_DB } from './materials.ts'
 
@@ -98,12 +98,23 @@ export function predictDbm(
   radio: Radio,
   point: Point,
 ): number {
+  const losses = MATERIAL_LOSS_DB[radio.band]
+  const walls = wallLoss(segments, ap, point, (material) => losses[material])
+  return signalDbm(ap, radio, point.x, point.y, walls)
+}
+
+/** EIRP − [PL(1 m) + 10·n·log10(d) + walls], given the walls' total loss. */
+function signalDbm(
+  ap: AccessPoint,
+  radio: Radio,
+  x: number,
+  y: number,
+  walls: number,
+): number {
   const profile = BAND_PROFILES[radio.band]
   const eirp = radio.txPowerDbm ?? profile.defaultTxPowerDbm
   const dz = ap.heightM - RECEIVER_HEIGHT_M
-  const distance = Math.max(Math.hypot(point.x - ap.x, point.y - ap.y, dz), 1)
-  const losses = MATERIAL_LOSS_DB[radio.band]
-  const walls = wallLoss(segments, ap, point, (material) => losses[material])
+  const distance = Math.max(Math.hypot(x - ap.x, y - ap.y, dz), 1)
   return (
     eirp -
     profile.referenceLossDb -
@@ -139,16 +150,18 @@ export function evaluateCoverage(
     return ap.floorId === floorId && radio ? [{ ap, radio }] : []
   })
 
+  // Segments are prepared once, so each cell only does the arithmetic of
+  // `predictDbm`, in the same order and with the same result.
+  const losses = MATERIAL_LOSS_DB[band]
+  const walls = prepareWalls(segments, (material) => losses[material])
   sources.forEach(({ ap, radio }, index) => {
     for (let row = 0; row < grid.rows; row++) {
+      const y = grid.originY + (row + 0.5) * grid.cellM
       for (let col = 0; col < grid.cols; col++) {
+        const x = grid.originX + (col + 0.5) * grid.cellM
         const i = row * grid.cols + col
-        const value = predictDbm(
-          segments,
-          ap,
-          radio,
-          cellCentre(grid, col, row),
-        )
+        const loss = preparedWallLoss(walls, ap.x, ap.y, x, y)
+        const value = signalDbm(ap, radio, x, y, loss)
         if (value > dbm[i]!) {
           dbm[i] = value
           strongest[i] = index

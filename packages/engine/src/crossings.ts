@@ -103,3 +103,146 @@ function intersect(
   }
   return Math.min(Math.max(t, 0), 1)
 }
+
+/**
+ * Wall segments prepared once for many wall-loss sums, as in a coverage grid:
+ * each segment's direction, length, bounding box and loss are computed up
+ * front, and hits go into reused buffers instead of new arrays.
+ */
+export interface PreparedWalls {
+  count: number
+  ax: Float64Array
+  ay: Float64Array
+  sx: Float64Array
+  sy: Float64Array
+  length: Float64Array
+  minX: Float64Array
+  minY: Float64Array
+  maxX: Float64Array
+  maxY: Float64Array
+  loss: Float64Array
+  /** Scratch space for the hits on one path, sorted by position. */
+  hitT: Float64Array
+  hitLoss: Float64Array
+}
+
+/**
+ * A segment whose bounding box is further than this from the path's can't be
+ * crossed: every crossing lies within SAME_CROSSING_M of both.
+ */
+const BOX_MARGIN_M = 1e-3
+
+export function prepareWalls(
+  segments: readonly MaterialSegment[],
+  lossOf: (material: WallMaterial) => number,
+): PreparedWalls {
+  const count = segments.length
+  const array = () => new Float64Array(count)
+  const walls: PreparedWalls = {
+    count,
+    ax: array(),
+    ay: array(),
+    sx: array(),
+    sy: array(),
+    length: array(),
+    minX: array(),
+    minY: array(),
+    maxX: array(),
+    maxY: array(),
+    loss: array(),
+    hitT: array(),
+    hitLoss: array(),
+  }
+  segments.forEach((segment, i) => {
+    const sx = segment.b.x - segment.a.x
+    const sy = segment.b.y - segment.a.y
+    walls.ax[i] = segment.a.x
+    walls.ay[i] = segment.a.y
+    walls.sx[i] = sx
+    walls.sy[i] = sy
+    walls.length[i] = Math.hypot(sx, sy)
+    walls.minX[i] = Math.min(segment.a.x, segment.b.x) - BOX_MARGIN_M
+    walls.minY[i] = Math.min(segment.a.y, segment.b.y) - BOX_MARGIN_M
+    walls.maxX[i] = Math.max(segment.a.x, segment.b.x) + BOX_MARGIN_M
+    walls.maxY[i] = Math.max(segment.a.y, segment.b.y) + BOX_MARGIN_M
+    walls.loss[i] = lossOf(segment.material)
+  })
+  return walls
+}
+
+/**
+ * The same total as `wallLoss`, bit for bit, for walls from `prepareWalls`.
+ * It does the same arithmetic in the same order; it only skips segments whose
+ * bounding box is clear of the path's, and allocates nothing.
+ */
+export function preparedWallLoss(
+  walls: PreparedWalls,
+  fromX: number,
+  fromY: number,
+  toX: number,
+  toY: number,
+): number {
+  const rx = toX - fromX
+  const ry = toY - fromY
+  const pathLength = Math.hypot(rx, ry)
+  if (pathLength === 0) return 0
+  const loX = Math.min(fromX, toX)
+  const loY = Math.min(fromY, toY)
+  const hiX = Math.max(fromX, toX)
+  const hiY = Math.max(fromY, toY)
+  const slackT = SAME_CROSSING_M / pathLength
+  const { hitT, hitLoss } = walls
+
+  let hits = 0
+  for (let i = 0; i < walls.count; i++) {
+    if (
+      walls.maxX[i]! < loX ||
+      walls.minX[i]! > hiX ||
+      walls.maxY[i]! < loY ||
+      walls.minY[i]! > hiY
+    ) {
+      continue
+    }
+    const segmentLength = walls.length[i]!
+    if (segmentLength === 0) continue
+    const sx = walls.sx[i]!
+    const sy = walls.sy[i]!
+    // As in `intersect`.
+    const denominator = rx * sy - ry * sx
+    if (Math.abs(denominator) <= 1e-9 * pathLength * segmentLength) continue
+    const qx = walls.ax[i]! - fromX
+    const qy = walls.ay[i]! - fromY
+    const t = (qx * sy - qy * sx) / denominator
+    const u = (qx * ry - qy * rx) / denominator
+    const slackU = SAME_CROSSING_M / segmentLength
+    if (t < -slackT || t > 1 + slackT || u < -slackU || u > 1 + slackU) {
+      continue
+    }
+    // Insert in order of t, after equal ones, like the stable sort in `crossings`.
+    const at = Math.min(Math.max(t, 0), 1)
+    let j = hits
+    while (j > 0 && hitT[j - 1]! > at) {
+      hitT[j] = hitT[j - 1]!
+      hitLoss[j] = hitLoss[j - 1]!
+      j--
+    }
+    hitT[j] = at
+    hitLoss[j] = walls.loss[i]!
+    hits++
+  }
+
+  // Group hits into crossings as `crossings` does; each counts its lossiest.
+  let total = 0
+  let i = 0
+  while (i < hits) {
+    const start = hitT[i]!
+    let loss = hitLoss[i]!
+    i++
+    while (i < hits && hitT[i]! - start <= slackT) {
+      loss = Math.max(loss, hitLoss[i]!)
+      i++
+    }
+    total += loss
+  }
+  return total
+}

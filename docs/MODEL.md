@@ -38,14 +38,25 @@ The editor reports the share of the **floor area** at or above a target level (D
 
 ### Speed
 
-The Phase 2 budget is a 100 m² floor at 10 cm cells in under 200 ms. `pnpm speed` (`packages/engine/src/coverage.speed.ts`) times each band 30 times after 5 warm-up runs, on two plans: the sample home, and a deliberately busy "room grid" of 25 rooms, each 2 m square, in 10 × 10 m (60 walls, a door or window in every wall, 2 access points). Median per band, from 2026-09-27:
+The Phase 2 budget is a 100 m² floor at 10 cm cells in under 200 ms. Large homes have a tighter one, set for dragging on phones: 200 ms on a device 4× slower than the desktop, so 50 ms here (D29). `pnpm speed` (`packages/engine/src/coverage.speed.ts`) times each band 30 times after 5 warm-up runs, on three plans:
 
-| Plan                         | Grid   | Desktop (i5-12600K) | CI runner (GitHub ubuntu-latest) |
-| ---------------------------- | ------ | ------------------- | -------------------------------- |
-| Sample home (22 walls, 1 AP) | 204 m² | 18 ms               | 40 ms                            |
-| Room grid (60 walls, 2 APs)  | 144 m² | 80 ms               | 170 ms                           |
+- the sample home;
+- a deliberately busy "room grid" of 25 rooms, each 2 m square, in 10 × 10 m, with 60 walls, a door or window in every wall and 2 access points;
+- a "big house" of 25 rooms, each 4 × 3 m, in 20 × 15 m, laid out the same way.
 
-Both are within budget, so no spatial index is needed yet (D11). CI runs about 2.1× slower than the desktop and runner hardware varies, so the CI check fails at 1.5× the budget (300 ms), which still catches the room grid getting about 1.8× slower.
+Median per band, from 2026-09-27:
+
+| Plan                            | Grid   | Budget | Desktop (i5-12600K) | CI runner (GitHub ubuntu-latest) |
+| ------------------------------- | ------ | ------ | ------------------- | -------------------------------- |
+| Sample home (22 walls, 1 AP)    | 204 m² | 200 ms | 3.5 ms              | 6.3 ms                           |
+| Room grid (60 walls, 2 APs)     | 144 m² | 200 ms | 11 ms               | 21 ms                            |
+| Big house (300 m², 60 walls, 2) | 374 m² | 50 ms  | 28 ms               | 50 ms                            |
+
+CI runs about 1.8× slower than the desktop and runner hardware varies, so the CI check fails at 1.5× each budget (D26): 300 ms, or 75 ms for the big house.
+
+**How it's fast.** Before the grid is filled, each wall segment's direction, length, bounding box and loss are worked out once. Then, for each cell, a segment whose bounding box is clear of the path's is skipped, and hits go into reused buffers instead of new arrays. The arithmetic is otherwise the one in `crossings` and `wallLoss`, in the same order. So every cell gets exactly the same value as `predictDbm`, and property tests check this bit for bit. This made the grid 5–7× faster (the big house went from about 210 ms to 28 ms) without a spatial index (D11).
+
+**While dragging.** In the browser, CPU throttling of 4× and 6× keeps the editor at 56–60 frames a second: drawing the heatmap bitmap on the page is cheap. The grid runs in a Web Worker, and only the newest request waits behind the one running. Chromium's throttling doesn't reach workers, so worker time on a slow phone is estimated as the desktop time × 4–6. For the big house that's about 110–170 ms per update.
 
 This is a **multi-wall model**, as in the COST 231 final report. Because walls are counted one by one, the distance term uses the free-space exponent n = 2 rather than a larger empirical exponent that would already include walls. Calibration (Phase 7) may adjust n and the wall losses to fit real measurements.
 
