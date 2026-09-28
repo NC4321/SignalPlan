@@ -1,7 +1,14 @@
-import { WALL_MATERIALS } from '@signalplan/floorplan'
+import { FLOOR_MATERIALS, WALL_MATERIALS } from '@signalplan/floorplan'
 import { describe, expect, it } from 'vitest'
 import { BAND_PROFILES, bandSamples } from './bands.ts'
-import { CONSTRUCTIONS, MATERIAL_LOSS_DB } from './materials.ts'
+import {
+  constructionLossDb,
+  CONSTRUCTIONS,
+  FLOOR_CONSTRUCTIONS,
+  FLOOR_LOSS_DB,
+  floorConstructionLossDb,
+  MATERIAL_LOSS_DB,
+} from './materials.ts'
 import { slabLossDb, type Layer } from './slab.ts'
 
 const mm = (t: number) => t / 1000
@@ -378,5 +385,73 @@ describe('validation against Muqaibel measurements at 2.4, 5 and 6 GHz', () => {
 
   it('averages a flat line to its own value', () => {
     expect(measuredLossDb([0, 3], [5, 6])).toBeCloseTo(3, 10)
+  })
+})
+
+describe('floor losses (D50)', () => {
+  it('has a construction for every floor material', () => {
+    expect(Object.keys(FLOOR_CONSTRUCTIONS).sort()).toEqual(
+      [...FLOOR_MATERIALS].sort(),
+    )
+  })
+
+  // Pinned so docs/MODEL.md stays in step with the code. Update both together.
+  it.each([
+    ['2.4GHz', { 'timber-joist': 2.5, 'concrete-slab': 11.5 }],
+    ['5GHz', { 'timber-joist': 2.7, 'concrete-slab': 20.2 }],
+    ['6GHz', { 'timber-joist': 3.1, 'concrete-slab': 22.8 }],
+  ] as const)('%s', (band, expected) => {
+    for (const [material, loss] of Object.entries(expected)) {
+      expect(
+        FLOOR_LOSS_DB[band][material as keyof typeof expected],
+      ).toBeCloseTo(loss, 1)
+    }
+  })
+
+  it('averages power over the variants, not dB', () => {
+    // A lossless variant (an air gap) and a lossy one: the loss of their
+    // mean power, which is below the mean of their losses in dB (e.g. 0 and
+    // 10 dB give 2.6 dB, not 5).
+    const air = [{ material: 'air' as const, thicknessM: mm(10) }]
+    const lossy = [{ material: 'concrete' as const, thicknessM: mm(10) }]
+    const band = '5GHz'
+    const samples = bandSamples(BAND_PROFILES[band])
+    const a = slabLossDb(air, samples)
+    const b = slabLossDb(lossy, samples)
+    const expected = -10 * Math.log10((10 ** (-a / 10) + 10 ** (-b / 10)) / 2)
+    expect(
+      floorConstructionLossDb(
+        { description: '', variants: [air, lossy] },
+        band,
+      ),
+    ).toBeCloseTo(expected, 10)
+    expect(a).toBeCloseTo(0, 10)
+  })
+
+  it('matches a wall with the same layers when there is one variant', () => {
+    const layers = FLOOR_CONSTRUCTIONS['concrete-slab'].variants[0]!
+    for (const band of ['2.4GHz', '5GHz', '6GHz'] as const) {
+      expect(FLOOR_LOSS_DB[band]['concrete-slab']).toBeCloseTo(
+        constructionLossDb({ description: '', layers }, band),
+        10,
+      )
+    }
+  })
+
+  it('agrees with ITU-R P.1238-13 for a concrete floor head on', () => {
+    // P.1238-13, text after Table 5: at 5.2 GHz and normal incidence, a
+    // typical reinforced concrete floor with a suspended false ceiling adds
+    // 20 dB (σ 1.5 dB). The model's 150 mm slab must be within 2σ.
+    const [slab] = FLOOR_CONSTRUCTIONS['concrete-slab'].variants
+    expect(Math.abs(slabLossDb(slab!, [5.2]) - 20)).toBeLessThan(3)
+  })
+
+  it('makes concrete lose far more than timber in every band', () => {
+    for (const band of ['2.4GHz', '5GHz', '6GHz'] as const) {
+      const { 'timber-joist': timber, 'concrete-slab': concrete } =
+        FLOOR_LOSS_DB[band]
+      expect(timber).toBeGreaterThan(0)
+      expect(concrete).toBeGreaterThan(timber + 5)
+    }
   })
 })

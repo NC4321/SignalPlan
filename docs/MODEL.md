@@ -157,6 +157,30 @@ These values are pinned by a unit test (`materials.test.ts`), so this table and 
 
 Two results may look odd but follow from the physics. The stud wall loses **less** at 6 GHz than at 2.4 GHz because the two gypsum sheets interfere constructively in that band. Glass is almost transparent at 2.4 GHz because 3 mm panes are tiny compared with the 12 cm wavelength.
 
+## Floor materials
+
+Floors are built up in layers and computed the same way as walls (D49, D50): P.2040-4 Table 3 properties, the multi-layer slab method, TE and TM averaged, at normal incidence, averaged over each band. A path to another floor pays one floor loss per slab it crosses (#87).
+
+| Material        | Construction                                | Layers (P.2040 class)                                                                                                       |
+| --------------- | ------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| `timber-joist`  | Wood-framed floor in a house                | 18.3 mm OSB (chipboard) · 184, 235 or 286 mm joist cavity (air) · 12.7 mm plasterboard, loss averaged over the three depths |
+| `concrete-slab` | Slab between apartments, or over a basement | 150 mm concrete                                                                                                             |
+
+**Where the layers come from.** The subfloor is 23/32 in (18.3 mm) OSB, which IRC 2021 Table R503.2.1.1(1) allows for joists 16 or 24 in apart. The cavities are the dry depths of 2×8, 2×10 and 2×12 joists from PS 20-20 Table 3 (184, 235 and 286 mm). The ceiling is 1/2 in (12.7 mm) gypsum, which IRC Table R702.3.5 allows on ceilings framed up to 24 in apart. A path through a floor mostly passes between joists, so the joists themselves are left out, as studs are in walls. The joist cavity makes the loss at 2.4 GHz swing with depth (1.7, 3.3 and 4.1 dB for the three depths), a resonance too narrow for the band average to smooth, so the construction averages the transmitted power over all three depths and stands for a typical joist floor.
+
+**Concrete thickness.** No readable code source for a typical slab thickness was found. 150 mm is chosen because it agrees with the one head-on measurement available: ITU-R P.1238-13 reports that at 5.2 GHz a typical reinforced concrete floor with a suspended false ceiling adds 20 dB at normal incidence (σ = 1.5 dB), and the model's 150 mm slab loses 19.4 dB at 5.2 GHz. A 200 mm slab, like the `concrete` wall, would lose 25.4 dB, more than 3σ above. The steel reinforcement and the false ceiling aren't modelled.
+
+Loss per floor crossing (dB), at normal incidence:
+
+| Floor           | 2.4 GHz | 5 GHz | 6 GHz |
+| --------------- | ------- | ----- | ----- |
+| `timber-joist`  | 2.5     | 2.7   | 3.1   |
+| `concrete-slab` | 11.5    | 20.2  | 22.8  |
+
+A floor that doesn't say what it's made of is taken as `timber-joist` (D50).
+
+**Against ITU-R P.1238-13.** The concrete slab is tested against the head-on measurement above, within 3 dB (2σ). P.1238-13 Table 5 also gives floor penetration loss factors for its site-general model: 5 dB (house) and 10 dB (apartment) at 2.4 GHz, and 7 dB (house) and 13 dB (apartment) at 5.2 GHz. These are fitted together with that model's distance coefficient and include everything else between floors, so they aren't a head-on slab loss and aren't tested. The timber floor is 2–4 dB below the house values; since those aren't head-on slab losses, the gap isn't tested, and a measured timber floor would be the first thing to add. The apartment values are below the slab's head-on loss, as expected when signals also find paths around a floor.
+
 ## Validation
 
 Only the low-E coating was fitted to a measurement; everything else is predicted from P.2040 and compared with published measurements, using each sample's actual thickness. All of them were measured head on.
@@ -307,13 +331,15 @@ With the one or two interior walls a path typically crosses at these distances, 
 
 ## Sources
 
-- Recommendation ITU-R P.1238-13 (09/2025), _Propagation data and prediction methods for the planning of indoor radiocommunication systems and radio local area networks in the frequency range from 300 MHz to 450 GHz_. International Telecommunication Union. Eq. 1, Table 2.
+- Recommendation ITU-R P.1238-13 (09/2025), _Propagation data and prediction methods for the planning of indoor radiocommunication systems and radio local area networks in the frequency range from 300 MHz to 450 GHz_. International Telecommunication Union. Eqs. 1–2, Tables 2 and 5, and the floor loss text after Table 5.
 - Recommendation ITU-R P.2040-4 (09/2025), _Effects of building materials and structures on radiowave propagation above about 100 MHz_. International Telecommunication Union. Table 3; eqs. 27a, 39–44, 57–59.
 - D. Shakya, M. Ying, T. S. Rappaport, H. Poddar, P. Ma, Y. Wang and I. Al-Wazani, "Wideband Penetration Loss through Building Materials and Partitions at 6.75 GHz in FR1(C) and 16.95 GHz in the FR3 Upper Mid-band spectrum", IEEE GLOBECOM 2024. [arXiv:2405.01362](https://arxiv.org/abs/2405.01362). Table II.
 - W. C. Stone, _Electromagnetic Signal Attenuation in Construction Materials_, NIST Construction Automation Program Report No. 3, NISTIR 6055, National Institute of Standards and Technology, 1997. [doi:10.6028/NIST.IR.6055](https://doi.org/10.6028/NIST.IR.6055). Tables 3.5.3, 3.6.2, 3.8.2, 4.1b, 4.1d, 4.4b–4.11b, 4.4d–4.11d, 4.13b–4.15b and 4.13d–4.15d.
 - C. R. Anderson and T. S. Rappaport, "In-building wideband partition loss measurements at 2.5 and 60 GHz", _IEEE Transactions on Wireless Communications_, vol. 3, no. 3, pp. 922–928, May 2004. [arXiv:1701.03415](https://arxiv.org/abs/1701.03415). Table III.
 - A. H. Muqaibel, _Characterization of Ultra Wideband Communication Channels_, PhD dissertation, Virginia Polytechnic Institute and State University, 2003. [VTechWorks](https://vtechworks.lib.vt.edu/server/api/core/bitstreams/43984a35-3d29-47bb-ab73-3fe4a685cabb/content). Table 4.3, Figure B2.1.
 - H. C. Rhim, _Nondestructive Evaluation of Concrete Using Wideband Microwave Techniques_, PhD thesis, Massachusetts Institute of Technology, 1995. [hdl:1721.1/11745](https://hdl.handle.net/1721.1/11745). Table 3-3.
+- International Code Council, _2021 International Residential Code_. Tables R503.2.1.1(1) (floor sheathing) and R702.3.5 (gypsum board).
+- National Institute of Standards and Technology, _Voluntary Product Standard PS 20-20, American Softwood Lumber Standard_, January 2020. Table 3.
 - 3GPP TR 38.901 V17.0.0 (ETSI TR 138 901, 2022-04), _Study on channel model for frequencies from 0.5 to 100 GHz_. Table 7.4.3-1.
 - COST Action 231, _Digital mobile radio towards future generation systems: final report_, European Commission, 1999. Indoor multi-wall model.
 - 47 CFR §§ 15.247 and 15.407 (FCC Part 15), and the matching ISED rules RSS-247 and RSS-248.

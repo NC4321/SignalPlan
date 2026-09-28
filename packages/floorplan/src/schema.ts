@@ -25,6 +25,15 @@ export const WALL_MATERIALS = [
   'metal',
 ] as const
 
+/**
+ * What a floor's slab is made of (D49, D50). Loss values live in the engine.
+ * Plans don't store it yet; the floor list (#88) adds the field.
+ */
+export const FLOOR_MATERIALS = ['timber-joist', 'concrete-slab'] as const
+
+/** The slab assumed when a floor doesn't say (D50). */
+export const DEFAULT_FLOOR_MATERIAL: FloorMaterial = 'timber-joist'
+
 /** Opening materials: any wall material, or `open` for a doorway with no door. */
 export const OPENING_MATERIALS = [...WALL_MATERIALS, 'open'] as const
 
@@ -137,6 +146,7 @@ export const planSchema = z.object({
 })
 
 export type WallMaterial = z.infer<typeof wallMaterialSchema>
+export type FloorMaterial = (typeof FLOOR_MATERIALS)[number]
 export type OpeningMaterial = z.infer<typeof openingMaterialSchema>
 export type Band = z.infer<typeof bandSchema>
 export type PlanNode = z.infer<typeof nodeSchema>

@@ -4,6 +4,10 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Added
+
+- Engine: floor constructions for multi-floor plans. A timber joist floor (OSB subfloor, joist cavity and gypsum ceiling, with layer thicknesses from the IRC and PS 20-20, averaged over 2×8 to 2×12 joists) loses 2.5 / 2.7 / 3.1 dB at 2.4 / 5 / 6 GHz, and a 150 mm concrete slab 11.5 / 20.2 / 22.8 dB. The slab agrees with ITU-R P.1238-13's measured 20 dB through a concrete floor at 5.2 GHz. Plans can't use them yet; the floor list (#88) and signal between floors (#87) come next (D50).
+
 ## [0.2.0] - 2026-09-28
 
 M2: smart placement. The optimizer suggests where to put one or more access points, and how many a home needs, with a before → after comparison.
