@@ -4,6 +4,10 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-09-28
+
+M3: whole home. Plan several floors with signal passing between them, cut stairwells and atriums, let the optimizer work across the whole home, and look at it all in a 3D view.
+
 ### Added
 
 - M3 exit gate: a two-storey sample home (`two-storey-home.json`) and a test that its one router downstairs reaches Fair on at least 85% of each floor on 2.4 GHz and stays within 2σ of ITU-R P.1238-13 on both floors. Upstairs the model is 2.3 / 5.5 dB more optimistic than P.1238 on 2.4 / 5 GHz, mostly because the timber floor loses less than P.1238's house factor; `docs/MODEL.md` says so and has a new section on floors and their limits. With `?fps` in the address, the 3D view has a button to measure its frame rate; on a Windows laptop it holds 60 fps (16.7 ms median, 16.9 ms 95th percentile) (D58).
@@ -82,6 +86,7 @@ M1: single-floor MVP. Draw a floor to scale, add doors, windows and access point
 - Wall tool: between chains, pressing on an access point now selects or drags it instead of starting a wall (hold Alt to start a wall there). Door and Window tools grab access points the same way.
 - Access point tool: pressing on an existing access point now grabs it to move it, instead of stacking a new one on top.
 
-[Unreleased]: https://github.com/NC4321/SignalPlan/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/NC4321/SignalPlan/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/NC4321/SignalPlan/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/NC4321/SignalPlan/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/NC4321/SignalPlan/releases/tag/v0.1.0
