@@ -103,3 +103,17 @@ test('draws smoothly while rotating (D57)', async ({ page }) => {
   times.sort((a, b) => a - b)
   expect(times[15]).toBeLessThan(8)
 })
+
+test('measures the frame rate with ?fps in the address (D58)', async ({
+  page,
+}) => {
+  await page.goto('/?fps')
+  await page.locator('.editor-canvas[data-scale]').waitFor()
+  await viewSwitch(page, '3D').click()
+  await expect(page.locator('.view3d-canvas canvas')).toBeVisible()
+  await page.getByRole('button', { name: 'Measure frame rate' }).click()
+  await expect(page.locator('.view3d-fps')).toContainText(
+    /Median \d+\.\d ms \(\d+ fps\), 95th percentile \d+\.\d ms/,
+    { timeout: 15_000 },
+  )
+})

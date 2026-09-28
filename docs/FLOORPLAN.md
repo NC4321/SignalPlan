@@ -62,4 +62,4 @@ Adding an optional field does not need a new version. Renaming, removing or chan
 
 ## Example
 
-[`fixtures/sample-home.json`](../packages/floorplan/fixtures/sample-home.json) is a 15 m × 10 m single-storey home: three bedrooms, a bathroom, an office, open-plan living and kitchen, and a poured-concrete utility room with a steel door. Exterior walls are brick with low-E windows, and a tri-band Wi-Fi 6E router sits near the front door. Tests and the thin-slice heatmap use it.
+[`fixtures/two-storey-home.json`](../packages/floorplan/fixtures/two-storey-home.json) is the same home with an upper floor of bedrooms, a stairwell (`floorOpenings`) and a timber joist floor, used by the M3 exit gate (D58). [`fixtures/sample-home.json`](../packages/floorplan/fixtures/sample-home.json) is a 15 m × 10 m single-storey home: three bedrooms, a bathroom, an office, open-plan living and kitchen, and a poured-concrete utility room with a steel door. Exterior walls are brick with low-E windows, and a tri-band Wi-Fi 6E router sits near the front door. Tests and the thin-slice heatmap use it.

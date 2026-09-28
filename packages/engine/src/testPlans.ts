@@ -11,6 +11,7 @@ import {
 import apartment from '@signalplan/floorplan/fixtures/apartment.json' with { type: 'json' }
 import lShapedHouse from '@signalplan/floorplan/fixtures/l-shaped-house.json' with { type: 'json' }
 import sampleHome from '@signalplan/floorplan/fixtures/sample-home.json' with { type: 'json' }
+import twoStoreyJson from '@signalplan/floorplan/fixtures/two-storey-home.json' with { type: 'json' }
 import { BAND_PROFILES } from './bands.ts'
 import { candidatePositions, type Scorer } from './placement.ts'
 
@@ -32,6 +33,17 @@ export function gateHomes(): { name: string; plan: Plan }[] {
     if (!result.ok) throw new Error(`${name} is invalid`)
     return { name: name as string, plan: result.plan }
   })
+}
+
+/**
+ * The M3 exit gate's two-storey home (D58): the sample bungalow with a
+ * 150 m² upper floor of bedrooms over a timber joist floor, and one router
+ * downstairs.
+ */
+export function twoStoreyHome(): Plan {
+  const result = parsePlan(twoStoreyJson)
+  if (!result.ok) throw new Error('two-storey-home.json is invalid')
+  return result.plan
 }
 
 /**

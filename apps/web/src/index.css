@@ -1082,3 +1082,17 @@ button.danger-fill {
 .range-value {
   font-variant-numeric: tabular-nums;
 }
+
+.view3d-fps {
+  position: absolute;
+  top: 0.75rem;
+  right: 0.75rem;
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  padding: 0.35rem 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  background: var(--surface);
+  font-variant-numeric: tabular-nums;
+}
