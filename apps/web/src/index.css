@@ -673,6 +673,33 @@ kbd {
   font-size: 1.1rem;
 }
 
+.choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 1rem;
+  margin: 0.75rem 0 0;
+  padding: 0;
+  border: 0;
+}
+
+.choices legend {
+  width: 100%;
+  padding: 0;
+  margin-bottom: 0.35rem;
+  font-weight: 600;
+}
+
+.choices label {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.choice-note {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
 .dialog-actions {
   display: flex;
   flex-wrap: wrap;

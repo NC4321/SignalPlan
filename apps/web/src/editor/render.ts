@@ -31,6 +31,8 @@ export interface Scene {
   width: number
   height: number
   units: Units
+  /** Grid lines under the plan; on unless false (exported images have none). */
+  grid?: boolean | undefined
   coverage: Coverage | undefined
   heatmap: OffscreenCanvas | undefined
   segments: readonly MaterialSegment[]
@@ -109,7 +111,7 @@ export function draw(
     context.globalAlpha = 1
   }
 
-  drawGrid(context, colour, scene)
+  if (scene.grid !== false) drawGrid(context, colour, scene)
 
   if (scene.heatmap && scene.coverage) {
     const { grid } = scene.coverage
