@@ -32,6 +32,17 @@ describe('coverageMessage', () => {
     ).toBe('50% of 4 m² at Excellent or better on 5 GHz.')
   })
 
+  it('names the floor when given one (D52)', () => {
+    expect(
+      coverageMessage(
+        coverage([-50, -67, -80, -40]),
+        undefined,
+        'metric',
+        'Upstairs',
+      ),
+    ).toBe('Upstairs: 75% of 4 m² at Fair or better on 5 GHz.')
+  })
+
   it('asks for a closed outline when there is no floor area', () => {
     expect(
       coverageMessage(

@@ -1,6 +1,7 @@
 import {
   DEFAULT_FLOOR_MATERIAL,
   materialSegments,
+  stackedFloors,
   type Band,
   type Floor,
   type Plan,
@@ -37,7 +38,7 @@ export interface Storey {
 export function prepareStack(plan: Plan, band: Band): Storey[] {
   const wallLosses = MATERIAL_LOSS_DB[band]
   const slabLosses = FLOOR_LOSS_DB[band]
-  const floors = [...plan.floors].sort((a, b) => a.elevationM - b.elevationM)
+  const floors = stackedFloors(plan.floors)
   return floors.map((floor, i) => {
     const next = floors[i + 1]
     const ceiling = floor.elevationM + floor.heightM

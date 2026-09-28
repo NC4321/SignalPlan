@@ -67,7 +67,7 @@ On the CI runner (GitHub ubuntu-latest), in the run for #84: sample home 0.48 / 
 
 **Limits.** The optimizer finds good spots for this model, not guaranteed best ones, and inherits every limit of the model below.
 
-- **One band, one floor.** It optimizes the band on show. A spot that is best on 5 GHz may not be best on 2.4 or 6 GHz. The heatmap counts access points on other floors (D51), but the optimizer still ignores them until #91.
+- **One band, one floor.** It optimizes the band on show and places access points on the floor on show. A spot that is best on 5 GHz may not be best on 2.4 or 6 GHz. Access points on other floors count as fixed signal, as in the heatmap (D52), but they don't move and the other floors' coverage isn't scored until #91.
 - **Every square metre counts the same.** There are no rooms or priorities (D40), so a hallway counts as much as an office.
 - **No allowed or forbidden zones.** Apart from locked access points (D43), any spot inside the walls and 10 cm from them is allowed, including ones with no power socket or cable.
 - **Backhaul is ignored.** Added access points are assumed to have a good link to the router (D40); a mesh node placed far away may in practice have a weak link.

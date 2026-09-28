@@ -1,4 +1,12 @@
 export * from './schema.ts'
+export {
+  addFloor,
+  adjacentFloorId,
+  deleteFloor,
+  moveFloor,
+  SLAB_THICKNESS_M,
+  stackedFloors,
+} from './floors.ts'
 export { migrate, MigrationError } from './migrate.ts'
 export {
   checkStructure,

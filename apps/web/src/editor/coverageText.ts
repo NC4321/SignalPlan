@@ -11,18 +11,22 @@ export const BAND_LABELS: Record<Band, string> = {
 
 /**
  * The coverage summary line (D27), e.g. "86% of 150 m² at Fair or better on
- * 5 GHz." Shares are rounded down, so 100% only ever means all of it.
+ * 5 GHz." Shares are rounded down, so 100% only ever means all of it. With
+ * `floorName`, for plans of more than one floor, it starts "Upstairs: " (D52).
  */
 export function coverageMessage(
   coverage: Coverage,
   target: CoverageTarget | undefined,
   units: Units,
+  floorName?: string,
 ): string {
   const goal = targetBand(target)
   const { share, areaM2 } = summariseCoverage(coverage, goal.minDbm)
-  return share === undefined
-    ? 'Close the outer walls to see how much of the floor is covered.'
-    : `${Math.floor(share * 100)}% of ${formatArea(areaM2, units)} at ${goal.label} or better on ${BAND_LABELS[coverage.band]}.`
+  const message =
+    share === undefined
+      ? 'Close the outer walls to see how much of the floor is covered.'
+      : `${Math.floor(share * 100)}% of ${formatArea(areaM2, units)} at ${goal.label} or better on ${BAND_LABELS[coverage.band]}.`
+  return floorName === undefined ? message : `${floorName}: ${message}`
 }
 
 /**

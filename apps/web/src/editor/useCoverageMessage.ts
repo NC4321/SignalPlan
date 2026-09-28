@@ -11,8 +11,14 @@ import { coverageMessage } from './coverageText.ts'
 export function useCoverageMessage(coverage: Coverage | undefined): string {
   const target = useEditor((s) => s.plan.coverageTarget ?? DEFAULT_TARGET)
   const units = useEditor((s) => s.units)
+  // Named only when there's more than one floor (D52).
+  const floorName = useEditor((s) =>
+    s.plan.floors.length > 1
+      ? s.plan.floors.find((f) => f.id === s.floorId)?.name
+      : undefined,
+  )
   return useMemo(
-    () => (coverage ? coverageMessage(coverage, target, units) : ''),
-    [coverage, target, units],
+    () => (coverage ? coverageMessage(coverage, target, units, floorName) : ''),
+    [coverage, target, units, floorName],
   )
 }

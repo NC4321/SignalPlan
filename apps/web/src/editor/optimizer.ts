@@ -111,7 +111,7 @@ const broadcasts = (ap: AccessPoint, band: Band) =>
  * one is added, a copy of the first that broadcasts on the band, and the
  * unlocked ones move to suit. "how-many", only with nothing selected: as
  * "one-more", but adding as few as reach `goal` (none if moving is enough).
- * Everything else on the floor stays.
+ * Everything else stays, and access points on other floors count as fixed.
  */
 export function planSearch(
   plan: Plan,
@@ -130,8 +130,9 @@ export function planSearch(
     band,
     minDbm: targetBand(plan.coverageTarget).minDbm,
   }
+  // Access points on other floors stay put and count too (D52).
   const fixedWithout = (moving: readonly AccessPoint[]) =>
-    onFloor.filter((ap) => !moving.includes(ap))
+    plan.accessPoints.filter((ap) => !moving.includes(ap))
   const moverOf = (ap: AccessPoint): Mover => ({
     apId: ap.id,
     name: ap.name,

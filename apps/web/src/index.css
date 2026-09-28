@@ -248,6 +248,50 @@ input:focus-visible + *,
   border-radius: 0.5rem;
 }
 
+/* The floors, top floor at the top, in the canvas corner (D52). */
+.floor-stack {
+  position: absolute;
+  left: 0.75rem;
+  bottom: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  max-width: 12rem;
+  padding: 0.4rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+}
+
+.floor-stack ul {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.floor-stack ul button {
+  width: 100%;
+  overflow: hidden;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.floor-stack ul button[aria-current='true'] {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  font-weight: 600;
+}
+
+.floor-stack .floor-add {
+  border-style: dashed;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
 .properties {
   grid-area: props;
   overflow-y: auto;

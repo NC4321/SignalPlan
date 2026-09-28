@@ -1,14 +1,18 @@
 import {
-  materialSegments,
   type AccessPoint,
   type Band,
   type Plan,
   type Point,
 } from '@signalplan/floorplan'
-import { gridForFloor, signalDbm, type Grid } from './coverage.ts'
-import { prepareWalls, preparedWallLoss } from './crossings.ts'
+import {
+  gridForFloor,
+  RECEIVER_HEIGHT_M,
+  signalDbm,
+  type Grid,
+} from './coverage.ts'
+import { preparedWallLoss } from './crossings.ts'
 import { floorAreaMask } from './floorArea.ts'
-import { MATERIAL_LOSS_DB } from './materials.ts'
+import { crossingLossDb, floorCrossing, prepareStack } from './floors.ts'
 
 /** Cell size while searching (D41): 25 cm, confirmed at 10 cm afterwards. */
 export const SEARCH_CELL_M = 0.25
@@ -29,7 +33,10 @@ export interface PlacementProblem {
   band: Band
   /** The coverage target in dBm: a cell counts when its signal reaches it. */
   minDbm: number
-  /** Access points that stay where they are (locked, or not being moved). */
+  /**
+   * Access points that stay where they are (locked, or not being moved), on
+   * this floor or another (D52).
+   */
   fixed: readonly AccessPoint[]
   /** What a moving access point is like: its height and its radio's power. */
   template: AccessPointTemplate
@@ -105,9 +112,10 @@ export function createScorer(problem: PlacementProblem): Scorer | undefined {
     cellY[k] = grid.originY + (Math.floor(i / grid.cols) + 0.5) * grid.cellM
   })
 
-  const segments = materialSegments(floor)
-  const losses = MATERIAL_LOSS_DB[band]
-  const walls = prepareWalls(segments, (material) => losses[material])
+  const stack = prepareStack(plan, band)
+  const storeyOf = new Map(stack.map((storey, i) => [storey.floor.id, i]))
+  const here = storeyOf.get(floorId)!
+  const walls = stack[here]!.walls
 
   const signalFrom = (
     ap: Pick<AccessPoint, 'x' | 'y' | 'heightM'>,
@@ -121,12 +129,34 @@ export function createScorer(problem: PlacementProblem): Scorer | undefined {
     return out
   }
 
+  // From another floor, as in `evaluateCoverage` (D51).
+  const receiverZ = floor.elevationM + RECEIVER_HEIGHT_M
+  const signalFromFloor = (
+    ap: AccessPoint,
+    radio: AccessPoint['radios'][number],
+    from: number,
+  ): Float32Array => {
+    const apZ = stack[from]!.floor.elevationM + ap.heightM
+    const crossing = floorCrossing(stack, from, apZ, here, receiverZ)
+    const dz = apZ - receiverZ
+    const out = new Float32Array(cells.length)
+    for (let k = 0; k < cells.length; k++) {
+      const x = cellX[k]!
+      const y = cellY[k]!
+      const loss = crossingLossDb(crossing, ap.x, ap.y, x, y)
+      out[k] = signalDbm(ap, radio, x, y, loss, dz)
+    }
+    return out
+  }
+
   // The strongest fixed signal per cell, as in `evaluateCoverage`.
   const base = new Float32Array(cells.length).fill(Number.NEGATIVE_INFINITY)
   for (const ap of fixed) {
     const radio = ap.radios.find((r) => r.band === band)
-    if (ap.floorId !== floorId || !radio) continue
-    const s = signalFrom(ap, radio)
+    const from = storeyOf.get(ap.floorId)
+    if (!radio || from === undefined) continue
+    const s =
+      from === here ? signalFrom(ap, radio) : signalFromFloor(ap, radio, from)
     for (let k = 0; k < s.length; k++) if (s[k]! > base[k]!) base[k] = s[k]!
   }
 

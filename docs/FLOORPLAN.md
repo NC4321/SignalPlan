@@ -34,6 +34,8 @@ Wall materials are `drywall`, `brick`, `concrete`, `glass`, `low-e-glass`, `wood
 
 A floor's `material` is its slab, the floor under its rooms, which signal crosses to and from the storey below: `timber-joist` or `concrete-slab`, described in [MODEL.md](MODEL.md#floor-materials). Without it the floor is `timber-joist`. The lowest floor's slab is never crossed. See [D51](DECISIONS.md#d51-signal-between-floors--2026-09-28).
 
+Floors stack by `elevationM`; their order in `floors[]` doesn't matter. `addFloor`, `moveFloor` and `deleteFloor` in `floors.ts` add a floor on top or at the bottom (on a slab of the construction's real thickness), swap a floor with its neighbour, and delete a floor with its access points. See [D52](DECISIONS.md#d52-the-floor-list--2026-09-28).
+
 An access point with `locked: true` can't be moved, by hand or by the placement optimizer; without it the access point is unlocked. See [D43](DECISIONS.md#d43-locking-access-points-in-place--2026-09-28).
 
 `coverageTarget` is the signal level the coverage summary counts towards, named after the heatmap bands; without it the summary uses `fair`. See [D27](DECISIONS.md#d27-coverage-summary--2026-09-27).
