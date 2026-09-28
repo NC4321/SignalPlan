@@ -64,9 +64,9 @@ The gain over the middle is small in the sample home, where brick and concrete w
 | Apartment (65 m²)       | 0.05 s    | 0.12 s   | 0.13 s (1 more)   |
 | L-shaped house (220 m²) | 0.51 s    | 0.74 s   | 0.85 s (1 more)   |
 | Big house (300 m²)      | 1.19 s    | 1.59 s   | 2.63 s (2 more)   |
-| Two-storey house (D55)  | 0.93 s    | 2.08 s   | 3.61 s (2 more)   |
+| Two-storey house (D55)  | 1.00 s    | 2.25 s   | 3.86 s (2 more)   |
 
-Before D56 they were 0.35 / 0.51 / 0.98 s, 0.06 / 0.12 / 0.14 s, 0.76 / 1.05 / 1.25 s, 2.59 / 3.34 / 5.57 s and 1.84 / 4.17 / 7.11 s.
+The two-storey house's are with slabs by angle (D60); before, it took 0.93 / 2.08 / 3.61 s. Before D56 they were 0.35 / 0.51 / 0.98 s, 0.06 / 0.12 / 0.14 s, 0.76 / 1.05 / 1.25 s, 2.59 / 3.34 / 5.57 s and 1.84 / 4.17 / 7.11 s.
 
 The two-storey house is the coverage speed plan's (two 150 m² floors of 25 rooms over a timber joist floor, with a stairwell), scored over both floors from its router downstairs; its second access point is left out, so added ones may go on either floor. It has as many cells and lattice spots as the big house, and each signal also crosses a floor, so it is the slowest search.
 
@@ -99,9 +99,9 @@ Median on 5 GHz, from 2026-09-28, with walls sorted by direction (D56); CI from 
 | Sample home (22 walls, 1 AP)    | 204 m² | 200 ms | 2.4 ms              | 4.8 ms                           |
 | Room grid (60 walls, 2 APs)     | 144 m² | 200 ms | 4.8 ms              | 9.3 ms                           |
 | Big house (300 m², 60 walls, 2) | 374 m² | 50 ms  | 11.5 ms             | 22 ms                            |
-| Two-storey house, each floor    | 204 m² | 50 ms  | 8.7 ms              | 16.5 ms                          |
+| Two-storey house, each floor    | 204 m² | 50 ms  | 9.6 ms              | 16.5 ms                          |
 
-Before D56 the desktop took 3.5, 11, 28 and 20 ms, and CI 6.3, 21, 50 and 31 ms.
+Before D56 the desktop took 3.5, 11, 28 and 20 ms, and CI 6.3, 21, 50 and 31 ms. Slabs by angle (D60) took the two-storey house from 8.7 to 9.6 ms on the desktop; its CI figure is from before.
 
 CI runs about 1.8× slower than the desktop and runner hardware varies, so the CI check fails at 1.5× each budget (D26): 300 ms, or 75 ms for the big house.
 
@@ -173,7 +173,7 @@ Two results may look odd but follow from the physics. The stud wall loses **less
 
 ## Floor materials
 
-Floors are built up in layers and computed the same way as walls (D49, D50): P.2040-4 Table 3 properties, the multi-layer slab method, TE and TM averaged, at normal incidence, averaged over each band. A path to another floor pays one floor loss per slab it crosses (see below).
+Floors are built up in layers and computed the same way as walls (D49, D50): P.2040-4 Table 3 properties, the multi-layer slab method, TE and TM averaged, averaged over each band. Unlike walls, a floor's loss follows the angle at which the path meets it, up to 75° from the vertical (D60, [below](#slabs-at-an-angle)). A path to another floor pays one floor loss per slab it crosses (see below).
 
 | Material        | Construction                                | Layers (P.2040 class)                                                                                                       |
 | --------------- | ------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
@@ -193,11 +193,30 @@ Loss per floor crossing (dB), at normal incidence:
 
 A floor that doesn't say what it's made of is taken as `timber-joist` (D50).
 
-**Against ITU-R P.1238-13.** The concrete slab is tested against the head-on measurement above, within 3 dB (2σ). P.1238-13 Table 5 also gives floor penetration loss factors, L_f: 5 dB (house) and 10 dB (apartment) at 2.4 GHz, and 7 dB (house, "wooden mortar") and 13 dB (apartment, per concrete wall) at 5.2 GHz. They belong to its eq. (2), L_total = L(d₀) + N·log10(d/d₀) + L_f(n), whose distance coefficients N (Table 4) aren't given at 2.4 or 5 GHz, not to the site-general eq. (1), which is for both ends on one floor. (This section said until D58 that they belonged to the site-general model; that was wrong.) They are empirical factors that include everything else between floors, so they aren't a head-on slab loss and aren't tested as one; the exit gate below compares with them another way. The timber floor is 2–4 dB below the house values; since those aren't head-on slab losses, the gap isn't tested, and a measured timber floor would be the first thing to add. The apartment values are below the slab's head-on loss, as expected when signals also find paths around a floor.
+### Slabs at an angle
+
+A path to the floor above or below meets the slab at an angle from the vertical: θ = atan(across / rise), with _across_ the path's length on the plan and _rise_ the height between its ends. Every slab along one straight path meets it at the same angle. The slab's loss is computed at that angle with the same P.2040-4 method, the one D30 measured for walls (D60):
+
+| Floor           | Band    | 0°   | 60°  | 75° and beyond |
+| --------------- | ------- | ---- | ---- | -------------- |
+| `timber-joist`  | 2.4 GHz | 2.5  | 3.4  | 5.4            |
+| `timber-joist`  | 5 GHz   | 2.7  | 4.2  | 6.6            |
+| `timber-joist`  | 6 GHz   | 3.1  | 4.0  | 6.4            |
+| `concrete-slab` | 2.4 GHz | 11.5 | 12.4 | 13.6           |
+| `concrete-slab` | 5 GHz   | 20.2 | 22.0 | 23.4           |
+| `concrete-slab` | 6 GHz   | 22.8 | 24.7 | 26.2           |
+
+**Why floors and not walls.** D30 kept walls head-on because angles moved the median cell by at most 0.5 dB: paths meet walls at every angle, and some materials lose less at 30–60° than head on. Paths to another floor are different. They rise one storey, about 2.7 m, over several metres across, so most meet the slab at a shallow angle: 10 m across is 75°. Charging those paths the head-on loss made the upper floor 2.3 / 5.5 dB optimistic against P.1238-13 at 2.4 / 5 GHz (D58); with the angle it is 0.7 / 3.4 dB (see the exit gate below).
+
+**The 75° cap.** Past about 80°, the loss of every material climbs steeply towards grazing (the timber floor loses 12.8 dB at 80° on 2.4 GHz, and D30 found 40 dB or more near 89° for walls). There, real signal reaches the floor above some other way, through a stairwell, window or the slab's edge, which a single straight path can't show. So the loss stops growing at 75°, the top of the 60–75° range D30 set aside for walls. Any cap above 75° leaves the exit gate's median gaps unchanged, since the median upstairs path is within it. The cap is a judgement, not a measurement.
+
+**How it's computed.** Each floor's loss is worked out every 0.5° from 0° to 75° in each band, the first time a floor of that kind is needed in that band (about 40 ms for the timber floor, which averages three joist depths), and read by linear interpolation. The table is within 0.06 dB of the slab worked out at the exact angle; the timber floor at 2.4 GHz is the worst, because its joist cavity's resonance moves with the angle. The head-on value at 0° is exactly the table above. Working out the angle for each cell made a two-storey house's grid about 10% slower (8.7 → 9.6 ms per floor).
+
+**Against ITU-R P.1238-13.** The concrete slab is tested against the head-on measurement above, within 3 dB (2σ). P.1238-13 Table 5 also gives floor penetration loss factors, L_f: 5 dB (house) and 10 dB (apartment) at 2.4 GHz, and 7 dB (house, "wooden mortar") and 13 dB (apartment, per concrete wall) at 5.2 GHz. They belong to its eq. (2), L_total = L(d₀) + N·log10(d/d₀) + L_f(n), whose distance coefficients N (Table 4) aren't given at 2.4 or 5 GHz, not to the site-general eq. (1), which is for both ends on one floor. (This section said until D58 that they belonged to the site-general model; that was wrong.) They are empirical factors that include everything else between floors, so they aren't a head-on slab loss and aren't tested as one; the exit gate below compares with them another way. The timber floor is 2–4 dB below the house values head-on, and within 0.4 dB of them at 75° (5.4 / 6.6 dB, see [Slabs at an angle](#slabs-at-an-angle)); since those aren't slab losses, the gap isn't tested. A measured timber floor would be the first thing to add: a search in 2026-09 (D60) found none at 2.4 or 5 GHz. The apartment values are below the slab's head-on loss, as expected when signals also find paths around a floor.
 
 ## Signal between floors
 
-A path from an access point on one floor to a point on another is still one straight line (D49, D51). The access point sits at its floor's elevation plus its mounting height, and the receiver 1 m above its own floor, so the distance is 3D and includes the height between floors. Floors are stacked by elevation. A floor's `material` is the slab under its rooms, so a path pays the slab of every floor above the lower end, up to and including the upper end's floor. The lowest floor's slab is never crossed. Slab losses are head-on (D49), however steep the path.
+A path from an access point on one floor to a point on another is still one straight line (D49, D51). The access point sits at its floor's elevation plus its mounting height, and the receiver 1 m above its own floor, so the distance is 3D and includes the height between floors. Floors are stacked by elevation. A floor's `material` is the slab under its rooms, so a path pays the slab of every floor above the lower end, up to and including the upper end's floor. The lowest floor's slab is never crossed. A slab's loss follows the angle at which the path meets it, up to 75° from the vertical (D60, [Slabs at an angle](#slabs-at-an-angle)).
 
 Walls count along the part of the path inside each storey, between that floor's surface and its ceiling (or the next floor's surface, if that's lower). The path is split where its height passes each ceiling and surface, and each floor's walls are checked along its own stretch, including floors in between. For example, a router 2 m up on the ground floor (ceiling 2.4 m) and a phone 3 m across upstairs (floor at 2.7 m, phone at 3.7 m): the path leaves the ground floor 0.7 m across, passes through the slab until 1.24 m across, and is upstairs from there. A ground-floor wall 1 m from the router isn't crossed, and nor is an upstairs wall at that spot. Straight above an access point the path crosses no walls at all, only slabs. If an access point is mounted higher than a receiver on the floor above, which can't happen in a real storey, the path is split halfway.
 
@@ -211,9 +230,9 @@ Floors are flat and stacked (D49): each has one elevation and one floor-to-ceili
 
 - **Split levels and sloped ceilings.** A half-storey has to be drawn as a floor of its own at its own elevation, and a room under a sloping roof as if its ceiling were flat at the given height.
 - **Partial slabs.** Every slab covers the whole plan (D51), so outside a smaller upper floor, where a real house has a roof or open air, the path still pays a slab. Stairwells and atriums are the only holes (D54).
-- **Head-on slab loss.** A slab costs its loss at normal incidence however steep the path (D49, D50), as walls do (D30). Near the vertical that's right; for shallow paths it is optimistic, since loss through a slab grows with the angle.
+- **Slab loss at a capped angle.** A slab's loss follows the path's angle only up to 75° from the vertical (D60). A path flatter than that, to a room far across the floor above, pays the 75° loss, which is optimistic for the straight path itself but stands for the signal that finds other ways up.
 - **Paths around the floor.** Signal that leaves through a window and comes back in upstairs, or leaks round the slab's edge or down a stairwell at an angle, isn't modelled; P.1238-13 notes that such outside paths limit how much isolation floors give.
-- **Timber floor vs P.1238's house factor.** The timber joist floor loses 2.5 / 2.7 dB at 2.4 / 5 GHz (D50), against P.1238-13's empirical house factors of 5 / 7 dB, which include everything between two floors of a real house. Upstairs predictions are therefore somewhat optimistic; the exit gate below measures by how much.
+- **Timber floor vs P.1238's house factor.** The timber joist floor loses 2.5 / 2.7 dB head-on and 5.4 / 6.6 dB at 75° on 2.4 / 5 GHz (D50, D60), against P.1238-13's empirical house factors of 5 / 7 dB, which include everything between two floors of a real house. Upstairs predictions on 5 GHz are still somewhat optimistic; the exit gate below measures by how much. The joists themselves are left out (D50): a shallow path through a 235 mm joist cavity runs about 0.9 m along it and may pass one or two joists, but which way they run isn't in the plan.
 
 **Exit gate (D58).** `two-storey-home.json` is the sample bungalow with a 150 m² upper floor over a timber joist floor at 2.666 m (its 2.4 m ceiling plus the 0.266 m floor): two bedrooms, a bathroom, a laundry, a landing with a 1 × 3 m stairwell and a primary bedroom with an ensuite, in drywall inside brick outer walls with low-E windows. The router stays downstairs by the front door, 1 m up. `m3Gate.test.ts` checks two things:
 
@@ -222,12 +241,12 @@ Floors are flat and stacked (D49): each has one elevation and one floor-to-ceili
 
 | Band    | Main floor | Upper floor |
 | ------- | ---------- | ----------- |
-| 2.4 GHz | +0.7 dB    | −2.3 dB     |
-| 5 GHz   | −0.8 dB    | −5.5 dB     |
+| 2.4 GHz | +0.7 dB    | −0.7 dB     |
+| 5 GHz   | −0.8 dB    | −3.4 dB     |
 
-A negative gap means this model predicts less loss than the reference. On the main floor it agrees within 1 dB. Upstairs it is optimistic: on 5 GHz by 5.5 dB, just past 1σ, of which 4.3 dB is the timber floor against the house factor and the rest steep paths crossing fewer walls upstairs. That is also why the upper floor gets 100% at Fair on 5 GHz, more than the floor the router is on. The test also records these four gaps, so a change to them shows up in review.
+A negative gap means this model predicts less loss than the reference. On the main floor it agrees within 1 dB, and upstairs on 2.4 GHz too. On 5 GHz the upper floor is optimistic by 3.4 dB, under 1σ and about as close as the single-floor check [against P.1238](#against-the-itu-r-p1238-13-indoor-model) (within about 3 dB). Before D60 charged slabs by angle, the upper floor was 2.3 / 5.5 dB optimistic. What is left is likely the joists (see [Floors and their limits](#floors-and-their-limits)) and steep paths crossing fewer walls upstairs, and the reference itself joins two parts of P.1238 that weren't fitted together. That is also why the upper floor still gets 100% at Fair on 5 GHz, more than the floor the router is on. The test also records these four gaps, so a change to them shows up in review.
 
-Two consequences follow from the geometry. Adding floors between, or making a storey taller, never raises the signal on a plan with no walls (a property test checks this), since the path only gets longer and crosses more slabs. With walls it can: a steeper path spends less of its length in each storey and may pass fewer walls there. And the loss is the same in both directions (property tested).
+Two consequences follow from the geometry. Adding a floor between never raised the signal on a plan with no walls in a property test (100 cases in CI, and 9,000 more when D60 was checked): the path gets longer and crosses one more slab. Since D60 this isn't guaranteed by construction, because a steeper path makes every other slab a little cheaper, but the added slab has always outweighed that. Making a storey taller can raise the signal for the same reason. With walls it can: a steeper path spends less of its length in each storey and may pass fewer walls there. And the loss is the same in both directions (property tested).
 
 ## Validation
 
