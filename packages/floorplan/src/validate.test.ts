@@ -98,6 +98,14 @@ describe('parsePlan', () => {
     expect(issuesOf(parsePlan(plan))[0]?.path).toBe('floors[0].nodes[0].x')
   })
 
+  it('accepts an optional coverage target and rejects unknown ones', () => {
+    const plan: Plan = { ...box(), coverageTarget: 'good' }
+    expect(parsePlan(plan)).toEqual({ ok: true, plan })
+    expect(
+      issuesOf(parsePlan({ ...box(), coverageTarget: 'poor' }))[0]?.path,
+    ).toBe('coverageTarget')
+  })
+
   it('rejects a plan with no floors', () => {
     expect(issuesOf(parsePlan({ ...box(), floors: [] }))[0]?.path).toBe(
       'floors',

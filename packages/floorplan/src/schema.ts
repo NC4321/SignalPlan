@@ -30,6 +30,9 @@ export const OPENING_MATERIALS = [...WALL_MATERIALS, 'open'] as const
 
 export const BANDS = ['2.4GHz', '5GHz', '6GHz'] as const
 
+/** Signal levels a plan can aim for, named after the heatmap bands (D12). */
+export const COVERAGE_TARGETS = ['excellent', 'good', 'fair', 'weak'] as const
+
 const id = z.string().min(1).max(64)
 const metres = z.number()
 const positiveMetres = z.number().positive()
@@ -124,6 +127,8 @@ export const planSchema = z.object({
   name: z.string().max(200),
   floors: z.array(floorSchema).min(1),
   accessPoints: z.array(accessPointSchema),
+  /** The level the coverage summary counts towards. Omitted means `fair`. */
+  coverageTarget: z.enum(COVERAGE_TARGETS).optional(),
 })
 
 export type WallMaterial = z.infer<typeof wallMaterialSchema>
@@ -136,4 +141,5 @@ export type Background = z.infer<typeof backgroundSchema>
 export type Floor = z.infer<typeof floorSchema>
 export type Radio = z.infer<typeof radioSchema>
 export type AccessPoint = z.infer<typeof accessPointSchema>
+export type CoverageTarget = (typeof COVERAGE_TARGETS)[number]
 export type Plan = z.infer<typeof planSchema>

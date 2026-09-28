@@ -10,6 +10,7 @@ import {
 } from '@signalplan/floorplan'
 import { BAND_PROFILES } from './bands.ts'
 import { wallLoss } from './crossings.ts'
+import { floorAreaMask } from './floorArea.ts'
 import { MATERIAL_LOSS_DB } from './materials.ts'
 
 /** Height of the receiving device above the floor: a phone in hand or on a desk. */
@@ -41,6 +42,8 @@ export interface Coverage {
   dbm: Float32Array
   /** Index into `accessPointIds` of the strongest access point, or −1 if none. */
   strongest: Int16Array
+  /** 1 for cells inside the floor's walls, 0 outside (see `floorAreaMask`). */
+  floorArea: Uint8Array
   accessPointIds: string[]
 }
 
@@ -159,6 +162,7 @@ export function evaluateCoverage(
     band,
     dbm,
     strongest,
+    floorArea: floorAreaMask(floor, grid),
     accessPointIds: sources.map(({ ap }) => ap.id),
   }
 }
