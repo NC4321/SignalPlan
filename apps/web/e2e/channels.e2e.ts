@@ -108,6 +108,41 @@ test.describe('channel and width per radio', () => {
   })
 })
 
+test.describe('flagged radios on another floor', () => {
+  test.use({ locale: 'en-US' })
+
+  test('the Channels list goes to the floor and selects the access point', async ({
+    page,
+  }) => {
+    await openEditor(page)
+    const stack = page.getByRole('navigation', { name: 'Floors' })
+    await stack.getByRole('button', { name: '+ Floor above' }).click()
+    await page.keyboard.press('a')
+    await clickPlan(page, 3, 2)
+    await panel(page)
+      .getByLabel('5 GHz width')
+      .selectOption({ label: '20 MHz' })
+    await panel(page)
+      .getByLabel('5 GHz channel')
+      .selectOption({ label: '149 (5745 MHz)' })
+    await page.keyboard.press('Escape')
+    await page.keyboard.press('Escape')
+    await stack.getByRole('button', { name: 'Main floor' }).click()
+
+    await region(page).selectOption({ label: 'European Union' })
+    await panel(page)
+      .getByRole('button', { name: 'Access point 1, 5 GHz (Upper floor)' })
+      .click()
+    await expect(
+      stack.getByRole('button', { name: 'Upper floor' }),
+    ).toHaveAttribute('aria-current', 'true')
+    await expect(
+      panel(page).getByRole('heading', { name: 'Access point 1' }),
+    ).toBeVisible()
+    await expect(panel(page).getByLabel('5 GHz channel')).toHaveValue('149')
+  })
+})
+
 test.describe('in a German browser', () => {
   test.use({ locale: 'de-DE' })
 

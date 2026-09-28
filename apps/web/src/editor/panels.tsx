@@ -1021,8 +1021,8 @@ function AccessPointSection({ ap }: { ap: AccessPoint }) {
         })}
       </fieldset>
       <p className="hint">
-        Power is EIRP, antenna gain included. A channel you pick stays fixed;
-        Auto leaves it open.{' '}
+        Power is EIRP, antenna gain included. Pick a width, then a channel; a
+        channel you pick stays fixed, and Auto leaves it open.{' '}
         {ap.locked
           ? 'Locked, so it can’t be moved; untick Locked to move it.'
           : 'Drag the access point, or use the arrow keys (Shift for bigger steps).'}
@@ -1194,7 +1194,7 @@ function ChannelFields({
           id={channelId}
           value={channel ?? ''}
           disabled={width === undefined}
-          title={width === undefined ? 'Pick a width first' : undefined}
+
           aria-invalid={issue !== undefined && channel !== undefined}
           aria-describedby={issue ? noteId : undefined}
           onChange={(event) => {
