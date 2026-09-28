@@ -156,7 +156,12 @@ export function snapDraggedNode(
   floor: Floor,
   nodeId: string,
   raw: Point,
-  options: { scale: number; units: Units; disabled: boolean },
+  options: {
+    scale: number
+    units: Units
+    disabled: boolean
+    ghost?: Floor | undefined
+  },
 ): Point {
   const others: Floor = {
     ...floor,

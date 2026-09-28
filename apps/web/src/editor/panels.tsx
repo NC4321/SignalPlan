@@ -746,8 +746,8 @@ function WallToolSection() {
         </li>
         <li>Type a number for an exact length; Tab for an angle.</li>
         <li>
-          Snaps to corners, walls, 15° steps and the grid. Hold Alt to place
-          freely.
+          Snaps to corners, walls, the floor below, 15° steps and the grid. Hold
+          Alt to place freely.
         </li>
         <li>{MOD_KEY}Z steps back one corner.</li>
       </ul>

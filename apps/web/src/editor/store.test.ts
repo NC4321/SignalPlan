@@ -1,7 +1,7 @@
 import { parsePlan, type Plan } from '@signalplan/floorplan'
 import sampleHome from '@signalplan/floorplan/fixtures/sample-home.json'
 import { describe, expect, it } from 'vitest'
-import { createEditorStore, HISTORY_LIMIT } from './store.ts'
+import { createEditorStore, ghostFloor, HISTORY_LIMIT } from './store.ts'
 
 function sample(): Plan {
   const result = parsePlan(sampleHome)
@@ -393,5 +393,20 @@ describe('floors (D52)', () => {
     expect(store.getState().past.at(-1)!.label).toBe('Move Upper floor down')
     store.getState().undo()
     expect(byId('main').elevationM).toBe(0)
+  })
+})
+
+describe('ghostFloor (D53)', () => {
+  it('is the floor directly below, while the setting is on', () => {
+    const store = createEditorStore(sample())
+    expect(ghostFloor(store.getState())).toBeUndefined()
+    store.getState().addFloor('above')
+    expect(ghostFloor(store.getState())?.id).toBe('main')
+    store.getState().setShowGhost(false)
+    expect(ghostFloor(store.getState())).toBeUndefined()
+    store.getState().setShowGhost(true)
+    // The lowest floor has nothing below.
+    store.getState().setFloor('main')
+    expect(ghostFloor(store.getState())).toBeUndefined()
   })
 })

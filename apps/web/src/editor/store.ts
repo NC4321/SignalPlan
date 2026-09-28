@@ -1,5 +1,6 @@
 import {
   addFloor,
+  adjacentFloorId,
   addWall,
   deleteFloor,
   JOIN_TOLERANCE_M,
@@ -76,6 +77,11 @@ export interface EditorState {
   band: Band
   units: Units
   showHeatmap: boolean
+  /**
+   * Whether the floor below shows faintly under the one on show (D53). Not
+   * saved: it resets to on when the page reloads.
+   */
+  showGhost: boolean
   tool: Tool
   selection: Selection
   /** Undefined until the canvas has a size to fit the plan into. */
@@ -144,6 +150,7 @@ export interface EditorState {
   setBand: (band: Band) => void
   setUnits: (units: Units) => void
   setShowHeatmap: (show: boolean) => void
+  setShowGhost: (show: boolean) => void
   setTool: (tool: Tool) => void
   /** Replaces the selection. */
   select: (selection: Selection) => void
@@ -265,6 +272,7 @@ export function createEditorStore(
     band: '5GHz',
     units: options.units ?? 'metric',
     showHeatmap: true,
+    showGhost: true,
     tool: 'select',
     selection: [],
     camera: undefined,
@@ -450,6 +458,7 @@ export function createEditorStore(
       ),
     setUnits: (units) => set({ units }),
     setShowHeatmap: (showHeatmap) => set({ showHeatmap }),
+    setShowGhost: (showGhost) => set({ showGhost }),
     setTool: (tool) => set({ tool, chain: undefined, calibrationPoints: [] }),
     addCalibrationPoint: (point) =>
       set((state) => ({
@@ -556,3 +565,15 @@ export const heatmapShown = (
     'plan' | 'floorId' | 'tool' | 'selection' | 'showHeatmap'
   >,
 ) => state.showHeatmap && !tracingHidesHeatmap(state)
+
+/**
+ * The floor drawn faintly under the one on show (D53): the one directly
+ * below, if there is one and the setting is on.
+ */
+export function ghostFloor(
+  state: Pick<EditorState, 'plan' | 'floorId' | 'showGhost'>,
+): Floor | undefined {
+  if (!state.showGhost) return undefined
+  const below = adjacentFloorId(state.plan.floors, state.floorId, -1)
+  return state.plan.floors.find((f) => f.id === below)
+}
