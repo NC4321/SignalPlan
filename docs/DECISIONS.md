@@ -366,3 +366,15 @@ A running log of project decisions, newest last. Each entry records what was dec
 - **Decision:** close the M2 milestone on the exit gate (D47: the suggestion beats a centre router on three test homes, and every search finishes within the 10 s budget) and the author's own pass through the M2 features ([notes](usability/2026-09-28-m2-functional-pass.md)). Tag the result as v0.2.0. The first-time-user test (#77) moves to M3 and, as D39 says, must happen before any launch post.
 - **Why:** your choice. The gate's measurable parts are met, and your pass found nothing to fix. As with M1, an author can't see where a newcomer gets stuck, and the optimizer adds new things to find and understand, so the stranger test stays a launch condition rather than being dropped.
 - **Revisit if:** the first-time-user test finds that people miss the optimizer or misread its suggestions. Fix that before announcing anything.
+
+## Phase 5
+
+### D49. Multi-floor scope for M3 — 2026-09-28
+
+- **Floor loss:** each floor has a construction built from P.2040 layers, like the walls. A path pays the loss of each slab it crosses, computed head-on as D30 does for walls, plus the 3D straight-line distance. The slab constructions and their layers need a primary source, and at least one check against a measured floor loss, before they're committed (#86).
+- **Constructions:** a timber joist floor (subfloor, joist cavity, plasterboard ceiling) and a concrete slab. Precast hollow-core concrete and concrete on a steel deck are left out for now.
+- **3D view:** view-only. Rotate, zoom and choose which floors show, with the heatmap on each. All editing stays in the 2D editor.
+- **Shapes:** any number of flat floors stacked at set elevations, including basements (negative elevation). Split levels and sloped ceilings aren't supported, and MODEL.md will say so.
+- **Issues:** floor constructions #86, cross-floor signal #87, floor list #88, ghosted floor below #89, stairwells and atriums #90, optimizer across floors #91, 3D view #92, exit gate #93. The first-time-user test #77 moved here from M2 (D48).
+- **Why:** these were your choices. A slab built from P.2040 layers is sourced and computed the same way as walls, rather than a flat per-floor penalty that ignores what the floor is made of. Head-on loss keeps floors consistent with walls. A view-only 3D view keeps Phase 5 to a size OUTLINE's open question warned about. Basements are common in North American homes and cost nothing extra when floors are flat.
+- **Revisit if:** the head-on slab loss clearly disagrees with measurements far off the vertical, people ask for split levels, or the 3D view turns out to be where people want to place access points.
