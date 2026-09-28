@@ -25,6 +25,15 @@ export {
 } from './materials.ts'
 export { freeSpacePathLoss, SPEED_OF_LIGHT } from './pathLoss.ts'
 export {
+  CANDIDATE_SPACING_M,
+  candidatePositions,
+  createScorer,
+  SEARCH_CELL_M,
+  WALL_CLEARANCE_M,
+  type PlacementProblem,
+  type Scorer,
+} from './placement.ts'
+export {
   FITTED_MATERIALS,
   P2040_MATERIALS,
   slabLossDb,

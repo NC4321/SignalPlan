@@ -4,6 +4,10 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Added
+
+- Engine: placement scoring for the upcoming optimizer (`createScorer`, `candidatePositions`). It gives the share of the floor at the coverage target for any access point layout, works on 25 cm cells from a 0.5 m lattice of candidate positions clear of the walls, and agrees exactly with the coverage summary on the same grid (D41).
+
 ## [0.1.0] - 2026-09-28
 
 M1: single-floor MVP. Draw a floor to scale, add doors, windows and access points, and see predicted coverage on 2.4, 5 and 6 GHz.
