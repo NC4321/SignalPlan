@@ -8,11 +8,52 @@ import {
   type Wall,
   type WallMaterial,
 } from '@signalplan/floorplan'
+import apartment from '@signalplan/floorplan/fixtures/apartment.json' with { type: 'json' }
+import lShapedHouse from '@signalplan/floorplan/fixtures/l-shaped-house.json' with { type: 'json' }
+import sampleHome from '@signalplan/floorplan/fixtures/sample-home.json' with { type: 'json' }
 import { BAND_PROFILES } from './bands.ts'
+import { candidatePositions, type Scorer } from './placement.ts'
 
 /**
  * Plans for the speed check and the engine's exactness tests.
  */
+
+/**
+ * The optimizer's exit gate homes (D47): three shapes and sizes, each with
+ * one router where its line comes in.
+ */
+export function gateHomes(): { name: string; plan: Plan }[] {
+  return [
+    ['Sample home (150 m², brick bungalow)', sampleHome],
+    ['Apartment (65 m², concrete)', apartment],
+    ['L-shaped house (220 m², brick and drywall)', lShapedHouse],
+  ].map(([name, json]) => {
+    const result = parsePlan(json)
+    if (!result.ok) throw new Error(`${name} is invalid`)
+    return { name: name as string, plan: result.plan }
+  })
+}
+
+/**
+ * The naive placement the optimizer must beat (D47): the middle of the
+ * floor's bounding box, or the nearest spot the scorer allows (on a 10 cm
+ * lattice) when that is outside the walls or on one, as in an L-shape.
+ */
+export function naiveCentre(plan: Plan, floorId: string, scorer: Scorer) {
+  const { nodes } = plan.floors.find((f) => f.id === floorId)!
+  const xs = nodes.map((n) => n.x)
+  const ys = nodes.map((n) => n.y)
+  const middle = {
+    x: (Math.min(...xs) + Math.max(...xs)) / 2,
+    y: (Math.min(...ys) + Math.max(...ys)) / 2,
+  }
+  if (scorer.allows(middle)) return middle
+  const distance = (p: { x: number; y: number }) =>
+    Math.hypot(p.x - middle.x, p.y - middle.y)
+  return candidatePositions(scorer, 0.1).reduce((a, b) =>
+    distance(b) < distance(a) ? b : a,
+  )
+}
 
 /**
  * A floor of 5 × 5 rooms, each `roomW` × `roomH` metres: 60 walls, a door in

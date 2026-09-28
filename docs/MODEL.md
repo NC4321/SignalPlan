@@ -36,13 +36,44 @@ Access points on other floors are ignored until multi-floor support in Phase 5.
 
 The editor reports the share of the **floor area** at or above a target level (D27). Floor area is the set of cells inside the outer walls (`floorArea.ts`): the outside is flooded in from the grid's edge, stepping between neighbouring cell centres, and a step that touches a wall is blocked. Cells the flood can't reach are inside. Doors and windows sit on walls, so they count as closed. The sample home measures exactly its stated 150 m². A cell whose centre lies exactly on a wall also counts as inside, so the area can run over by up to half a cell along such walls.
 
-### Placement scoring
+### Placement optimizer
 
 The placement optimizer (M2, D40 and D41) scores a layout with the same model and floor area as the coverage summary. The score is the share of floor-area cells whose strongest signal reaches the target. While searching, cells are 25 cm, and at that size the score matches the coverage summary exactly on the same grid. Candidate positions start on a 0.5 m lattice inside the outer walls, at least 10 cm from any wall, and the best are refined to 10 cm. Signals from access points that stay put are worked out once, and only cells inside the walls are evaluated. For one access point, the best 5 lattice spots are refined to 0.25 m and then 0.1 m steps, and the winner is picked on the 10 cm grid (D42). Ties in share go to the spot whose weakest cell is strongest. Backhaul between access points isn't modelled (D40), and the optimizer panel says so next to its results (D44).
 
 For several access points (D45), added ones go in one at a time at the best lattice spot. A second start places every moving one that way, and the better of the two starts is refined. Refining is simulated annealing: 250 steps per access point, each moving one of them, usually by a random step whose length shrinks from 2 m to 10 cm, and one step in five jumps to a random lattice spot. A worse layout is accepted with probability exp(ΔE / T), where E counts covered cells plus 0.01 × the weakest spot in dBm, and T cools geometrically from 1% of the cells to 0.05. A fixed seed makes the result repeat. Each access point is then polished by pattern search at 0.25 m and 0.1 m, and the result is compared on 10 cm cells with both starts, so refining never lowers the score. Measured on the development machine: moving the sample home's router takes 0.37 s (92.0%, as the single search), and adding one more takes 0.5 s (86.9% → 100% at Fair on 5 GHz). On the 300 m² big house, moving both access points takes 3.3 s, and moving both while adding two takes 4.6 s, within the 10 s budget.
 
 "How many access points do I need?" (D46) runs that search with 0, 1, 2 … added, up to 4, and stops at the first count whose share reaches the goal (80–100% of the floor, 90% by default). If the access points already reach it where they are, nothing moves. Each count also starts from the previous winner plus one added greedily, so one more never scores lower. The fewest added wins among equal shares, because one more always raises the weakest spot. The counts share the candidate signals and one 10 s budget. On the development machine the sample home takes 0.4–1.0 s and the 300 m² big house 3.3–5.6 s at Excellent. Past the budget it returns the best found and says so, without claiming the goal is out of reach.
+
+**Exit gate (D47).** Three test homes are checked in as fixtures in `packages/floorplan/fixtures/`: the 150 m² brick sample bungalow, a 65 m² concrete apartment with a concrete spine wall, and a 220 m² L-shaped brick house with drywall rooms. Each has one router where the line comes in. The naive placement is the middle of the floor's bounding box, moved to the nearest allowed spot when it falls outside the walls or on one (the L-shape's middle is outside). At Good (−60 dBm) on 5 GHz, where a router in the middle falls short in every home, the single-AP search must cover a strictly larger share (`exitGate.test.ts`):
+
+| Home                    | Router where it is | Router in the middle | Suggested spot |
+| ----------------------- | ------------------ | -------------------- | -------------- |
+| Sample home (150 m²)    | 86.8%              | 87.4%                | 90.5%          |
+| Apartment (65 m²)       | 57.3%              | 72.1%                | 97.4%          |
+| L-shaped house (220 m²) | 53.3%              | 75.6%                | 100%           |
+
+The gain over the middle is small in the sample home, where brick and concrete walls leave about a tenth of the floor short of Good from any single spot. It is large where the middle sits behind a strong wall from much of the floor: in the apartment's living room, or at the L-shape's inner corner.
+
+**Speed.** `pnpm speed` also runs `optimizer.speed.ts`: the best spot for the router, one more access point, and how many for 100% of the floor, at Excellent on 5 GHz, where every home needs more access points. The big house starts from its first access point only. Each search runs once with its 10 s cap lifted, so the real time is measured. The budget is 10 s on a desktop, and CI fails at 15 s (1.5×, as D26). On the development machine (i5-12600K), from 2026-09-28:
+
+| Plan                    | Best spot | One more | How many for 100% |
+| ----------------------- | --------- | -------- | ----------------- |
+| Sample home (150 m²)    | 0.35 s    | 0.51 s   | 0.98 s (2 more)   |
+| Apartment (65 m²)       | 0.06 s    | 0.12 s   | 0.14 s (1 more)   |
+| L-shaped house (220 m²) | 0.76 s    | 1.05 s   | 1.25 s (1 more)   |
+| Big house (300 m²)      | 2.59 s    | 3.34 s   | 5.57 s (2 more)   |
+
+CI_TIMES_PLACEHOLDER
+
+**Limits.** The optimizer finds good spots for this model, not guaranteed best ones, and inherits every limit of the model below.
+
+- **One band, one floor.** It optimizes the band on show. A spot that is best on 5 GHz may not be best on 2.4 or 6 GHz, and floors above and below are ignored until M3.
+- **Every square metre counts the same.** There are no rooms or priorities (D40), so a hallway counts as much as an office.
+- **No allowed or forbidden zones.** Apart from locked access points (D43), any spot inside the walls and 10 cm from them is allowed, including ones with no power socket or cable.
+- **Backhaul is ignored.** Added access points are assumed to have a good link to the router (D40); a mesh node placed far away may in practice have a weak link.
+- **A heuristic search.** The lattice, greedy starts and annealing can miss the best layout. The search compares its candidates on 25 cm cells and confirms only the winners on 10 cm cells, so close rankings can differ slightly.
+- **Slower devices.** On a phone 4–6× slower than the desktop, the big house's how-many search would take 22–33 s, so it stops at 10 s with the best layout found so far, and says so.
+- **At most 4 added** by "How many access points do I need?" (D46).
 
 ### Speed
 
