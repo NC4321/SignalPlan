@@ -6,6 +6,7 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ### Added
 
+- Engine: wall losses near 2.4 GHz checked against NIST at 2.0 GHz and in-building measurements at 2.5 GHz; drywall, glass and lumber stay within 4 dB of NIST in a unit test.
 - README demo GIF (draw walls, place an access point, drag it), recorded by `scripts/record-demo.mjs` so it can be regenerated.
 - Engine: wall losses validated against NIST measurements at 5 and 6 GHz; drywall, glass and lumber stay within 5 dB in a unit test, and the brick and concrete disagreement is documented in `docs/MODEL.md`.
 - File › Export image…: a PNG of the floor with its heatmap, access point names, legend, coverage summary and a scale bar, in three sizes and a light or dark theme, named after the plan and band.
