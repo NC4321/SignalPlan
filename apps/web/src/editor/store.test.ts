@@ -165,6 +165,33 @@ describe('setCoverageTarget', () => {
   })
 })
 
+describe('setRegion and setAllowDfs', () => {
+  it('sets the region as an undoable edit, skipping no-op changes', () => {
+    const store = createEditorStore({ ...sample(), region: undefined })
+    // No region counts as the US.
+    store.getState().setRegion('US')
+    expect(store.getState().past).toHaveLength(0)
+    store.getState().setRegion('EU')
+    expect(store.getState().plan.region).toBe('EU')
+    expect(store.getState().past.at(-1)?.label).toBe('Change region')
+    store.getState().undo()
+    expect(store.getState().plan.region).toBeUndefined()
+  })
+
+  it('stores DFS only while it is allowed', () => {
+    const store = createEditorStore(sample())
+    store.getState().setAllowDfs(false)
+    expect(store.getState().past).toHaveLength(0)
+    store.getState().setAllowDfs(true)
+    expect(store.getState().plan.allowDfs).toBe(true)
+    expect(store.getState().past.at(-1)?.label).toBe('Allow DFS channels')
+    store.getState().setAllowDfs(false)
+    expect('allowDfs' in store.getState().plan).toBe(false)
+    store.getState().undo()
+    expect(store.getState().plan.allowDfs).toBe(true)
+  })
+})
+
 describe('loadPlan', () => {
   it('replaces the plan and clears history', () => {
     const store = createEditorStore(sample())

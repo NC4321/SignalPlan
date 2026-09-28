@@ -115,7 +115,7 @@ This is a **multi-wall model**, as in the COST 231 final report. Because walls a
 
 ## Bands
 
-North American channel ranges. The reference loss is free-space loss at 1 m, computed at the band's midpoint (`freeSpacePathLoss` in [`pathLoss.ts`](../packages/engine/src/pathLoss.ts)).
+US channel ranges, used for path loss in every region. The reference loss is free-space loss at 1 m, computed at the band's midpoint (`freeSpacePathLoss` in [`pathLoss.ts`](../packages/engine/src/pathLoss.ts)).
 
 | Band    | Channels (GHz)             | Midpoint (GHz) | PL(1 m) | Default EIRP | Regulatory limit (FCC / ISED)                                               |
 | ------- | -------------------------- | -------------- | ------- | ------------ | --------------------------------------------------------------------------- |
@@ -123,7 +123,36 @@ North American channel ranges. The reference loss is free-space loss at 1 m, com
 | 5 GHz   | 5.150–5.895 (U-NII-1 to 4) | 5.523          | 47.3 dB | 23 dBm       | 36 dBm EIRP on U-NII-1, 3 and 4; 30 dBm on U-NII-2A/2C (§ 15.407(a)(1)–(3)) |
 | 6 GHz   | 5.925–7.125 (U-NII-5 to 8) | 6.525          | 48.7 dB | 18 dBm       | Low-power indoor: 5 dBm/MHz, at most 30 dBm EIRP (§ 15.407(a)(5))           |
 
-The 2.4 and 5 GHz defaults are **assumptions**: typical consumer router output, well below the legal limits. The 6 GHz default is the low-power indoor limit applied to a 20 MHz channel, which is what beacons (and so a phone's signal reading) use. Users can set any radio's EIRP in the plan. The editor accepts −10 to 40 dBm and notes when a value is above the band's highest FCC limit (36, 36 and 30 dBm); the 5 GHz limit depends on the channel, so values between 30 and 36 dBm are legal only on U-NII-1, 3 and 4 ([D25](DECISIONS.md#d25-access-point-tool--2026-09-27)).
+The 2.4 and 5 GHz defaults are **assumptions**: typical consumer router output, well below the legal limits. The 6 GHz default is the low-power indoor limit applied to a 20 MHz channel, which is what beacons (and so a phone's signal reading) use. Users can set any radio's EIRP in the plan. The editor accepts −10 to 40 dBm and notes when a value is above the band's highest limit in the plan's region (below); in the US the 5 GHz limit depends on the channel, so values between 30 and 36 dBm are legal only on channels 36–48 and 149–165 ([D25](DECISIONS.md#d25-access-point-tool--2026-09-27), [D62](DECISIONS.md#d62-channels-by-region--2026-09-28)). The defaults are the same in every region; the EU's 6 GHz limit (10 dBm/MHz) would allow 23 dBm on a 20 MHz channel, so the 18 dBm default is 5 dB conservative there.
+
+## Channels and regions
+
+Each plan has a region, `US` or `EU` (a plan without one is US), and a DFS setting, off unless the plan says otherwise ([D61](DECISIONS.md#d61-scope-for-phase-6-overlap-roaming-and-channel-planning--2026-09-28), [D62](DECISIONS.md#d62-channels-by-region--2026-09-28)). The channels and power limits come from [`regions.json`](../packages/engine/src/regions.json); `regions.ts` reads it. A channel number sits on the IEEE 802.11 grid, centre = start + 5 × channel MHz (start 2407, 5000 and 5950 MHz for 2.4, 5 and 6 GHz), and spans half its width either side. A channel needs DFS if any part of that span is inside a DFS range; one that only touches the edge, like channel 48 ending at 5250 MHz, doesn't.
+
+| Region, band | Allowed range (MHz)  | DFS ranges (MHz)     | 20 MHz channels         | 40 MHz                   | 80 MHz                     | 160 MHz    | Highest EIRP                                |
+| ------------ | -------------------- | -------------------- | ----------------------- | ------------------------ | -------------------------- | ---------- | ------------------------------------------- |
+| US 2.4 GHz   | 2400–2483.5          | none                 | 1–11                    | 3–9                      | –                          | –          | 36 dBm                                      |
+| US 5 GHz     | 5150–5350, 5470–5850 | 5250–5350, 5470–5725 | 36–64, 100–144, 149–165 | 38–62, 102–142, 151, 159 | 42, 58, 106, 122, 138, 155 | 50, 114    | 36 dBm (30 dBm on DFS channels)             |
+| US 6 GHz     | 5925–7125            | none                 | 1–233 (59)              | 3–227 (29)               | 7–215 (14)                 | 15–207 (7) | 30 dBm, 5 dBm/MHz                           |
+| EU 2.4 GHz   | 2400–2483.5          | none                 | 1–13                    | 3–11                     | –                          | –          | 20 dBm, 10 dBm/MHz                          |
+| EU 5 GHz     | 5150–5350, 5470–5725 | 5250–5350, 5470–5725 | 36–64, 100–140          | 38–62, 102–134           | 42, 58, 106, 122           | 50, 114    | 30 dBm with TPC on 100–140; 23 dBm on 36–64 |
+| EU 6 GHz     | 5945–6425            | none                 | 1–93 (24)               | 3–91 (12)                | 7–87 (6)                   | 15, 47, 79 | 23 dBm, 10 dBm/MHz                          |
+
+Channels step by 4 at 20 MHz, 8 at 40 MHz, 16 at 80 MHz and 32 at 160 MHz. Every value was checked against its source on 2026-09-28:
+
+- **US ranges and DFS:** 47 CFR § 15.247(a)(2) for 2400–2483.5 MHz; § 15.407(a) for the 5 GHz bands and (a)(5) for indoor 6 GHz; § 15.407(h)(2) requires DFS where "any part of its 26 dB emission bandwidth" is in 5.25–5.35 or 5.47–5.725 GHz. 6 GHz has no DFS, but a contention-based protocol (§ 15.407(d)(6)). The U-NII-n names aren't in the CFR, so the editor's notes name channels instead.
+- **EU ranges and limits:** ETSI EN 300 328 V2.2.2 (2.4 GHz: 20 dBm e.i.r.p., cl. 4.3.2.2.3; 10 dBm/MHz, cl. 4.3.2.3.3). ETSI EN 301 893 V2.2.1 (5 GHz: sub-bands in Table 1; 23 / 23 / 30 dBm with TPC and 23 / 20 / 27 dBm without, Table 2; DFS on sub-bands 2 and 3, cl. 4.2.6.1.2). Commission Implementing Decision (EU) 2021/1067 as last replaced by (EU) 2025/913 and ETSI EN 303 687 V1.1.1 (6 GHz low-power indoor: 5945–6425 MHz, 23 dBm, 10 dBm/MHz; no radar detection). Commission Implementing Decision (EU) 2022/179 makes 5250–5350 MHz indoor only.
+- **Channel grid:** IEEE Std 802.11-2020 Table E-4 (operating classes 81, 115–130: 2.4 GHz starting frequency 2.407 GHz, 5 GHz channels 36–48 / 52–64 / 100–144 / 149–165, 80 MHz 42–155, 160 MHz 50 and 114), read from the excerpt filed as Exhibit 1036 in USPTO IPR2021-01377. The 2.4 GHz 40 MHz channels come from Tables E-1 and E-2 (US classes 32–33: primary channels 1–7 with the secondary above and 5–11 with it below; Europe classes 11–12: 1–9 and 5–13), so the centres, two channels from the primary, are 3–9 in the US and 3–11 in the EU. The 5 GHz 20 MHz grid and its 40/80/160 MHz groupings are also in EN 301 893 eq. (1) and Figure 6, and the 6 GHz 20 MHz centres in EN 303 687 cl. 4.3.1.3. The 6 GHz 40, 80 and 160 MHz channels are from the IEEE 802.11 working group's text for P802.11ax D6.0 (doc. 11-20/0646r0, Table E-4 classes 132–134); the published 802.11ax-2021 wasn't available.
+- **Derived:** each list is the IEEE grid's channels whose whole span lies inside the region's ranges. A unit test checks that for every channel.
+
+**Left out on purpose:**
+
+- US 2.4 GHz channels 12 and 13. § 15.247 doesn't forbid them, but an FCC OET presentation (TCB workshop, October 2013, KDB 248227) says they "have to operate at reduced power to satisfy adjacent band restrictions (2.4835 – 2.5 GHz)". SignalPlan has no per-channel power limits, so they're left out.
+- US U-NII-4 (5850–5895 MHz, § 15.407(a)(3)(ii)) and the EU's 5.8 GHz band: newer or national, and not widely supported.
+- 20 MHz channels 32, 68 and 96 (EN 301 893 eq. (1) allows them in the EU; they also fit US rules), and 6 GHz channel 2 (5935 MHz, its own IEEE operating class). Each is a 20 MHz-only edge channel that never joins a wider one.
+- 320 MHz on 6 GHz. The FCC allows it (§ 15.407(a)(11)), but its channel numbers are only in IEEE working-group drafts so far.
+
+To add a region, or change one when the rules change: add or edit its entry in `regions.json` (ranges, DFS ranges, channel lists per width, highest EIRP and the note the editor shows), add its code to `REGIONS` in the floorplan schema, add a row above with its sources, and bump the file's `version` date. The unit tests check every channel against the ranges.
 
 ## Wall materials
 
@@ -409,4 +438,12 @@ With the one or two interior walls a path typically crosses at these distances, 
 - National Institute of Standards and Technology, _Voluntary Product Standard PS 20-20, American Softwood Lumber Standard_, January 2020. Table 3.
 - 3GPP TR 38.901 V17.0.0 (ETSI TR 138 901, 2022-04), _Study on channel model for frequencies from 0.5 to 100 GHz_. Table 7.4.3-1.
 - COST Action 231, _Digital mobile radio towards future generation systems: final report_, European Commission, 1999. Indoor multi-wall model.
-- 47 CFR §§ 15.247 and 15.407 (FCC Part 15), and the matching ISED rules RSS-247 and RSS-248.
+- 47 CFR §§ 15.205, 15.247, 15.403 and 15.407 (FCC Part 15, eCFR as of 2026-09-24), and the matching ISED rules RSS-247 and RSS-248.
+- FCC Office of Engineering and Technology, "KDB 248227 802.11 SAR Procedures Update Proposal", TCB Workshop, October 2013. Slide 7.
+- ETSI EN 300 328 V2.2.2 (2019-07), _Wideband transmission systems; Data transmission equipment operating in the 2,4 GHz band; Harmonised Standard for access to radio spectrum_. Clauses 4.3.2.2, 4.3.2.3.
+- ETSI EN 301 893 V2.2.1 (2024-11), _5 GHz WAS/RLAN; Harmonised Standard for access to radio spectrum_. Table 1, eq. (1), Table 2, clause 4.2.6.1.2, Figure 6.
+- ETSI EN 303 687 V1.1.1 (2023-06), _6 GHz WAS/RLAN; Harmonised Standard for access to radio spectrum_. Clause 4.3.1.3, Tables 2–3.
+- Commission Implementing Decision (EU) 2021/1067 on the 5 945–6 425 MHz band, OJ L 232, 30.6.2021, with its Annex as replaced by (EU) 2025/913, OJ L 2025/913, 22.5.2025. Table 1.
+- Commission Implementing Decision (EU) 2022/179 on the 5 GHz band for WAS/RLANs, OJ L 29, 10.2.2022. Annex Tables 1–3.
+- IEEE Std 802.11-2020, _Wireless LAN Medium Access Control (MAC) and Physical Layer (PHY) Specifications_. Annex E, Table E-4 (read from USPTO IPR2021-01377, Exhibit 1036).
+- IEEE 802.11 working group document 11-20/0646r0, "Update to 6GHz Operating Classes", April 2020. Proposed Table E-4 classes 131–134.

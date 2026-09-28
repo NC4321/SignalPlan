@@ -4,6 +4,10 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Added
+
+- Channels by region: with nothing selected, the panel has a Channels section. It sets the plan's region (United States or European Union) and whether 5 GHz DFS channels may be used, with a short explanation of what DFS means. New plans guess the region from the browser's language. The note for power above the legal limit now uses the region's limit. The channels and limits for each region come from a data file, `packages/engine/src/regions.json`, checked against FCC, ETSI, EU and IEEE sources listed in `docs/MODEL.md`. Plans get the optional `region` and `allowDfs` fields (D62).
+
 ### Changed
 
 - Engine: a floor's loss now depends on the angle the signal passes through it, as ITU-R P.2040 gives it, up to 75° from straight up. Signal to rooms well across the floor above or below meets the floor at a shallow angle and loses more than head on (a timber floor: 2.7 dB straight through, 6.6 dB at 75° on 5 GHz). Against ITU-R P.1238-13, the upper floor of the two-storey sample home goes from 2.3 / 5.5 dB optimistic to 0.7 / 3.4 dB on 2.4 / 5 GHz; the main floor doesn't change. Walls stay head-on (D60).
