@@ -1,7 +1,10 @@
 import type { Band, Plan } from '@signalplan/floorplan'
 import { evaluateCoverage, type Coverage } from './coverage.ts'
 import {
+  searchHowMany,
   searchMultiPlacement,
+  type HowManyProblem,
+  type HowManyResult,
   type MultiPlacementProblem,
   type MultiSearchResult,
 } from './multiSearch.ts'
@@ -64,11 +67,13 @@ export function transferables(response: EngineResponse): ArrayBuffer[] {
 export type PlacementRequest =
   | { id: number; kind: 'place-one'; problem: SinglePlacementProblem }
   | { id: number; kind: 'place-many'; problem: MultiPlacementProblem }
+  | { id: number; kind: 'how-many'; problem: HowManyProblem }
 
 export type PlacementMessage =
   | { id: number; kind: 'progress'; fraction: number }
   | { id: number; kind: 'result'; result: SearchResult }
   | { id: number; kind: 'result-many'; result: MultiSearchResult }
+  | { id: number; kind: 'result-how-many'; result: HowManyResult }
   | { id: number; kind: 'error'; message: string }
 
 /** Progress is posted at most this often, in milliseconds. */
@@ -91,7 +96,10 @@ export function handlePlacementRequest(
         post({ id, kind: 'progress', fraction })
       },
     }
-    if (request.kind === 'place-many') {
+    if (request.kind === 'how-many') {
+      const result = searchHowMany(request.problem, options)
+      post({ id, kind: 'result-how-many', result })
+    } else if (request.kind === 'place-many') {
       const result = searchMultiPlacement(request.problem, options)
       post({ id, kind: 'result-many', result })
     } else {

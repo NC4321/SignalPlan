@@ -51,8 +51,12 @@ export {
   ANNEAL_START_STEP_M,
   ANNEAL_STEPS_PER_AP,
   JUMP_CHANCE,
+  MAX_ADDED,
   mulberry32,
+  searchHowMany,
   searchMultiPlacement,
+  type HowManyProblem,
+  type HowManyResult,
   type MultiPlacementProblem,
   type MultiSearchResult,
 } from './multiSearch.ts'

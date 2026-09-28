@@ -1,7 +1,8 @@
-import type {
-  AccessPointTemplate,
-  PlacementMessage,
-  PlacementRequest,
+import {
+  MAX_ADDED,
+  type AccessPointTemplate,
+  type PlacementMessage,
+  type PlacementRequest,
 } from '@signalplan/engine'
 import {
   addAccessPoint,
@@ -21,10 +22,15 @@ import type { EditorState, Selection } from './store.ts'
 import { formatLength, type Units } from './units.ts'
 
 /**
- * The optimizer panel (D44, D45): which access points a search moves or
+ * The optimizer panel (D44, D45, D46): which access points a search moves or
  * adds, the search in its own worker, and the suggestion it leaves for Apply
  * or Dismiss.
  */
+
+/** Goals "How many access points do I need?" offers, as shares (D46). */
+export const COVERAGE_GOALS = [0.8, 0.9, 0.95, 1] as const
+export type CoverageGoal = (typeof COVERAGE_GOALS)[number]
+export const DEFAULT_COVERAGE_GOAL: CoverageGoal = 0.9
 
 /** An access point a search places: one that moves, or a new one. */
 export interface Mover {
@@ -53,6 +59,8 @@ export interface Suggestion {
   weakestDbm: number
   /** True if the 10 s budget ran out and this is the best found so far. */
   stoppedEarly: boolean
+  /** For "How many access points do I need?": the goal, and if it's met. */
+  howMany?: { goal: number; added: number; reached: boolean }
 }
 
 export type OptimizerState =
@@ -62,9 +70,10 @@ export type OptimizerState =
 
 /**
  * "best" finds better spots for what can move (or places the first access
- * point); "one-more" adds an access point and moves the rest to suit (D45).
+ * point); "one-more" adds an access point and moves the rest to suit (D45);
+ * "how-many" adds as few as reach the coverage goal (D46).
  */
-export type SearchKind = 'best' | 'one-more'
+export type SearchKind = 'best' | 'one-more' | 'how-many'
 
 export type SearchJob =
   | {
@@ -100,7 +109,9 @@ const broadcasts = (ap: AccessPoint, band: Band) =>
  * (together, if there are several); on an empty floor, one is added.
  * "one-more", only with nothing selected on a floor that has access points:
  * one is added, a copy of the first that broadcasts on the band, and the
- * unlocked ones move to suit. Everything else on the floor stays.
+ * unlocked ones move to suit. "how-many", only with nothing selected: as
+ * "one-more", but adding as few as reach `goal` (none if moving is enough).
+ * Everything else on the floor stays.
  */
 export function planSearch(
   plan: Plan,
@@ -108,6 +119,7 @@ export function planSearch(
   band: Band,
   selection: Selection,
   kind: SearchKind = 'best',
+  goal: CoverageGoal = DEFAULT_COVERAGE_GOAL,
 ): SearchJob | undefined {
   const onFloor = plan.accessPoints.filter((ap) => ap.floorId === floorId)
   const unlocked = onFloor.filter((ap) => !ap.locked)
@@ -142,10 +154,32 @@ export function planSearch(
     movers: [moverOf(ap)],
   })
 
+  const model = onFloor.find((ap) => broadcasts(ap, band))
+  const template = model ? templateOf(model) : DEFAULT_TEMPLATE
+
+  if (kind === 'how-many') {
+    if (selection.length > 0) return undefined
+    return {
+      kind: 'ready',
+      label: 'How many access points do I need?',
+      what: `how many access points cover ${goalText(goal)} of the floor`,
+      request: {
+        kind: 'how-many',
+        problem: {
+          ...base,
+          fixed: fixedWithout(movable),
+          moving: movable,
+          goal,
+          template,
+        },
+      },
+      // New ones are added to these once the search says how many.
+      movers: movable.map(moverOf),
+    }
+  }
+
   if (kind === 'one-more') {
     if (selection.length > 0 || onFloor.length === 0) return undefined
-    const model = onFloor.find((ap) => broadcasts(ap, band))
-    const template = model ? templateOf(model) : DEFAULT_TEMPLATE
     return {
       kind: 'ready',
       label: 'Suggest one more access point',
@@ -297,7 +331,7 @@ export function searchOutcome(
   if (message.kind === 'error') {
     return { status: 'message', text: `Couldn’t search: ${message.message}` }
   }
-  const { band, floorId } = job.request.problem
+  const { band, floorId, plan, template } = job.request.problem
   const result = message.result
   switch (result.kind) {
     case 'no-floor-area':
@@ -315,7 +349,18 @@ export function searchOutcome(
     case 'found': {
       const positions =
         'positions' in result ? result.positions : [result.position]
-      const moves = job.movers.map((mover, i) => ({
+      // A how-many search decides how many new ones there are.
+      const extra = positions.length - job.movers.length
+      const movers = [
+        ...job.movers,
+        ...newNames(plan, Math.max(extra, 0)).map((name) => ({
+          apId: undefined,
+          name,
+          from: undefined,
+          template,
+        })),
+      ]
+      const moves = movers.map((mover, i) => ({
         ...mover,
         to: positions[i]!,
       }))
@@ -323,6 +368,21 @@ export function searchOutcome(
         ({ from, to }) =>
           from && Math.hypot(to.x - from.x, to.y - from.y) < SAME_SPOT_M,
       )
+      const howMany =
+        'added' in result && job.request.kind === 'how-many'
+          ? {
+              goal: job.request.problem.goal,
+              added: result.added,
+              reached: result.reached,
+            }
+          : undefined
+      if (howMany?.reached && inPlace) {
+        const target = targetBand(plan.coverageTarget)
+        return {
+          status: 'message',
+          text: `No more access points needed: ${percent(result.before ?? 0)} of the floor is already at ${target.label} or better on ${BAND_LABELS[band]}, which meets the ${goalText(howMany.goal)} goal.`,
+        }
+      }
       if (inPlace) {
         return {
           status: 'message',
@@ -345,6 +405,7 @@ export function searchOutcome(
           beforeWeakestDbm: adds ? undefined : result.beforeWeakestDbm,
           weakestDbm: result.weakestDbm,
           stoppedEarly: result.stoppedEarly,
+          ...(howMany && { howMany }),
         },
       }
     }
@@ -352,6 +413,28 @@ export function searchOutcome(
 }
 
 const percent = (share: number) => `${Math.floor(share * 100)}%`
+
+/** A coverage goal as a percentage, e.g. "90%". */
+export const goalText = (goal: number) => `${Math.round(goal * 100)}%`
+
+/**
+ * The how-many answer before the moves (D46), e.g. "You need 1 more access
+ * point for 90% of the floor." It says when the goal isn't reached.
+ */
+function howManyText(
+  { goal, added, reached }: NonNullable<Suggestion['howMany']>,
+  stoppedEarly: boolean,
+): string {
+  const share = `${goalText(goal)} of the floor`
+  if (!reached) {
+    // Stopped early, not every count was tried.
+    return stoppedEarly
+      ? `No layout found in time covers ${share}. The best found:`
+      : `Even ${MAX_ADDED} more access points don’t cover ${share}. The best found:`
+  }
+  if (added === 0) return `No more access points needed for ${share}.`
+  return `You need ${added} more access point${added === 1 ? '' : 's'} for ${share}.`
+}
 
 /**
  * The before → after line, rounded down like the coverage summary (D27),
@@ -388,7 +471,10 @@ export function suggestionSummary(
   const early = suggestion.stoppedEarly
     ? ' The search hit its 10 second limit, so this is the best found so far.'
     : ''
-  return `${list[0]!.toUpperCase()}${list.slice(1)}: ${suggestionText(suggestion, target)}${early}`
+  const lead = suggestion.howMany
+    ? `${howManyText(suggestion.howMany, suggestion.stoppedEarly)} `
+    : ''
+  return `${lead}${list[0]!.toUpperCase()}${list.slice(1)}: ${suggestionText(suggestion, target)}${early}`
 }
 
 /** The parts of a Worker the optimizer uses, so tests can fake it. */
@@ -428,8 +514,9 @@ export function createOptimizer(
   return {
     start(kind = 'best') {
       stop()
-      const { plan, floorId, band, selection, setOptimizer } = store.getState()
-      const job = planSearch(plan, floorId, band, selection, kind)
+      const { plan, floorId, band, selection, coverageGoal, setOptimizer } =
+        store.getState()
+      const job = planSearch(plan, floorId, band, selection, kind, coverageGoal)
       if (!job) return
       if (job.kind === 'unavailable') {
         setOptimizer({ status: 'message', text: job.reason })

@@ -1,4 +1,4 @@
-import { BAND_PROFILES, type Coverage } from '@signalplan/engine'
+import { BAND_PROFILES, MAX_ADDED, type Coverage } from '@signalplan/engine'
 import {
   BANDS,
   COVERAGE_TARGETS,
@@ -47,7 +47,13 @@ import { TracingSection } from './TracingSection.tsx'
 import type { SaveStatus } from './autosave.ts'
 import { MOD_KEY, signalAt } from './util.ts'
 import { drawWall, WALL_STYLES } from './wallStyles.ts'
-import { planSearch, suggestionSummary } from './optimizer.ts'
+import {
+  COVERAGE_GOALS,
+  goalText,
+  planSearch,
+  suggestionSummary,
+  type CoverageGoal,
+} from './optimizer.ts'
 import { useOptimizer } from './optimizerContext.ts'
 
 const MODEL_URL = 'https://github.com/NC4321/SignalPlan/blob/main/docs/MODEL.md'
@@ -406,9 +412,9 @@ function CoverageSummary({ message }: { message: string }) {
 }
 
 /**
- * The placement optimizer (D44): a button to search, then progress and
- * Cancel, then the suggestion with Apply and Dismiss. The canvas shows the
- * suggested spot and the heatmap shows coverage with it applied.
+ * The placement optimizer (D44, D45, D46): buttons to search, then progress
+ * and Cancel, then the suggestion with Apply and Dismiss. The canvas shows
+ * the suggested spots and the heatmap shows coverage with them applied.
  */
 function OptimizerSection() {
   const store = useEditorStore()
@@ -419,6 +425,8 @@ function OptimizerSection() {
   const band = useEditor((s) => s.band)
   const selection = useEditor((s) => s.selection)
   const units = useEditor((s) => s.units)
+  const goal = useEditor((s) => s.coverageGoal)
+  const goalId = useId()
 
   // Keep focus in the section as its buttons come and go.
   const focusInside = useRef(false)
@@ -433,6 +441,7 @@ function OptimizerSection() {
 
   const best = planSearch(plan, floorId, band, selection, 'best')!
   const oneMore = planSearch(plan, floorId, band, selection, 'one-more')
+  const howMany = planSearch(plan, floorId, band, selection, 'how-many', goal)
   let statusText = ''
   let body
   if (state?.status === 'searching') {
@@ -501,6 +510,33 @@ function OptimizerSection() {
             </button>
           )}
         </div>
+        {howMany?.kind === 'ready' && (
+          <div className="how-many">
+            <div className="field">
+              <label htmlFor={goalId}>Coverage goal</label>
+              <select
+                id={goalId}
+                value={goal}
+                onChange={(event) =>
+                  store
+                    .getState()
+                    .setCoverageGoal(Number(event.target.value) as CoverageGoal)
+                }
+              >
+                {COVERAGE_GOALS.map((g) => (
+                  <option key={g} value={g}>
+                    {`${goalText(g)} of the floor`}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="actions">
+              <button type="button" onClick={() => optimizer.start('how-many')}>
+                {howMany.label}
+              </button>
+            </div>
+          </div>
+        )}
       </>
     )
   }
@@ -523,7 +559,8 @@ function OptimizerSection() {
       {body}
       <p className="hint">
         Maximises the share of the floor at the coverage target on the band on
-        show. Locked access points stay put, and a new one copies the first
+        show. “How many” adds up to {MAX_ADDED} access points, as few as reach
+        the goal. Locked access points stay put, and a new one copies the first
         one’s bands, power and height. It assumes a good link back to the
         router: mesh backhaul isn’t modelled.
       </p>
