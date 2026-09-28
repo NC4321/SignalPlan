@@ -330,7 +330,13 @@ export function suggestionRecipe(suggestion: Suggestion) {
         })
         const added = plan.accessPoints.find((a) => a.id === id)!
         added.heightM = move.template.heightM
-        added.radios = move.template.radios.map((radio) => ({ ...radio }))
+        // The width carries over, but not a hand-set channel: that would put
+        // both on the same channel on purpose (D63).
+        added.radios = move.template.radios.map((radio) => {
+          const copy = { ...radio }
+          delete copy.channel
+          return copy
+        })
         continue
       }
       const ap = plan.accessPoints.find((a) => a.id === move.apId)

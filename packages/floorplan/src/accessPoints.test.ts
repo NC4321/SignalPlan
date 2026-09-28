@@ -3,11 +3,13 @@ import {
   addAccessPoint,
   deleteAccessPoint,
   nextAccessPointName,
+  setRadioChannel,
   setRadioOn,
   setRadioPower,
+  setRadioWidth,
 } from './accessPoints.ts'
 import type { Plan } from './schema.ts'
-import { checkStructure } from './validate.ts'
+import { checkStructure, parsePlan } from './validate.ts'
 
 function plan(): Plan {
   return {
@@ -117,5 +119,74 @@ describe('setRadioPower', () => {
 
   it('throws for a band that is off', () => {
     expect(() => setRadioPower(plan(), 'router', '6GHz', 10)).toThrow()
+  })
+})
+
+describe('setRadioWidth and setRadioChannel', () => {
+  it('sets a width, then a channel at that width', () => {
+    const p = plan()
+    expect(setRadioWidth(p, 'router', '5GHz', 80)).toBe(true)
+    expect(setRadioChannel(p, 'router', '5GHz', 42)).toBe(true)
+    expect(p.accessPoints[0]!.radios[1]).toEqual({
+      band: '5GHz',
+      txPowerDbm: 20,
+      channel: 42,
+      channelWidthMHz: 80,
+    })
+    expect(parsePlan(p).ok).toBe(true)
+  })
+
+  it('reports no change for the same value', () => {
+    const p = plan()
+    expect(setRadioWidth(p, 'router', '5GHz', undefined)).toBe(false)
+    setRadioWidth(p, 'router', '5GHz', 40)
+    expect(setRadioWidth(p, 'router', '5GHz', 40)).toBe(false)
+    setRadioChannel(p, 'router', '5GHz', 38)
+    expect(setRadioChannel(p, 'router', '5GHz', 38)).toBe(false)
+  })
+
+  it('leaves the channel to the planner when the width changes', () => {
+    const p = plan()
+    setRadioWidth(p, 'router', '5GHz', 80)
+    setRadioChannel(p, 'router', '5GHz', 42)
+    setRadioWidth(p, 'router', '5GHz', 40)
+    expect(p.accessPoints[0]!.radios[1]).toEqual({
+      band: '5GHz',
+      txPowerDbm: 20,
+      channelWidthMHz: 40,
+    })
+    setRadioChannel(p, 'router', '5GHz', 46)
+    setRadioWidth(p, 'router', '5GHz', undefined)
+    expect(p.accessPoints[0]!.radios[1]).toEqual({
+      band: '5GHz',
+      txPowerDbm: 20,
+    })
+  })
+
+  it('clears a channel but keeps the width', () => {
+    const p = plan()
+    setRadioWidth(p, 'router', '2.4GHz', 20)
+    setRadioChannel(p, 'router', '2.4GHz', 6)
+    expect(setRadioChannel(p, 'router', '2.4GHz', undefined)).toBe(true)
+    expect(p.accessPoints[0]!.radios[0]).toEqual({
+      band: '2.4GHz',
+      channelWidthMHz: 20,
+    })
+  })
+
+  it('needs a width before a channel', () => {
+    expect(() => setRadioChannel(plan(), 'router', '5GHz', 36)).toThrow(/width/)
+  })
+
+  it('rejects a saved channel without a width', () => {
+    const p = plan()
+    p.accessPoints[0]!.radios[1]!.channel = 36
+    const result = parsePlan(p)
+    expect(result.ok).toBe(false)
+    if (!result.ok) {
+      expect(result.issues[0]?.path).toBe(
+        'accessPoints[0].radios[1].channelWidthMHz',
+      )
+    }
   })
 })

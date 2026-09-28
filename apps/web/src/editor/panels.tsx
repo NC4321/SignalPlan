@@ -1,8 +1,12 @@
 import {
+  availableChannels,
   BAND_PROFILES,
+  channelWidths,
   MAX_ADDED,
+  radioChannelIssue,
   REGION_RULES,
   regionBand,
+  type ChannelIssue,
   type Coverage,
 } from '@signalplan/engine'
 import {
@@ -17,9 +21,13 @@ import {
   MIN_WALL_LENGTH_M,
   NEW_ACCESS_POINT_HEIGHT_M,
   polygonArea,
+  setRadioChannel,
   setRadioOn,
   setRadioPower,
+  setRadioWidth,
+  type ChannelWidth,
   type Plan,
+  type Radio,
   setWallLength,
   splitWall,
   WALL_MATERIALS,
@@ -993,12 +1001,28 @@ function AccessPointSection({ ap }: { ap: AccessPoint }) {
                   }
                 />
               )}
+              {radio && (
+                <ChannelFields
+                  radio={radio}
+                  onWidth={(width) =>
+                    edit(`Change ${BAND_LABELS[band]} width`, (plan) => {
+                      setRadioWidth(plan, ap.id, band, width)
+                    })
+                  }
+                  onChannel={(channel) =>
+                    edit(`Change ${BAND_LABELS[band]} channel`, (plan) => {
+                      setRadioChannel(plan, ap.id, band, channel)
+                    })
+                  }
+                />
+              )}
             </div>
           )
         })}
       </fieldset>
       <p className="hint">
-        Power is EIRP, antenna gain included.{' '}
+        Power is EIRP, antenna gain included. A channel you pick stays fixed;
+        Auto leaves it open.{' '}
         {ap.locked
           ? 'Locked, so it can’t be moved; untick Locked to move it.'
           : 'Drag the access point, or use the arrow keys (Shift for bigger steps).'}
@@ -1094,6 +1118,131 @@ function PowerField({
       )}
     </div>
   )
+}
+
+/** How a channel or width menu labels an option that the rules don't allow. */
+const ISSUE_SUFFIX: Record<ChannelIssue, string> = {
+  region: 'not allowed',
+  dfs: 'DFS, off',
+}
+
+/**
+ * A radio's width, then its channel at that width, limited to what the plan's
+ * region and DFS setting allow (D61, D63). A hand-set value the rules no
+ * longer allow stays, marked, with a note, rather than being changed.
+ */
+function ChannelFields({
+  radio,
+  onWidth,
+  onChannel,
+}: {
+  radio: Radio
+  onWidth: (width: ChannelWidth | undefined) => void
+  onChannel: (channel: number | undefined) => void
+}) {
+  const region = useEditor((s) => s.plan.region)
+  const allowDfs = useEditor((s) => s.plan.allowDfs)
+  const widthId = useId()
+  const channelId = useId()
+  const noteId = useId()
+  const { band, channel } = radio
+  const width = radio.channelWidthMHz
+  const widths = channelWidths(region, band)
+  const channels =
+    width === undefined ? [] : availableChannels(region, band, width, allowDfs)
+  const issue = radioChannelIssue(region, allowDfs, radio)
+  const widthAllowed = width === undefined || widths.includes(width)
+  const channelListed =
+    channel === undefined || channels.some((c) => c.channel === channel)
+
+  return (
+    <div className="channel-fields">
+      <div className="field">
+        <label htmlFor={widthId}>
+          <span className="visually-hidden">{BAND_LABELS[band]} </span>
+          Width
+        </label>
+        <select
+          id={widthId}
+          value={width ?? ''}
+          aria-invalid={!widthAllowed}
+          aria-describedby={issue ? noteId : undefined}
+          onChange={(event) => {
+            const value = event.target.value
+            onWidth(value === '' ? undefined : (Number(value) as ChannelWidth))
+          }}
+        >
+          <option value="">Auto</option>
+          {widths.map((w) => (
+            <option key={w} value={w}>
+              {w} MHz
+            </option>
+          ))}
+          {!widthAllowed && (
+            <option value={width}>
+              {width} MHz ({ISSUE_SUFFIX.region})
+            </option>
+          )}
+        </select>
+      </div>
+      <div className="field">
+        <label htmlFor={channelId}>
+          <span className="visually-hidden">{BAND_LABELS[band]} </span>
+          Channel
+        </label>
+        <select
+          id={channelId}
+          value={channel ?? ''}
+          disabled={width === undefined}
+          title={width === undefined ? 'Pick a width first' : undefined}
+          aria-invalid={issue !== undefined && channel !== undefined}
+          aria-describedby={issue ? noteId : undefined}
+          onChange={(event) => {
+            const value = event.target.value
+            onChannel(value === '' ? undefined : Number(value))
+          }}
+        >
+          <option value="">Auto</option>
+          {channels.map((c) => (
+            <option key={c.channel} value={c.channel}>
+              {c.channel} ({c.centreMHz} MHz{c.dfs ? ', DFS' : ''})
+            </option>
+          ))}
+          {!channelListed && (
+            <option value={channel}>
+              {channel} ({ISSUE_SUFFIX[issue ?? 'region']})
+            </option>
+          )}
+        </select>
+      </div>
+      {issue && (
+        <p id={noteId} className="field-note field-warning">
+          {channelIssueText(radio, issue, region)}
+        </p>
+      )}
+    </div>
+  )
+}
+
+/** Why a radio's width or channel isn't allowed, as a sentence (D63). */
+function channelIssueText(
+  radio: Radio,
+  issue: ChannelIssue,
+  region: Region | undefined,
+): string {
+  const place = regionPlace(region)
+  const band = BAND_LABELS[radio.band]
+  if (issue === 'dfs') {
+    return `Channel ${radio.channel} is a DFS channel, and this plan doesn’t allow DFS. Pick another, or allow DFS with no access point selected.`
+  }
+  const widths = channelWidths(region, radio.band)
+  if (
+    radio.channelWidthMHz !== undefined &&
+    !widths.includes(radio.channelWidthMHz)
+  ) {
+    return `${radio.channelWidthMHz} MHz isn’t allowed on ${band} in ${place}. Pick another width.`
+  }
+  return `Channel ${radio.channel} at ${radio.channelWidthMHz} MHz isn’t allowed on ${band} in ${place}. Pick another.`
 }
 
 function WallSection({ wall, floor }: { wall: Wall; floor: Floor }) {
@@ -1306,7 +1455,51 @@ function RegionFields() {
         DFS channels give 5 GHz more room, but a router must listen for radar
         before using one and move off it if it hears any.
       </p>
+      <ChannelIssueList />
     </>
+  )
+}
+
+/**
+ * Access points with a width or channel the plan's rules don't allow, say
+ * after changing region or turning DFS off, so they're easy to find (D63).
+ */
+function ChannelIssueList() {
+  const store = useEditorStore()
+  const plan = useEditor((s) => s.plan)
+  const flagged = plan.accessPoints.flatMap((ap) =>
+    ap.radios
+      .filter((radio) => radioChannelIssue(plan.region, plan.allowDfs, radio))
+      .map((radio) => ({ ap, band: radio.band })),
+  )
+  if (flagged.length === 0) return null
+  const floors = plan.floors.length
+  return (
+    <div className="channel-issues">
+      <p className="field-note field-warning">
+        {flagged.length === 1
+          ? 'One radio has a channel or width these rules don’t allow:'
+          : `${flagged.length} radios have a channel or width these rules don’t allow:`}
+      </p>
+      <ul className="object-list">
+        {flagged.map(({ ap, band }) => (
+          <li key={`${ap.id}-${band}`}>
+            <button
+              type="button"
+              onClick={() => {
+                const state = store.getState()
+                state.setFloor(ap.floorId)
+                state.select([{ kind: 'accessPoint', id: ap.id }])
+              }}
+            >
+              {ap.name}, {BAND_LABELS[band]}
+              {floors > 1 &&
+                ` (${plan.floors.find((f) => f.id === ap.floorId)?.name ?? ''})`}
+            </button>
+          </li>
+        ))}
+      </ul>
+    </div>
   )
 }
 

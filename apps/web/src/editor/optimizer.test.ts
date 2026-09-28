@@ -540,6 +540,23 @@ describe('withSuggestion', () => {
       ...template,
     })
   })
+
+  it('gives a new access point the width but not a hand-set channel', () => {
+    const template = {
+      heightM: 1,
+      radios: [
+        { band: '5GHz' as const, channel: 42, channelWidthMHz: 80 as const },
+      ],
+    }
+    const added = withSuggestion(
+      sample(),
+      suggestion({ moves: [move({ apId: undefined, template })] }),
+    )
+    // Copying the channel would put both on it on purpose (D63).
+    expect(added.accessPoints[1]!.radios).toEqual([
+      { band: '5GHz', channelWidthMHz: 80 },
+    ])
+  })
 })
 
 /** A worker that keeps what it's sent, and whether it was terminated. */

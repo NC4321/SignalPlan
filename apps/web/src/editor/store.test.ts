@@ -1,4 +1,9 @@
-import { parsePlan, type Plan } from '@signalplan/floorplan'
+import {
+  parsePlan,
+  setRadioChannel,
+  setRadioWidth,
+  type Plan,
+} from '@signalplan/floorplan'
 import sampleHome from '@signalplan/floorplan/fixtures/sample-home.json'
 import { describe, expect, it } from 'vitest'
 import { createEditorStore, ghostFloor, HISTORY_LIMIT } from './store.ts'
@@ -189,6 +194,43 @@ describe('setRegion and setAllowDfs', () => {
     expect('allowDfs' in store.getState().plan).toBe(false)
     store.getState().undo()
     expect(store.getState().plan.allowDfs).toBe(true)
+  })
+})
+
+describe('channels', () => {
+  it('sets a width and channel, each as one undoable edit', () => {
+    const store = createEditorStore(sample())
+    const id = store.getState().plan.accessPoints[0]!.id
+    const radio5 = () =>
+      store
+        .getState()
+        .plan.accessPoints[0]!.radios.find((r) => r.band === '5GHz')
+    store.getState().edit('Change 5 GHz width', (draft) => {
+      setRadioWidth(draft, id, '5GHz', 80)
+    })
+    store.getState().edit('Change 5 GHz channel', (draft) => {
+      setRadioChannel(draft, id, '5GHz', 42)
+    })
+    expect(radio5()).toMatchObject({ channel: 42, channelWidthMHz: 80 })
+    store.getState().undo()
+    expect(radio5()).toEqual({ band: '5GHz', channelWidthMHz: 80 })
+    store.getState().undo()
+    expect(radio5()).toEqual({ band: '5GHz' })
+  })
+
+  it('keeps hand-set channels when the region or DFS changes (D63)', () => {
+    const plan = sample()
+    plan.region = 'US'
+    plan.allowDfs = true
+    plan.accessPoints[0]!.radios = [
+      { band: '5GHz', channel: 52, channelWidthMHz: 20 },
+    ]
+    const store = createEditorStore(plan)
+    store.getState().setAllowDfs(false)
+    store.getState().setRegion('EU')
+    expect(store.getState().plan.accessPoints[0]!.radios).toEqual([
+      { band: '5GHz', channel: 52, channelWidthMHz: 20 },
+    ])
   })
 })
 
