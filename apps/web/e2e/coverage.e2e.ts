@@ -69,3 +69,23 @@ test('shows no share while nothing broadcasts on the band', async ({
   await page.keyboard.press('Delete')
   await expect(share(page)).toBeHidden()
 })
+
+test('says how to turn on a band that nothing broadcasts on', async ({
+  page,
+}) => {
+  // A New plan's router is dual-band (D20), so 6 GHz starts empty.
+  await page.getByText('File', { exact: true }).click()
+  await page.getByRole('button', { name: 'New plan' }).click()
+  await page.getByText('6 GHz', { exact: true }).click()
+  const notice = page.locator('.notice')
+  await expect(notice).toHaveText(
+    'No access point on this floor broadcasts on this band. Select one and turn the band on under Bands.',
+  )
+
+  await panel(page).getByRole('button', { name: 'Router' }).click()
+  await panel(page)
+    .getByRole('group', { name: 'Bands' })
+    .getByRole('checkbox', { name: '6 GHz' })
+    .check()
+  await expect(notice).toBeHidden()
+})

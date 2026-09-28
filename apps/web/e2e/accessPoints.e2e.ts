@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
-import { clickPlan, openEditor } from './helpers.ts'
+import { clickPlan, openEditor, screenPoint } from './helpers.ts'
 
 const panel = (page: Page) =>
   page.getByRole('complementary', { name: 'Properties' })
@@ -61,6 +61,42 @@ test('places an access point, selected, and undoes and redoes it', async ({
   await expect(
     panel(page).getByRole('button', { name: 'Access point 1' }),
   ).toBeVisible()
+})
+
+test('grabs an existing access point instead of stacking a new one', async ({
+  page,
+}) => {
+  await page.keyboard.press('a')
+  const router = await screenPoint(page, 5.6, 1.2)
+
+  // A click on the router selects it; nothing is added.
+  await page.mouse.click(router.x, router.y)
+  await expect(heading(page, 'Wi-Fi 6E router')).toBeVisible()
+  await expect(undoButton(page)).toBeDisabled()
+
+  // A drag moves it, and the tool stays active.
+  const to = await screenPoint(page, 7.6, 2.2)
+  await page.mouse.move(router.x, router.y)
+  await page.mouse.down()
+  await page.mouse.move(to.x, to.y, { steps: 8 })
+  await page.mouse.up()
+  await expect(undoButton(page)).toHaveAttribute(
+    'title',
+    /Undo Move Wi-Fi 6E router/,
+  )
+  await expect(panel(page).locator('dd').first()).not.toHaveText(
+    '5.60 m, 1.20 m',
+  )
+  await expect(
+    tools(page).getByRole('button', { name: 'Access point' }),
+  ).toHaveAttribute('aria-pressed', 'true')
+
+  // Clicking empty floor still adds one, and there are now two in all.
+  await clickPlan(page, 3, 2)
+  await expect(heading(page, 'Access point 1')).toBeVisible()
+  await page.keyboard.press('Escape')
+  await page.keyboard.press('Escape')
+  await expect(panel(page).locator('.object-list li')).toHaveCount(2)
 })
 
 test('renames an access point and changes its height', async ({ page }) => {

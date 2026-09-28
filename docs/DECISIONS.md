@@ -138,6 +138,7 @@ A running log of project decisions, newest last. Each entry records what was dec
 - **Power limits:** any EIRP from −10 to 40 dBm is accepted. Above the band's highest FCC limit a note says so: 36 dBm at 2.4 GHz (1 W with antennas up to 6 dBi, 47 CFR § 15.247(b)(3), (b)(4)), 36 dBm at 5 GHz (U-NII-1, 3 and 4; U-NII-2A/2C allow 30 dBm, § 15.407(a)(1)–(3)) and 30 dBm for indoor 6 GHz (§ 15.407(a)(5)). Values aren't refused, so routers certified elsewhere can still be modelled.
 - **Why:** placing and editing access points is the core of planning coverage (Phase 3). Warning instead of refusing keeps the numbers honest without blocking unusual set-ups.
 - **Revisit if:** regions beyond North America arrive (D8), or channel planning (Phase 6) makes the 5 GHz limit depend on the chosen channel.
+- **Update:** a press on an existing access point with the tool grabs it rather than adding another (D34).
 
 ### D27. Coverage summary — 2026-09-27
 
@@ -154,6 +155,13 @@ A running log of project decisions, newest last. Each entry records what was dec
 - **How:** the page is laid out at 1280 × 800 and scaled, so text and lines keep their proportions at every size. Coverage is computed for the export with the engine directly, not the worker. The theme colours are copied from the stylesheet's tokens, and a unit test fails if they drift apart.
 - **Why:** an image for sharing needs to stand alone, so it carries its own legend and scale. It's the same at any zoom. Light suits documents, READMEs and print, and a theme choice suits people who share into dark-themed places.
 - **Revisit if:** multi-floor plans arrive (export one floor or all), or people ask for the tracing image or SVG/PDF output.
+
+### D34. Fixes from the agent usability walkthrough — 2026-09-27
+
+- **Decision:** three small changes from the agent's cold-start walkthrough ([docs/usability](usability/2026-09-27-agent-walkthrough.md)). The Access point tool now grabs an existing access point when pressed on it (select, and drag to move, with a grab cursor and no placement ghost), instead of adding another on top; clicking empty floor still adds one, and the tool stays active (D25). An empty floor's panel says how to start drawing. The notice for a band nothing broadcasts on says how to turn the band on.
+- **Why:** the tool stays active after placing, so "place a router, then drag it" stacked an invisible duplicate that doubled the signal from that spot. A New plan's router is dual-band (D20), so 6 GHz starts blank, and the old notice didn't say what to do.
+- **Not changed here:** where the coverage summary sits (#61) and the Wall tool starting a wall on an access point (#62) are design choices left open. The walkthrough doesn't replace watching real people (#46); see the [test script](usability/test-script.md).
+- **Revisit if:** the human usability test shows people still stack or lose access points, or don't find how to start.
 
 ## Phase 1: editor
 
