@@ -193,6 +193,12 @@ A running log of project decisions, newest last. Each entry records what was dec
 - **Why:** the tool stays active after a chain, so "draw the rooms, then move the router" started a stray wall from the router instead (#62, from the D34 walkthrough). One check, `pressGrabsAccessPoint`, now decides this for every tool, so the tools can't drift apart.
 - **Revisit if:** the usability test (#46) shows people meaning to start walls on access points, or grabbing them by accident while drawing.
 
+### D39. M1 exit gate: closed without first-time users — 2026-09-28
+
+- **Decision:** close #46 and the M1 milestone after the author's own pass through every feature ([notes](usability/2026-09-28-functional-pass.md)) and the agent walkthrough (D34, whose findings D37 and D38 fixed). Tag the result as v0.1.0. Watching 2–3 first-time users with the [test script](usability/test-script.md) moves to an M2 issue and must happen before any launch post.
+- **Why:** the features work end to end and M2 doesn't depend on the stranger test. But an author can't see where a newcomer gets stuck, so "a stranger can use it without instructions" isn't shown yet, and this entry says so.
+- **Revisit if:** the first-time-user test finds blocking problems. Fix those before announcing anything.
+
 ## Phase 1: editor
 
 ### D14. Canvas 2D for the editor — 2026-09-27
@@ -280,3 +286,16 @@ A running log of project decisions, newest last. Each entry records what was dec
 - **Quiet readout:** the pointer position in the status bar is no longer a live region, since it changed on every mouse move.
 - **Checks:** `@axe-core/playwright` scans the editor, the properties panel, the File menu and every dialog in the browser tests, failing on serious or critical findings; keyboard-only flows are tested too.
 - **Revisit if** people ask to draw by keyboard, or a screen-reader user reports that the canvas announcements are too chatty or too sparse.
+
+## Phase 4
+
+### D40. Placement optimizer scope for M2 — 2026-09-28
+
+- **Goal:** maximise the share of floor area at or above the plan's coverage target, for the band on show. This is the same number as the coverage summary (D27, D37), so the "before → after" figure matches what the status bar says. Other goals (best weakest spot, priority areas) can come later as presets.
+- **No rooms:** every cell inside the outer walls counts equally. The schema and editor get no room tool in M2.
+- **Constraints:** candidate positions lie inside the outer walls and not on a wall. Each access point gets an optional `locked` flag (an optional schema field, so no version bump); locked access points never move. No allowed or no-go zones.
+- **Showing a suggestion:** suggested spots appear as ghost access points with before and after coverage (e.g. 72% → 91%). Apply moves or adds access points as one undo step; Dismiss discards them.
+- **Multiple access points and mesh:** added access points copy the first access point's bands and power. Backhaul between them is ignored, which assumes wired or good-enough wireless links. The app and MODEL.md say so.
+- **Time budget:** the search runs in the worker, shows a progress bar and Cancel, and stops within 10 seconds, returning the best result found so far. The outline's exit gate still applies: on three test homes, the suggestion beats a naive centre placement.
+- **Why:** these are the smallest choices that give a useful, honest optimizer. Each one reuses something that already exists (the coverage target, the floor area, the gesture undo), so nothing new needs a source.
+- **Revisit if:** people ask for priority rooms or no-go areas, or mesh suggestions turn out unrealistic because of weak backhaul (M4).
