@@ -57,7 +57,9 @@ test('drags an access point as a single undo step', async ({ page }) => {
 
   const properties = page.getByRole('complementary', { name: 'Properties' })
   const position = properties.locator('dd').first()
-  await expect(properties.getByText('Access point')).toBeVisible()
+  await expect(
+    properties.getByText('Access point', { exact: true }),
+  ).toBeVisible()
   await expect(position).not.toHaveText('5.60 m, 1.20 m')
 
   await page.getByRole('button', { name: 'Undo' }).click()
