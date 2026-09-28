@@ -1,12 +1,11 @@
 import type {
+  AccessPointTemplate,
   PlacementMessage,
   PlacementRequest,
-  SinglePlacementProblem,
 } from '@signalplan/engine'
 import {
   addAccessPoint,
   BANDS,
-  nextAccessPointName,
   NEW_ACCESS_POINT_HEIGHT_M,
   type AccessPoint,
   type Band,
@@ -19,27 +18,37 @@ import type { StoreApi } from 'zustand/vanilla'
 import { targetBand } from '../quality.ts'
 import { BAND_LABELS } from './coverageText.ts'
 import type { EditorState, Selection } from './store.ts'
+import { formatLength, type Units } from './units.ts'
 
 /**
- * The optimizer panel (D44): which access point a search moves, the search
- * in its own worker, and the suggestion it leaves for Apply or Dismiss.
+ * The optimizer panel (D44, D45): which access points a search moves or
+ * adds, the search in its own worker, and the suggestion it leaves for Apply
+ * or Dismiss.
  */
 
-/** A suggested spot, waiting for Apply or Dismiss. */
-export interface Suggestion {
-  /** The access point that moves, or undefined when one is added. */
+/** An access point a search places: one that moves, or a new one. */
+export interface Mover {
+  /** Undefined for a new access point. */
   apId: string | undefined
   /** Its name, or the name a new one will get. */
   name: string
+  /** Where it is now; undefined for a new one. */
+  from: Point | undefined
+  /** Its height and radios; a new one gets a copy. */
+  template: AccessPointTemplate
+}
+
+export type SuggestedMove = Mover & { to: Point }
+
+/** Suggested spots, waiting for Apply or Dismiss. */
+export interface Suggestion {
+  moves: SuggestedMove[]
   floorId: string
   band: Band
-  /** Where it is now; undefined when one is added. */
-  from: Point | undefined
-  position: Point
   /** Shares of the floor at the target, before and after, on 10 cm cells. */
   before: number
   after: number
-  /** The weakest signal inside the walls before (if it moves) and after. */
+  /** The weakest signal inside the walls before (when nothing is added) and after. */
   beforeWeakestDbm: number | undefined
   weakestDbm: number
   /** True if the 10 s budget ran out and this is the best found so far. */
@@ -47,32 +56,125 @@ export interface Suggestion {
 }
 
 export type OptimizerState =
-  | { status: 'searching'; fraction: number; name: string }
+  | { status: 'searching'; fraction: number; what: string }
   | { status: 'suggestion'; suggestion: Suggestion }
   | { status: 'message'; text: string }
 
-export type OptimizerTarget =
-  | { kind: 'move'; ap: AccessPoint }
-  | { kind: 'add' }
+/**
+ * "best" finds better spots for what can move (or places the first access
+ * point); "one-more" adds an access point and moves the rest to suit (D45).
+ */
+export type SearchKind = 'best' | 'one-more'
+
+export type SearchJob =
+  | {
+      kind: 'ready'
+      /** The button's label. */
+      label: string
+      /** What it searches for, after "Searching for". */
+      what: string
+      request: WithoutId<PlacementRequest>
+      movers: Mover[]
+    }
   | { kind: 'unavailable'; reason: string }
 
+type WithoutId<T> = T extends unknown ? Omit<T, 'id'> : never
+
+/** A new access point's settings when there's nothing to copy (D25). */
+const DEFAULT_TEMPLATE: AccessPointTemplate = {
+  heightM: NEW_ACCESS_POINT_HEIGHT_M,
+  radios: BANDS.map((band) => ({ band })),
+}
+
+const templateOf = (ap: AccessPoint): AccessPointTemplate => ({
+  heightM: ap.heightM,
+  radios: ap.radios,
+})
+
+const broadcasts = (ap: AccessPoint, band: Band) =>
+  ap.radios.some((r) => r.band === band)
+
 /**
- * Which access point a search moves (D44): the selected one; with nothing
- * selected, the only unlocked one on the floor; with none on the floor, a new
- * one. Everything else stays where it is. Several unlocked access points and
- * no selection need a choice, until the multi-AP search (#73).
+ * What a search does (D44, D45). "best": the selected access point moves;
+ * with nothing selected, every unlocked one that broadcasts on the band moves
+ * (together, if there are several); on an empty floor, one is added.
+ * "one-more", only with nothing selected on a floor that has access points:
+ * one is added, a copy of the first that broadcasts on the band, and the
+ * unlocked ones move to suit. Everything else on the floor stays.
  */
-export function chooseTarget(
+export function planSearch(
   plan: Plan,
   floorId: string,
   band: Band,
   selection: Selection,
-): OptimizerTarget {
+  kind: SearchKind = 'best',
+): SearchJob | undefined {
   const onFloor = plan.accessPoints.filter((ap) => ap.floorId === floorId)
-  let ap: AccessPoint | undefined
+  const unlocked = onFloor.filter((ap) => !ap.locked)
+  const movable = unlocked.filter((ap) => broadcasts(ap, band))
+  const base = {
+    plan,
+    floorId,
+    band,
+    minDbm: targetBand(plan.coverageTarget).minDbm,
+  }
+  const fixedWithout = (moving: readonly AccessPoint[]) =>
+    onFloor.filter((ap) => !moving.includes(ap))
+  const moverOf = (ap: AccessPoint): Mover => ({
+    apId: ap.id,
+    name: ap.name,
+    from: { x: ap.x, y: ap.y },
+    template: templateOf(ap),
+  })
+  const moveOne = (ap: AccessPoint): SearchJob => ({
+    kind: 'ready',
+    label: `Find a better spot for ${ap.name}`,
+    what: `a spot for ${ap.name}`,
+    request: {
+      kind: 'place-one',
+      problem: {
+        ...base,
+        fixed: fixedWithout([ap]),
+        template: templateOf(ap),
+        current: { x: ap.x, y: ap.y },
+      },
+    },
+    movers: [moverOf(ap)],
+  })
+
+  if (kind === 'one-more') {
+    if (selection.length > 0 || onFloor.length === 0) return undefined
+    const model = onFloor.find((ap) => broadcasts(ap, band))
+    const template = model ? templateOf(model) : DEFAULT_TEMPLATE
+    return {
+      kind: 'ready',
+      label: 'Suggest one more access point',
+      what: 'a spot for one more access point',
+      request: {
+        kind: 'place-many',
+        problem: {
+          ...base,
+          fixed: fixedWithout(movable),
+          moving: movable,
+          add: 1,
+          template,
+        },
+      },
+      movers: [
+        ...movable.map(moverOf),
+        {
+          apId: undefined,
+          name: newNames(plan, 1)[0]!,
+          from: undefined,
+          template,
+        },
+      ],
+    }
+  }
+
   if (selection.length > 0) {
     const only = selection.length === 1 ? selection[0] : undefined
-    ap =
+    const ap =
       only?.kind === 'accessPoint'
         ? onFloor.find((a) => a.id === only.id)
         : undefined
@@ -88,73 +190,94 @@ export function chooseTarget(
         reason: `${ap.name} is locked. Untick Locked to let it move.`,
       }
     }
-  } else {
-    if (onFloor.length === 0) return { kind: 'add' }
-    const unlocked = onFloor.filter((a) => !a.locked)
-    if (unlocked.length === 0) {
-      return {
-        kind: 'unavailable',
-        reason: 'Every access point is locked. Unlock one to let it move.',
-      }
-    }
-    if (unlocked.length > 1) {
-      return {
-        kind: 'unavailable',
-        reason:
-          'Select the access point to move; the others stay where they are.',
-      }
-    }
-    ap = unlocked[0]!
+    if (!broadcasts(ap, band)) return bandOff(ap.name, band)
+    return moveOne(ap)
   }
-  if (!ap.radios.some((r) => r.band === band)) {
+
+  if (onFloor.length === 0) {
+    return {
+      kind: 'ready',
+      label: 'Find the best spot for an access point',
+      what: 'a spot for an access point',
+      request: {
+        kind: 'place-one',
+        problem: { ...base, fixed: [], template: DEFAULT_TEMPLATE },
+      },
+      movers: [
+        {
+          apId: undefined,
+          name: newNames(plan, 1)[0]!,
+          from: undefined,
+          template: DEFAULT_TEMPLATE,
+        },
+      ],
+    }
+  }
+  if (unlocked.length === 0) {
     return {
       kind: 'unavailable',
-      reason: `${ap.name} doesn’t broadcast on ${BAND_LABELS[band]}. Turn the band on under Bands first.`,
+      reason: 'Every access point is locked. Unlock one to let it move.',
     }
   }
-  return { kind: 'move', ap }
-}
-
-/** The search for a target: it moves, everything else on the floor stays. */
-export function placementProblem(
-  plan: Plan,
-  floorId: string,
-  band: Band,
-  target: Exclude<OptimizerTarget, { kind: 'unavailable' }>,
-): SinglePlacementProblem {
-  const moving = target.kind === 'move' ? target.ap : undefined
-  const problem: SinglePlacementProblem = {
-    plan,
-    floorId,
-    band,
-    minDbm: targetBand(plan.coverageTarget).minDbm,
-    fixed: plan.accessPoints.filter(
-      (ap) => ap.floorId === floorId && ap.id !== moving?.id,
-    ),
-    // A new access point is like one the Access point tool adds.
-    template: moving
-      ? { heightM: moving.heightM, radios: moving.radios }
+  if (movable.length === 0) {
+    return unlocked.length === 1
+      ? bandOff(unlocked[0]!.name, band)
       : {
-          heightM: NEW_ACCESS_POINT_HEIGHT_M,
-          radios: BANDS.map((b) => ({ band: b })),
-        },
+          kind: 'unavailable',
+          reason: `No unlocked access point broadcasts on ${BAND_LABELS[band]}. Turn the band on under Bands first.`,
+        }
   }
-  if (moving) problem.current = { x: moving.x, y: moving.y }
-  return problem
+  if (movable.length === 1) return moveOne(movable[0]!)
+  return {
+    kind: 'ready',
+    label: `Find better spots for ${movable.length} access points`,
+    what: `spots for ${movable.length} access points`,
+    request: {
+      kind: 'place-many',
+      problem: {
+        ...base,
+        fixed: fixedWithout(movable),
+        moving: movable,
+        add: 0,
+        template: templateOf(movable[0]!),
+      },
+    },
+    movers: movable.map(moverOf),
+  }
 }
 
-/** Moves or adds the access point, as one edit. */
+const bandOff = (name: string, band: Band): SearchJob => ({
+  kind: 'unavailable',
+  reason: `${name} doesn’t broadcast on ${BAND_LABELS[band]}. Turn the band on under Bands first.`,
+})
+
+/** The names the next `count` new access points will get, in order. */
+export function newNames(plan: Plan, count: number): string[] {
+  let names: string[] = []
+  produce(plan, (draft) => {
+    const before = draft.accessPoints.length
+    for (let i = 0; i < count; i++) addAccessPoint(draft, '', { x: 0, y: 0 })
+    names = draft.accessPoints.slice(before).map((ap) => ap.name)
+  })
+  return names
+}
+
+/** Moves and adds the access points, as one edit. */
 export function suggestionRecipe(suggestion: Suggestion) {
   return (plan: Draft<Plan>) => {
-    const { apId, position } = suggestion
-    if (apId === undefined) {
-      addAccessPoint(plan, suggestion.floorId, position)
-      return
+    for (const move of suggestion.moves) {
+      if (move.apId === undefined) {
+        const id = addAccessPoint(plan, suggestion.floorId, move.to)
+        const added = plan.accessPoints.find((a) => a.id === id)!
+        added.heightM = move.template.heightM
+        added.radios = move.template.radios.map((radio) => ({ ...radio }))
+        continue
+      }
+      const ap = plan.accessPoints.find((a) => a.id === move.apId)
+      if (!ap) continue
+      ap.x = move.to.x
+      ap.y = move.to.y
     }
-    const ap = plan.accessPoints.find((a) => a.id === apId)
-    if (!ap) return
-    ap.x = position.x
-    ap.y = position.y
   }
 }
 
@@ -169,17 +292,13 @@ export const SAME_SPOT_M = 0.1
 /** Turns the worker's answer into what the panel shows. */
 export function searchOutcome(
   message: Exclude<PlacementMessage, { kind: 'progress' }>,
-  context: {
-    name: string
-    apId: string | undefined
-    problem: SinglePlacementProblem
-  },
+  job: Extract<SearchJob, { kind: 'ready' }>,
 ): OptimizerState {
   if (message.kind === 'error') {
     return { status: 'message', text: `Couldn’t search: ${message.message}` }
   }
-  const { result } = message
-  const { problem, name, apId } = context
+  const { band, floorId } = job.request.problem
+  const result = message.result
   switch (result.kind) {
     case 'no-floor-area':
       return {
@@ -189,33 +308,41 @@ export function searchOutcome(
     case 'no-radio':
       return {
         status: 'message',
-        text: `${name} doesn’t broadcast on ${BAND_LABELS[problem.band]}.`,
+        text: `A new access point wouldn’t broadcast on ${BAND_LABELS[band]}.`,
       }
+    case 'nothing-to-place':
+      return { status: 'message', text: 'There’s nothing to move or add.' }
     case 'found': {
-      const from = problem.current
-      if (
-        from &&
-        Math.hypot(result.position.x - from.x, result.position.y - from.y) <
-          SAME_SPOT_M
-      ) {
+      const positions =
+        'positions' in result ? result.positions : [result.position]
+      const moves = job.movers.map((mover, i) => ({
+        ...mover,
+        to: positions[i]!,
+      }))
+      const inPlace = moves.every(
+        ({ from, to }) =>
+          from && Math.hypot(to.x - from.x, to.y - from.y) < SAME_SPOT_M,
+      )
+      if (inPlace) {
         return {
           status: 'message',
-          text: `${name} is already in the best spot found.`,
+          text:
+            moves.length === 1
+              ? `${moves[0]!.name} is already in the best spot found.`
+              : 'The access points are already in the best spots found.',
         }
       }
+      const adds = moves.some((m) => m.apId === undefined)
       return {
         status: 'suggestion',
         suggestion: {
-          apId,
-          name,
-          floorId: problem.floorId,
-          band: problem.band,
-          from,
-          position: result.position,
+          moves,
+          floorId,
+          band,
           // With nothing else on the floor, nothing is covered before.
           before: result.before ?? 0,
           after: result.share,
-          beforeWeakestDbm: result.beforeWeakestDbm,
+          beforeWeakestDbm: adds ? undefined : result.beforeWeakestDbm,
           weakestDbm: result.weakestDbm,
           stoppedEarly: result.stoppedEarly,
         },
@@ -243,6 +370,27 @@ export function suggestionText(
   return `${line} The weakest spot improves from ${beforeWeakestDbm.toFixed(0)} to ${weakestDbm.toFixed(0)} dBm.`
 }
 
+/**
+ * The whole suggestion in words, e.g. "Move Router to 1.00 m, 2.00 m and
+ * add Access point 2 at 6.00 m, 2.00 m: 50% → 100% of the floor at …".
+ */
+export function suggestionSummary(
+  suggestion: Suggestion,
+  target: CoverageTarget | undefined,
+  units: Units,
+): string {
+  const clauses = suggestion.moves.map(({ apId, name, to }) => {
+    const at = `${formatLength(to.x, units)}, ${formatLength(to.y, units)}`
+    return apId === undefined ? `add ${name} at ${at}` : `move ${name} to ${at}`
+  })
+  const last = clauses.pop()!
+  const list = clauses.length > 0 ? `${clauses.join(', ')} and ${last}` : last
+  const early = suggestion.stoppedEarly
+    ? ' The search hit its 10 second limit, so this is the best found so far.'
+    : ''
+  return `${list[0]!.toUpperCase()}${list.slice(1)}: ${suggestionText(suggestion, target)}${early}`
+}
+
 /** The parts of a Worker the optimizer uses, so tests can fake it. */
 export interface SearchWorker {
   postMessage(request: PlacementRequest): void
@@ -251,8 +399,8 @@ export interface SearchWorker {
 }
 
 export interface Optimizer {
-  /** Starts a search for the target `chooseTarget` picks. */
-  start: () => void
+  /** Starts the search `planSearch` plans for this kind. */
+  start: (kind?: SearchKind) => void
   /** Stops a search, or dismisses its result. */
   cancel: () => void
 }
@@ -278,18 +426,16 @@ export function createOptimizer(
   }
 
   return {
-    start() {
+    start(kind = 'best') {
       stop()
       const { plan, floorId, band, selection, setOptimizer } = store.getState()
-      const target = chooseTarget(plan, floorId, band, selection)
-      if (target.kind === 'unavailable') {
-        setOptimizer({ status: 'message', text: target.reason })
+      const job = planSearch(plan, floorId, band, selection, kind)
+      if (!job) return
+      if (job.kind === 'unavailable') {
+        setOptimizer({ status: 'message', text: job.reason })
         return
       }
-      const problem = placementProblem(plan, floorId, band, target)
-      const apId = target.kind === 'move' ? target.ap.id : undefined
-      const name =
-        target.kind === 'move' ? target.ap.name : nextAccessPointName(plan)
+      const { what } = job
       const id = nextId++
       const w = makeWorker()
       worker = w
@@ -299,20 +445,18 @@ export function createOptimizer(
           store.getState().setOptimizer({
             status: 'searching',
             fraction: data.fraction,
-            name,
+            what,
           })
           return
         }
         stop()
-        store
-          .getState()
-          .setOptimizer(searchOutcome(data, { name, apId, problem }))
+        store.getState().setOptimizer(searchOutcome(data, job))
       }
-      setOptimizer({ status: 'searching', fraction: 0, name })
+      setOptimizer({ status: 'searching', fraction: 0, what })
       unsubscribe = store.subscribe((state) => {
         if (state.optimizer?.status !== 'searching') stop()
       })
-      w.postMessage({ id, kind: 'place-one', problem })
+      w.postMessage({ ...job.request, id } as PlacementRequest)
     },
     cancel() {
       store.getState().setOptimizer(undefined)

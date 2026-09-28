@@ -47,7 +47,7 @@ import { TracingSection } from './TracingSection.tsx'
 import type { SaveStatus } from './autosave.ts'
 import { MOD_KEY, signalAt } from './util.ts'
 import { drawWall, WALL_STYLES } from './wallStyles.ts'
-import { chooseTarget, suggestionText } from './optimizer.ts'
+import { planSearch, suggestionSummary } from './optimizer.ts'
 import { useOptimizer } from './optimizerContext.ts'
 
 const MODEL_URL = 'https://github.com/NC4321/SignalPlan/blob/main/docs/MODEL.md'
@@ -431,11 +431,12 @@ function OptimizerSection() {
     }
   }, [status])
 
-  const target = chooseTarget(plan, floorId, band, selection)
+  const best = planSearch(plan, floorId, band, selection, 'best')!
+  const oneMore = planSearch(plan, floorId, band, selection, 'one-more')
   let statusText = ''
   let body
   if (state?.status === 'searching') {
-    statusText = `Searching for a spot for ${state.name}…`
+    statusText = `Searching for ${state.what}…`
     body = (
       <>
         <progress
@@ -457,9 +458,7 @@ function OptimizerSection() {
       </>
     )
   } else if (state?.status === 'suggestion') {
-    const { suggestion } = state
-    const at = `${formatLength(suggestion.position.x, units)}, ${formatLength(suggestion.position.y, units)}`
-    statusText = `${suggestion.apId === undefined ? `Add ${suggestion.name}` : `Move ${suggestion.name}`} to ${at}: ${suggestionText(suggestion, plan.coverageTarget)}${suggestion.stoppedEarly ? ' The search hit its 10 second limit, so this is the best spot found so far.' : ''}`
+    statusText = suggestionSummary(state.suggestion, plan.coverageTarget, units)
     body = (
       <div className="actions">
         <button
@@ -477,18 +476,33 @@ function OptimizerSection() {
     )
   } else {
     if (state?.status === 'message') statusText = state.text
-    body =
-      target.kind === 'unavailable' ? (
-        state?.status !== 'message' && <p className="hint">{target.reason}</p>
-      ) : (
+    body = (
+      <>
+        {best.kind === 'unavailable' && state?.status !== 'message' && (
+          <p className="hint">{best.reason}</p>
+        )}
         <div className="actions">
-          <button ref={primary} type="button" onClick={() => optimizer.start()}>
-            {target.kind === 'move'
-              ? `Find a better spot for ${target.ap.name}`
-              : 'Find the best spot for an access point'}
-          </button>
+          {best.kind === 'ready' && (
+            <button
+              ref={primary}
+              type="button"
+              onClick={() => optimizer.start('best')}
+            >
+              {best.label}
+            </button>
+          )}
+          {oneMore?.kind === 'ready' && (
+            <button
+              ref={best.kind === 'ready' ? undefined : primary}
+              type="button"
+              onClick={() => optimizer.start('one-more')}
+            >
+              {oneMore.label}
+            </button>
+          )}
         </div>
-      )
+      </>
+    )
   }
 
   return (
@@ -509,8 +523,9 @@ function OptimizerSection() {
       {body}
       <p className="hint">
         Maximises the share of the floor at the coverage target on the band on
-        show. It assumes a good link back to the router: mesh backhaul isn’t
-        modelled.
+        show. Locked access points stay put, and a new one copies the first
+        one’s bands, power and height. It assumes a good link back to the
+        router: mesh backhaul isn’t modelled.
       </p>
     </section>
   )

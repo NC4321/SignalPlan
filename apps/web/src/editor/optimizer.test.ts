@@ -3,17 +3,20 @@ import {
   type PlacementMessage,
   type PlacementRequest,
 } from '@signalplan/engine'
-import { parsePlan, type Plan } from '@signalplan/floorplan'
+import { BANDS, parsePlan, type Plan } from '@signalplan/floorplan'
 import sampleHome from '@signalplan/floorplan/fixtures/sample-home.json'
 import { describe, expect, it } from 'vitest'
 import {
-  chooseTarget,
   createOptimizer,
-  placementProblem,
+  newNames,
+  planSearch,
   searchOutcome,
+  suggestionSummary,
   suggestionText,
   withSuggestion,
+  type SearchJob,
   type SearchWorker,
+  type SuggestedMove,
   type Suggestion,
 } from './optimizer.ts'
 import { createEditorStore } from './store.ts'
@@ -35,14 +38,21 @@ function twoAccessPoints(locked: boolean[] = [false, false]): Plan {
 }
 
 const router = { kind: 'accessPoint', id: 'router' } as const
+const ALL_BANDS = BANDS.map((band) => ({ band }))
 
-const suggestion = (overrides: Partial<Suggestion> = {}): Suggestion => ({
+const move = (overrides: Partial<SuggestedMove> = {}): SuggestedMove => ({
   apId: 'router',
   name: 'Wi-Fi 6E router',
+  from: { x: 5.6, y: 1.2 },
+  to: { x: 4, y: 3 },
+  template: { heightM: 1, radios: [{ band: '5GHz' }] },
+  ...overrides,
+})
+
+const suggestion = (overrides: Partial<Suggestion> = {}): Suggestion => ({
+  moves: [move()],
   floorId: 'main',
   band: '5GHz',
-  from: { x: 5.6, y: 1.2 },
-  position: { x: 4, y: 3 },
   before: 0.729,
   after: 0.915,
   beforeWeakestDbm: -80.4,
@@ -51,16 +61,28 @@ const suggestion = (overrides: Partial<Suggestion> = {}): Suggestion => ({
   ...overrides,
 })
 
-describe('chooseTarget', () => {
+function ready(job: SearchJob | undefined) {
+  if (job?.kind !== 'ready') throw new Error(JSON.stringify(job))
+  return job
+}
+
+describe('planSearch: find the best spots', () => {
   it('moves the selected access point', () => {
-    const target = chooseTarget(sample(), 'main', '5GHz', [router])
-    expect(target).toMatchObject({ kind: 'move', ap: { id: 'router' } })
+    const job = ready(planSearch(twoAccessPoints(), 'main', '5GHz', [router]))
+    expect(job.label).toBe('Find a better spot for Wi-Fi 6E router')
+    expect(job.request).toMatchObject({
+      kind: 'place-one',
+      problem: { current: { x: 5.6, y: 1.2 }, minDbm: -67 },
+    })
+    // The other one stays put.
+    expect(job.request.problem.fixed.map((ap) => ap.id)).toEqual(['ap2'])
+    expect(job.movers.map((m) => m.apId)).toEqual(['router'])
   })
 
   it('refuses a locked one, saying how to unlock it', () => {
     const plan = sample()
     plan.accessPoints[0]!.locked = true
-    expect(chooseTarget(plan, 'main', '5GHz', [router])).toEqual({
+    expect(planSearch(plan, 'main', '5GHz', [router])).toEqual({
       kind: 'unavailable',
       reason: 'Wi-Fi 6E router is locked. Untick Locked to let it move.',
     })
@@ -69,94 +91,123 @@ describe('chooseTarget', () => {
   it('refuses one without a radio on the band', () => {
     const plan = sample()
     plan.accessPoints[0]!.radios = [{ band: '2.4GHz' }]
-    expect(chooseTarget(plan, 'main', '5GHz', [router])).toMatchObject({
+    expect(planSearch(plan, 'main', '5GHz', [router])).toMatchObject({
       kind: 'unavailable',
       reason: expect.stringContaining('doesn’t broadcast on 5 GHz') as string,
     })
   })
 
   it('needs an access point, not a wall, when something is selected', () => {
-    const target = chooseTarget(sample(), 'main', '5GHz', [
+    const job = planSearch(sample(), 'main', '5GHz', [
       { kind: 'wall', id: 'w1' },
     ])
-    expect(target.kind).toBe('unavailable')
+    expect(job?.kind).toBe('unavailable')
   })
 
-  it('with nothing selected, moves the only unlocked access point', () => {
-    const target = chooseTarget(
-      twoAccessPoints([true, false]),
-      'main',
-      '5GHz',
-      [],
+  it('with nothing selected, moves every unlocked one together (D45)', () => {
+    const job = ready(planSearch(twoAccessPoints(), 'main', '5GHz', []))
+    expect(job.label).toBe('Find better spots for 2 access points')
+    expect(job.what).toBe('spots for 2 access points')
+    expect(job.request).toMatchObject({ kind: 'place-many' })
+    if (job.request.kind !== 'place-many') throw new Error()
+    expect(job.request.problem.add).toBe(0)
+    expect(job.request.problem.moving.map((ap) => ap.id)).toEqual([
+      'router',
+      'ap2',
+    ])
+    expect(job.request.problem.fixed).toEqual([])
+  })
+
+  it('with one unlocked, moves just that one, the locked one fixed', () => {
+    const job = ready(
+      planSearch(twoAccessPoints([true, false]), 'main', '5GHz', []),
     )
-    expect(target).toMatchObject({ kind: 'move', ap: { id: 'ap2' } })
+    expect(job.request.kind).toBe('place-one')
+    expect(job.movers.map((m) => m.apId)).toEqual(['ap2'])
+    expect(job.request.problem.fixed.map((ap) => ap.id)).toEqual(['router'])
   })
 
-  it('with nothing selected, asks which of several to move', () => {
-    expect(chooseTarget(twoAccessPoints(), 'main', '5GHz', [])).toEqual({
-      kind: 'unavailable',
-      reason:
-        'Select the access point to move; the others stay where they are.',
-    })
+  it('leaves unlocked ones off the band where they are', () => {
+    const plan = twoAccessPoints()
+    plan.accessPoints[1]!.radios = [{ band: '2.4GHz' }]
+    const job = ready(planSearch(plan, 'main', '5GHz', []))
+    expect(job.movers.map((m) => m.apId)).toEqual(['router'])
   })
 
   it('with every access point locked, says so', () => {
-    const target = chooseTarget(
-      twoAccessPoints([true, true]),
-      'main',
-      '5GHz',
-      [],
-    )
-    expect(target).toMatchObject({ kind: 'unavailable' })
+    expect(
+      planSearch(twoAccessPoints([true, true]), 'main', '5GHz', []),
+    ).toMatchObject({ kind: 'unavailable' })
   })
 
-  it('adds one when the floor has none', () => {
-    const plan = sample()
-    plan.accessPoints = []
-    expect(chooseTarget(plan, 'main', '5GHz', [])).toEqual({ kind: 'add' })
-  })
-})
-
-describe('placementProblem', () => {
-  it('keeps every other access point on the floor fixed', () => {
-    const plan = twoAccessPoints()
-    plan.floors.push({ ...plan.floors[0]!, id: 'up' })
-    plan.accessPoints.push({
-      ...plan.accessPoints[0]!,
-      id: 'ap3',
-      floorId: 'up',
-    })
-    const problem = placementProblem(plan, 'main', '5GHz', {
-      kind: 'move',
-      ap: plan.accessPoints[0]!,
-    })
-    expect(problem.fixed.map((ap) => ap.id)).toEqual(['ap2'])
-    expect(problem.current).toEqual({ x: 5.6, y: 1.2 })
-    expect(problem.template.heightM).toBe(1)
-    // Fair, the default target, starts at −67 dBm.
-    expect(problem.minDbm).toBe(-67)
-  })
-
-  it('uses the plan’s target and a new access point’s settings', () => {
+  it('adds one, with the tool’s settings, when the floor has none', () => {
     const plan = sample()
     plan.accessPoints = []
     plan.coverageTarget = 'good'
-    const problem = placementProblem(plan, 'main', '5GHz', { kind: 'add' })
-    expect(problem.minDbm).toBe(-60)
-    expect(problem.current).toBeUndefined()
-    expect(problem.template).toEqual({
+    const job = ready(planSearch(plan, 'main', '5GHz', []))
+    expect(job.label).toBe('Find the best spot for an access point')
+    expect(job.request.problem.minDbm).toBe(-60)
+    expect(job.request.problem.template).toEqual({
       heightM: 1,
-      radios: [{ band: '2.4GHz' }, { band: '5GHz' }, { band: '6GHz' }],
+      radios: ALL_BANDS,
     })
+    expect(job.movers).toMatchObject([
+      { apId: undefined, name: 'Access point 1', from: undefined },
+    ])
+  })
+})
+
+describe('planSearch: one more access point (D45)', () => {
+  it('adds a copy of the first one and lets the unlocked ones move', () => {
+    const plan = sample()
+    plan.accessPoints[0]!.heightM = 2.1
+    plan.accessPoints[0]!.radios = [{ band: '5GHz', txPowerDbm: 20 }]
+    const job = ready(planSearch(plan, 'main', '5GHz', [], 'one-more'))
+    expect(job.label).toBe('Suggest one more access point')
+    if (job.request.kind !== 'place-many') throw new Error()
+    expect(job.request.problem).toMatchObject({
+      add: 1,
+      template: { heightM: 2.1, radios: [{ band: '5GHz', txPowerDbm: 20 }] },
+    })
+    expect(job.request.problem.moving.map((ap) => ap.id)).toEqual(['router'])
+    expect(job.movers.map((m) => m.name)).toEqual([
+      'Wi-Fi 6E router',
+      'Access point 1',
+    ])
+  })
+
+  it('keeps locked ones fixed and copies the first on the band', () => {
+    const plan = twoAccessPoints([true, true])
+    plan.accessPoints[0]!.radios = [{ band: '2.4GHz' }]
+    plan.accessPoints[1]!.heightM = 1.8
+    const job = ready(planSearch(plan, 'main', '5GHz', [], 'one-more'))
+    if (job.request.kind !== 'place-many') throw new Error()
+    expect(job.request.problem.moving).toEqual([])
+    expect(job.request.problem.fixed).toHaveLength(2)
+    expect(job.request.problem.template.heightM).toBe(1.8)
+  })
+
+  it('isn’t offered with a selection or on an empty floor', () => {
+    expect(planSearch(sample(), 'main', '5GHz', [router], 'one-more')).toBe(
+      undefined,
+    )
+    const empty = sample()
+    empty.accessPoints = []
+    expect(planSearch(empty, 'main', '5GHz', [], 'one-more')).toBe(undefined)
+  })
+})
+
+describe('newNames', () => {
+  it('numbers new access points in turn, without changing the plan', () => {
+    const plan = sample()
+    plan.accessPoints[0]!.name = 'Access point 4'
+    expect(newNames(plan, 2)).toEqual(['Access point 5', 'Access point 6'])
+    expect(plan.accessPoints).toHaveLength(1)
   })
 })
 
 describe('searchOutcome', () => {
-  const problem = placementProblem(sample(), 'main', '5GHz', {
-    kind: 'move',
-    ap: sample().accessPoints[0]!,
-  })
-  const context = { name: 'Wi-Fi 6E router', apId: 'router', problem }
+  const single = ready(planSearch(sample(), 'main', '5GHz', [router]))
   const found = (x: number, y: number) =>
     ({
       id: 0,
@@ -173,11 +224,10 @@ describe('searchOutcome', () => {
     }) as const
 
   it('turns a found spot into a suggestion', () => {
-    const state = searchOutcome(found(4, 3), context)
-    expect(state).toEqual({
+    expect(searchOutcome(found(4, 3), single)).toEqual({
       status: 'suggestion',
       suggestion: suggestion({
-        position: { x: 4, y: 3 },
+        moves: [move({ template: { heightM: 1, radios: ALL_BANDS } })],
         before: 0.8,
         after: 0.9,
         beforeWeakestDbm: -75,
@@ -188,42 +238,92 @@ describe('searchOutcome', () => {
 
   it('says so when the access point is already there', () => {
     // 5 cm away is under the 10 cm refinement step.
-    expect(searchOutcome(found(5.65, 1.2), context)).toEqual({
+    expect(searchOutcome(found(5.65, 1.2), single)).toEqual({
       status: 'message',
       text: 'Wi-Fi 6E router is already in the best spot found.',
     })
   })
 
-  it('counts nothing as covered before when one is added', () => {
-    const add = placementProblem(sample(), 'main', '5GHz', { kind: 'add' })
-    const message = found(4, 3)
+  it('pairs several positions with their access points', () => {
+    const job = ready(planSearch(sample(), 'main', '5GHz', [], 'one-more'))
     const state = searchOutcome(
-      { ...message, result: { ...message.result, before: undefined } },
-      { name: 'Access point 1', apId: undefined, problem: add },
+      {
+        id: 0,
+        kind: 'result-many',
+        result: {
+          kind: 'found',
+          positions: [
+            { x: 1, y: 2 },
+            { x: 6, y: 2 },
+          ],
+          share: 1,
+          weakestDbm: -60,
+          before: 0.86,
+          beforeWeakestDbm: -110,
+          stoppedEarly: false,
+        },
+      },
+      job,
     )
-    expect(state).toMatchObject({
-      status: 'suggestion',
-      suggestion: { apId: undefined, from: undefined, before: 0 },
+    if (state.status !== 'suggestion') throw new Error(state.status)
+    expect(state.suggestion.moves).toMatchObject([
+      { apId: 'router', to: { x: 1, y: 2 } },
+      { apId: undefined, name: 'Access point 1', to: { x: 6, y: 2 } },
+    ])
+    // Adding one isn't compared by the weakest spot.
+    expect(state.suggestion.beforeWeakestDbm).toBeUndefined()
+  })
+
+  it('says so when several are already in place', () => {
+    const job = ready(planSearch(twoAccessPoints(), 'main', '5GHz', []))
+    const state = searchOutcome(
+      {
+        id: 0,
+        kind: 'result-many',
+        result: {
+          kind: 'found',
+          positions: [
+            { x: 5.6, y: 1.2 },
+            { x: 5.62, y: 1.2 },
+          ],
+          share: 0.9,
+          weakestDbm: -70,
+          before: 0.9,
+          beforeWeakestDbm: -70,
+          stoppedEarly: false,
+        },
+      },
+      job,
+    )
+    expect(state).toEqual({
+      status: 'message',
+      text: 'The access points are already in the best spots found.',
     })
   })
 
-  it('explains an open floor and errors', () => {
+  it('explains an open floor, nothing to place and errors', () => {
     expect(
       searchOutcome(
         { id: 0, kind: 'result', result: { kind: 'no-floor-area' } },
-        context,
+        single,
       ),
     ).toEqual({
       status: 'message',
       text: 'Close the outer walls first: suggested spots go inside them.',
     })
     expect(
-      searchOutcome({ id: 0, kind: 'error', message: 'boom' }, context),
+      searchOutcome(
+        { id: 0, kind: 'result-many', result: { kind: 'nothing-to-place' } },
+        single,
+      ),
+    ).toEqual({ status: 'message', text: 'There’s nothing to move or add.' })
+    expect(
+      searchOutcome({ id: 0, kind: 'error', message: 'boom' }, single),
     ).toEqual({ status: 'message', text: 'Couldn’t search: boom' })
   })
 })
 
-describe('suggestionText', () => {
+describe('suggestionText and suggestionSummary', () => {
   it('rounds down like the coverage summary', () => {
     expect(suggestionText(suggestion(), undefined)).toBe(
       '72% → 91% of the floor at Fair or better on 5 GHz.',
@@ -235,18 +335,52 @@ describe('suggestionText', () => {
       '100% → 100% of the floor at Good or better on 5 GHz. The weakest spot improves from -80 to -70 dBm.',
     )
   })
+
+  it('says where each access point goes', () => {
+    expect(suggestionSummary(suggestion(), undefined, 'metric')).toBe(
+      'Move Wi-Fi 6E router to 4.00 m, 3.00 m: 72% → 91% of the floor at Fair or better on 5 GHz.',
+    )
+    const two = suggestion({
+      moves: [
+        move({ to: { x: 1, y: 2 } }),
+        move({
+          apId: undefined,
+          name: 'Access point 1',
+          from: undefined,
+          to: { x: 6, y: 2 },
+        }),
+      ],
+      stoppedEarly: true,
+    })
+    expect(suggestionSummary(two, undefined, 'metric')).toBe(
+      'Move Wi-Fi 6E router to 1.00 m, 2.00 m and add Access point 1 at 6.00 m, 2.00 m: 72% → 91% of the floor at Fair or better on 5 GHz. The search hit its 10 second limit, so this is the best found so far.',
+    )
+  })
 })
 
 describe('withSuggestion', () => {
-  it('moves or adds the access point without changing the plan', () => {
+  it('moves or adds access points without changing the plan', () => {
     const plan = sample()
     const moved = withSuggestion(plan, suggestion())
     expect(moved.accessPoints[0]).toMatchObject({ x: 4, y: 3 })
     expect(plan.accessPoints[0]).toMatchObject({ x: 5.6, y: 1.2 })
 
-    const added = withSuggestion(plan, suggestion({ apId: undefined }))
+    const template = { heightM: 2.1, radios: [{ band: '5GHz' as const }] }
+    const added = withSuggestion(
+      plan,
+      suggestion({
+        moves: [move({ apId: undefined, name: 'Access point 1', template })],
+      }),
+    )
     expect(added.accessPoints).toHaveLength(2)
-    expect(added.accessPoints[1]).toMatchObject({ x: 4, y: 3, floorId: 'main' })
+    // A new one is a copy of the template (D40, D45).
+    expect(added.accessPoints[1]).toMatchObject({
+      name: 'Access point 1',
+      x: 4,
+      y: 3,
+      floorId: 'main',
+      ...template,
+    })
   })
 })
 
@@ -266,6 +400,18 @@ class FakeWorker implements SearchWorker {
   }
 }
 
+/** An optimizer whose worker runs the real search straight away. */
+function realOptimizer(plan: Plan) {
+  const store = createEditorStore(plan)
+  const optimizer = createOptimizer(store, () => {
+    const worker = new FakeWorker()
+    worker.postMessage = (request) =>
+      handlePlacementRequest(request, (message) => worker.reply(message))
+    return worker
+  })
+  return { store, optimizer }
+}
+
 describe('createOptimizer', () => {
   function setup(plan = sample()) {
     const store = createEditorStore(plan)
@@ -278,7 +424,7 @@ describe('createOptimizer', () => {
     return { store, workers, optimizer }
   }
 
-  it('reports progress, then the suggestion, and ends the worker', () => {
+  it('reports progress, then the outcome, and ends the worker', () => {
     const { store, workers, optimizer } = setup()
     store.getState().select([router])
     optimizer.start()
@@ -287,7 +433,7 @@ describe('createOptimizer', () => {
     expect(store.getState().optimizer).toEqual({
       status: 'searching',
       fraction: 0,
-      name: 'Wi-Fi 6E router',
+      what: 'a spot for Wi-Fi 6E router',
     })
 
     const id = worker.requests[0]!.id
@@ -316,7 +462,8 @@ describe('createOptimizer', () => {
 
   it('stops the search when the plan changes, with a note', () => {
     const { store, workers, optimizer } = setup()
-    optimizer.start()
+    optimizer.start('one-more')
+    expect(workers[0]!.requests[0]).toMatchObject({ kind: 'place-many' })
     store.getState().renamePlan('Renamed')
     expect(workers[0]!.terminated).toBe(true)
     expect(store.getState().optimizer).toBeUndefined()
@@ -324,26 +471,31 @@ describe('createOptimizer', () => {
   })
 
   it('explains why it can’t start, without a worker', () => {
-    const { store, workers, optimizer } = setup(twoAccessPoints())
+    const { store, workers, optimizer } = setup(twoAccessPoints([true, true]))
     optimizer.start()
     expect(workers).toHaveLength(0)
     expect(store.getState().optimizer).toMatchObject({ status: 'message' })
   })
 
   it('finds a better spot for the sample home’s router', () => {
-    const store = createEditorStore(sample())
-    const optimizer = createOptimizer(store, () => {
-      const worker = new FakeWorker()
-      worker.postMessage = (request) =>
-        handlePlacementRequest(request, (message) => worker.reply(message))
-      return worker
-    })
+    const { store, optimizer } = realOptimizer(sample())
     optimizer.start()
     const state = store.getState().optimizer
     if (state?.status !== 'suggestion') throw new Error(state?.status)
     // D42: 86.9% → 92.0% at Fair on 5 GHz.
     expect(suggestionText(state.suggestion, undefined)).toBe(
       '86% → 92% of the floor at Fair or better on 5 GHz.',
+    )
+  })
+
+  it('covers the whole sample home with one more access point', () => {
+    const { store, optimizer } = realOptimizer(sample())
+    optimizer.start('one-more')
+    const state = store.getState().optimizer
+    if (state?.status !== 'suggestion') throw new Error(state?.status)
+    expect(state.suggestion.moves).toHaveLength(2)
+    expect(suggestionText(state.suggestion, undefined)).toBe(
+      '86% → 100% of the floor at Fair or better on 5 GHz.',
     )
   })
 })
@@ -371,16 +523,28 @@ describe('store with a suggestion', () => {
     expect(store.getState().plan.accessPoints[0]).toMatchObject({ x: 5.6 })
   })
 
-  it('selects an added access point', () => {
+  it('applies several as one undo step and selects them all', () => {
     const store = withWaiting(
-      suggestion({ apId: undefined, name: 'Access point 1', from: undefined }),
+      suggestion({
+        moves: [
+          move(),
+          move({ apId: undefined, name: 'Access point 1', from: undefined }),
+        ],
+      }),
     )
     store.getState().applySuggestion()
-    const added = store.getState().plan.accessPoints[1]!
+    const state = store.getState()
+    const added = state.plan.accessPoints[1]!
     expect(added).toMatchObject({ name: 'Access point 1', x: 4, y: 3 })
-    expect(store.getState().selection).toEqual([
+    expect(state.past.map((e) => e.label)).toEqual([
+      'Apply the suggested spots',
+    ])
+    expect(state.selection).toEqual([
+      router,
       { kind: 'accessPoint', id: added.id },
     ])
+    state.undo()
+    expect(store.getState().plan.accessPoints).toHaveLength(1)
   })
 
   it('is dismissed by an edit, undo or band change, with a note', () => {

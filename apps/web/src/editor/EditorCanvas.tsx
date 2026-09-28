@@ -283,11 +283,12 @@ export function EditorCanvas({ coverage }: { coverage: Coverage | undefined }) {
       // No ghost while over (or dragging) an existing access point.
       accessPointPreview:
         tool === 'accessPoint' && cursor === 'default' ? pointer : undefined,
-      suggestion: suggestion && {
-        apId: suggestion.apId,
-        from: suggestion.from,
-        to: suggestion.position,
-      },
+      suggestions: suggestion?.moves.map((move) => ({
+        apId: move.apId,
+        from: move.from,
+        to: move.to,
+        label: move.apId === undefined ? `New: ${move.name}` : 'Suggested',
+      })),
       corners: floor.nodes,
       drawing:
         tool === 'wall' && preview
