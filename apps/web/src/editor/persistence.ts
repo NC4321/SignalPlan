@@ -1,5 +1,11 @@
-import { parsePlan, SCHEMA_VERSION, type Plan } from '@signalplan/floorplan'
+import {
+  parsePlan,
+  SCHEMA_VERSION,
+  type Plan,
+  type Region,
+} from '@signalplan/floorplan'
 import sampleHome from '@signalplan/floorplan/fixtures/sample-home.json'
+import { guessRegion } from './region.ts'
 import type { Units } from './units.ts'
 
 /**
@@ -12,22 +18,24 @@ export const UNITS_KEY = 'signalplan:units'
 /** The file extension for saved plans: plain JSON, recognisable by name. */
 export const FILE_EXTENSION = '.signalplan.json'
 
-export function samplePlan(): Plan {
+/** The sample home, following the region guessed for this browser (D62). */
+export function samplePlan(region: Region = guessRegion()): Plan {
   const result = parsePlan(sampleHome)
   if (!result.ok) {
     throw new Error(`Sample plan is invalid: ${result.issues[0]?.message}`)
   }
-  return result.plan
+  return { ...result.plan, region }
 }
 
 /**
  * A blank plan: one empty floor and one dual-band router in the middle of the
  * starting view, so there is coverage to see as soon as walls are drawn.
  */
-export function blankPlan(): Plan {
+export function blankPlan(region: Region = guessRegion()): Plan {
   return {
     schemaVersion: SCHEMA_VERSION,
     name: 'Untitled plan',
+    region,
     floors: [
       {
         id: 'main',

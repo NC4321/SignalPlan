@@ -9,6 +9,8 @@ import {
   stackedFloors,
   type Band,
   type CoverageTarget,
+  DEFAULT_REGION,
+  type Region,
   type Floor,
   type OpeningMaterial,
   type Plan,
@@ -162,6 +164,10 @@ export interface EditorState {
   setPlanId: (id: string) => void
   renamePlan: (name: string) => void
   setCoverageTarget: (target: CoverageTarget) => void
+  /** Sets whose channel and power rules the plan follows (D61). */
+  setRegion: (region: Region) => void
+  /** Allows or disallows 5 GHz DFS channels (D61). */
+  setAllowDfs: (allow: boolean) => void
 
   /** Shows another floor. Not an edit, so it isn't undone (D52). */
   setFloor: (floorId: string) => void
@@ -456,6 +462,24 @@ export function createEditorStore(
       get().edit('Change coverage target', (draft) => {
         draft.coverageTarget = target
       })
+    },
+
+    setRegion: (region) => {
+      if (region === (get().plan.region ?? DEFAULT_REGION)) return
+      get().edit('Change region', (draft) => {
+        draft.region = region
+      })
+    },
+
+    setAllowDfs: (allow) => {
+      if (allow === (get().plan.allowDfs ?? false)) return
+      get().edit(
+        allow ? 'Allow DFS channels' : 'Disallow DFS channels',
+        (draft) => {
+          if (allow) draft.allowDfs = true
+          else delete draft.allowDfs
+        },
+      )
     },
 
     setFloor: (floorId) => {

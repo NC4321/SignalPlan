@@ -1,0 +1,116 @@
+{
+  "version": "2026-09-28",
+  "about": "Channels and power limits per region and band (D61, D62). Every value is sourced in docs/MODEL.md, under Channels and regions. Channel numbers follow IEEE 802.11; a channel's span is its centre ± half its width.",
+  "regions": {
+    "US": {
+      "name": "United States",
+      "bands": {
+        "2.4GHz": {
+          "rangesMHz": [[2400, 2483.5]],
+          "dfsRangesMHz": [],
+          "channels": {
+            "20": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11],
+            "40": [3, 4, 5, 6, 7, 8, 9]
+          },
+          "maxEirpDbm": 36,
+          "eirpNote": "The FCC limit at 2.4 GHz is 36 dBm EIRP (§ 15.247)."
+        },
+        "5GHz": {
+          "rangesMHz": [
+            [5150, 5350],
+            [5470, 5850]
+          ],
+          "dfsRangesMHz": [
+            [5250, 5350],
+            [5470, 5725]
+          ],
+          "channels": {
+            "20": [
+              36, 40, 44, 48, 52, 56, 60, 64, 100, 104, 108, 112, 116, 120, 124,
+              128, 132, 136, 140, 144, 149, 153, 157, 161, 165
+            ],
+            "40": [38, 46, 54, 62, 102, 110, 118, 126, 134, 142, 151, 159],
+            "80": [42, 58, 106, 122, 138, 155],
+            "160": [50, 114]
+          },
+          "maxEirpDbm": 36,
+          "eirpNote": "The FCC limit at 5 GHz is 36 dBm EIRP on channels 36–48 and 149–165, and 30 dBm on the DFS channels 52–144 (§ 15.407)."
+        },
+        "6GHz": {
+          "rangesMHz": [[5925, 7125]],
+          "dfsRangesMHz": [],
+          "channels": {
+            "20": [
+              1, 5, 9, 13, 17, 21, 25, 29, 33, 37, 41, 45, 49, 53, 57, 61, 65,
+              69, 73, 77, 81, 85, 89, 93, 97, 101, 105, 109, 113, 117, 121, 125,
+              129, 133, 137, 141, 145, 149, 153, 157, 161, 165, 169, 173, 177,
+              181, 185, 189, 193, 197, 201, 205, 209, 213, 217, 221, 225, 229,
+              233
+            ],
+            "40": [
+              3, 11, 19, 27, 35, 43, 51, 59, 67, 75, 83, 91, 99, 107, 115, 123,
+              131, 139, 147, 155, 163, 171, 179, 187, 195, 203, 211, 219, 227
+            ],
+            "80": [
+              7, 23, 39, 55, 71, 87, 103, 119, 135, 151, 167, 183, 199, 215
+            ],
+            "160": [15, 47, 79, 111, 143, 175, 207]
+          },
+          "maxEirpDbm": 30,
+          "eirpNote": "The FCC limit for indoor 6 GHz is 5 dBm/MHz, so 18 dBm on a 20 MHz channel and at most 30 dBm on the widest (§ 15.407)."
+        }
+      }
+    },
+    "EU": {
+      "name": "European Union",
+      "bands": {
+        "2.4GHz": {
+          "rangesMHz": [[2400, 2483.5]],
+          "dfsRangesMHz": [],
+          "channels": {
+            "20": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13],
+            "40": [3, 4, 5, 6, 7, 8, 9, 10, 11]
+          },
+          "maxEirpDbm": 20,
+          "eirpNote": "The EU limit at 2.4 GHz is 20 dBm EIRP, and at most 10 dBm/MHz (ETSI EN 300 328)."
+        },
+        "5GHz": {
+          "rangesMHz": [
+            [5150, 5350],
+            [5470, 5725]
+          ],
+          "dfsRangesMHz": [
+            [5250, 5350],
+            [5470, 5725]
+          ],
+          "channels": {
+            "20": [
+              36, 40, 44, 48, 52, 56, 60, 64, 100, 104, 108, 112, 116, 120, 124,
+              128, 132, 136, 140
+            ],
+            "40": [38, 46, 54, 62, 102, 110, 118, 126, 134],
+            "80": [42, 58, 106, 122],
+            "160": [50, 114]
+          },
+          "maxEirpDbm": 30,
+          "eirpNote": "The EU limit at 5 GHz is 23 dBm EIRP on channels 36–64, and 30 dBm on channels 100–140 with transmit power control (ETSI EN 301 893)."
+        },
+        "6GHz": {
+          "rangesMHz": [[5945, 6425]],
+          "dfsRangesMHz": [],
+          "channels": {
+            "20": [
+              1, 5, 9, 13, 17, 21, 25, 29, 33, 37, 41, 45, 49, 53, 57, 61, 65,
+              69, 73, 77, 81, 85, 89, 93
+            ],
+            "40": [3, 11, 19, 27, 35, 43, 51, 59, 67, 75, 83, 91],
+            "80": [7, 23, 39, 55, 71, 87],
+            "160": [15, 47, 79]
+          },
+          "maxEirpDbm": 23,
+          "eirpNote": "The EU limit for indoor 6 GHz is 10 dBm/MHz and at most 23 dBm EIRP (ETSI EN 303 687)."
+        }
+      }
+    }
+  }
+}

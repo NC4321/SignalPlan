@@ -72,6 +72,20 @@ export {
   type MultiSearchResult,
 } from './multiSearch.ts'
 export {
+  availableChannels,
+  CHANNEL_WIDTHS,
+  channelCentreMHz,
+  channelSpanMHz,
+  channelWidths,
+  REGION_RULES,
+  REGIONS_VERSION,
+  regionBand,
+  type Channel,
+  type ChannelWidth,
+  type RegionBand,
+  type RegionRules,
+} from './regions.ts'
+export {
   REFINE_COUNT,
   REFINE_STEPS_M,
   SEARCH_BUDGET_MS,

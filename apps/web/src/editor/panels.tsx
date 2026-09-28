@@ -1,7 +1,16 @@
-import { BAND_PROFILES, MAX_ADDED, type Coverage } from '@signalplan/engine'
+import {
+  BAND_PROFILES,
+  MAX_ADDED,
+  REGION_RULES,
+  regionBand,
+  type Coverage,
+} from '@signalplan/engine'
 import {
   BANDS,
   COVERAGE_TARGETS,
+  DEFAULT_REGION,
+  REGIONS,
+  type Region,
   DEFAULT_FLOOR_MATERIAL,
   EIRP_RANGE_DBM,
   FLOOR_MATERIALS,
@@ -38,6 +47,7 @@ import {
   targetBand,
 } from '../quality.ts'
 import { zoomAt } from './camera.ts'
+import { regionPlace } from './region.ts'
 import { BAND_LABELS, settledAnnouncement } from './coverageText.ts'
 import { useEditor, useEditorStore } from './context.ts'
 import { deleteRecipe, describeSelection } from './selectTool.ts'
@@ -1001,8 +1011,8 @@ function AccessPointSection({ ap }: { ap: AccessPoint }) {
 }
 
 /**
- * A radio's EIRP in dBm. Empty means the band's default; above the FCC limit
- * a note says so, but the value is kept (D25).
+ * A radio's EIRP in dBm. Empty means the band's default; above the plan
+ * region's limit a note says so, but the value is kept (D25, D62).
  */
 function PowerField({
   band,
@@ -1014,6 +1024,8 @@ function PowerField({
   onCommit: (dbm: number | undefined) => void
 }) {
   const profile = BAND_PROFILES[band]
+  const region = useEditor((s) => s.plan.region)
+  const limits = regionBand(region, band)
   const [draft, setDraft] = useState<string>()
   const [invalid, setInvalid] = useState(false)
   const id = useId()
@@ -1046,7 +1058,7 @@ function PowerField({
   }
   const shown = invalid ? undefined : draft === undefined ? dbm : Number(draft)
   const overLimit =
-    shown !== undefined && Number.isFinite(shown) && shown > profile.maxEirpDbm
+    shown !== undefined && Number.isFinite(shown) && shown > limits.maxEirpDbm
 
   return (
     <div className="field power-field">
@@ -1077,7 +1089,7 @@ function PowerField({
       )}
       {overLimit && (
         <p id={noteId} className="field-note">
-          Above the legal limit in the US. {profile.maxEirpNote}
+          Above the legal limit in {regionPlace(region)}. {limits.eirpNote}
         </p>
       )}
     </div>
@@ -1221,6 +1233,7 @@ function PlanSection() {
         <dt>Doors and windows</dt>
         <dd>{floor?.openings.length ?? 0}</dd>
       </dl>
+      <RegionFields />
       {floor?.walls.length === 0 && (
         <p className="hint start-hint">
           To start, pick <strong>Wall</strong> (W) and click to place each
@@ -1246,6 +1259,54 @@ function PlanSection() {
           ))}
       </ul>
     </section>
+  )
+}
+
+/** Whose channel rules the plan follows, and whether DFS is allowed (D61). */
+function RegionFields() {
+  const store = useEditorStore()
+  const region = useEditor((s) => s.plan.region ?? DEFAULT_REGION)
+  const allowDfs = useEditor((s) => s.plan.allowDfs ?? false)
+  const regionId = useId()
+  const dfsHintId = useId()
+  return (
+    <>
+      <h3>Channels</h3>
+      <div className="field">
+        <label htmlFor={regionId}>Region</label>
+        <select
+          id={regionId}
+          value={region}
+          onChange={(event) =>
+            store.getState().setRegion(event.target.value as Region)
+          }
+        >
+          {REGIONS.map((r) => (
+            <option key={r} value={r}>
+              {REGION_RULES[r].name}
+            </option>
+          ))}
+        </select>
+      </div>
+      <p className="hint">
+        Only US and EU rules for now; your country’s channels may differ.
+      </p>
+      <label className="check-field">
+        <input
+          type="checkbox"
+          checked={allowDfs}
+          aria-describedby={dfsHintId}
+          onChange={(event) =>
+            store.getState().setAllowDfs(event.target.checked)
+          }
+        />
+        Allow DFS channels
+      </label>
+      <p id={dfsHintId} className="hint">
+        DFS channels give 5 GHz more room, but a router must listen for radar
+        before using one and move off it if it hears any.
+      </p>
+    </>
   )
 }
 

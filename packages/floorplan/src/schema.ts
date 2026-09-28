@@ -38,6 +38,15 @@ export const OPENING_MATERIALS = [...WALL_MATERIALS, 'open'] as const
 
 export const BANDS = ['2.4GHz', '5GHz', '6GHz'] as const
 
+/**
+ * Regulatory regions a plan can follow (D61, D62). Their channels and power
+ * limits live in the engine's data file, not the plan.
+ */
+export const REGIONS = ['US', 'EU'] as const
+
+/** The region assumed when a plan doesn't say: plans made before D62. */
+export const DEFAULT_REGION: Region = 'US'
+
 /** Signal levels a plan can aim for, named after the heatmap bands (D12). */
 export const COVERAGE_TARGETS = ['excellent', 'good', 'fair', 'weak'] as const
 
@@ -160,10 +169,15 @@ export const planSchema = z.object({
   accessPoints: z.array(accessPointSchema),
   /** The level the coverage summary counts towards. Omitted means `fair`. */
   coverageTarget: z.enum(COVERAGE_TARGETS).optional(),
+  /** Whose channel and power rules apply (D61). Omitted means `DEFAULT_REGION`. */
+  region: z.enum(REGIONS).optional(),
+  /** Whether 5 GHz DFS channels may be used (D61). Omitted means no. */
+  allowDfs: z.boolean().optional(),
 })
 
 export type WallMaterial = z.infer<typeof wallMaterialSchema>
 export type FloorMaterial = (typeof FLOOR_MATERIALS)[number]
+export type Region = (typeof REGIONS)[number]
 export type OpeningMaterial = z.infer<typeof openingMaterialSchema>
 export type Band = z.infer<typeof bandSchema>
 export type PlanNode = z.infer<typeof nodeSchema>
