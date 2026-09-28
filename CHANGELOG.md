@@ -4,6 +4,10 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Changed
+
+- The optimizer now works on the whole home (D55). With several floors it maximises the share of all floors' area together, "Find better spots" moves unlocked access points on every floor (each stays on its own floor), and added access points go on whichever floor helps most. The panel gives the whole-home before → after with one line per floor, spots say which floor they're on, and the floor stack marks floors with suggested spots. Switching floors keeps a search or suggestion, so you can look at each floor's preview. On a plan with no access points, "Find the best spot" adds one wherever it helps most. `pnpm speed` now includes the two-storey house (7.1 s for how many, within the 10 s budget).
+
 ### Added
 
 - Stairwells and atriums: a Floor opening tool (O) on every floor but the lowest. Click the corners of a stairwell or atrium, snapping as the Wall tool does (the floor below too), and close it on the first corner, with a double-click or with Enter. Signal between that floor and the one below pays no floor loss where it passes through the opening, and the opening's area is left out of the floor, so the coverage summary and optimizer skip it. Openings are drawn hatched and can be selected, dragged whole or by their corners, nudged and deleted, all with undo. Plans get the optional `floorOpenings` field (D54).

@@ -340,15 +340,18 @@ describe('floors (D52)', () => {
     expect(store.getState().floorId).toBe('main')
   })
 
-  it('stops a search when the floor changes, and says why', () => {
+  it('keeps a search when the floor changes: it covers the whole home (D55)', () => {
     const store = createEditorStore(sample())
     store.getState().addFloor('above')
-    store
-      .getState()
-      .setOptimizer({ status: 'searching', fraction: 0.5, what: 'a spot' })
+    const searching = {
+      status: 'searching',
+      fraction: 0.5,
+      what: 'a spot',
+    } as const
+    store.getState().setOptimizer(searching)
     store.getState().setFloor('main')
-    expect(store.getState().optimizer).toBeUndefined()
-    expect(store.getState().notice).toBe('Search stopped: the floor changed.')
+    expect(store.getState().optimizer).toEqual(searching)
+    expect(store.getState().notice).toBeUndefined()
   })
 
   it('deletes the floor on show with its access points, and undo restores it', () => {

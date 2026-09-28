@@ -13,6 +13,12 @@ export function FloorStack() {
   const floorId = useEditor((s) => s.floorId)
   const topDown = useMemo(() => stackedFloors(floors).reverse(), [floors])
   const showGhost = useEditor((s) => s.showGhost)
+  // Floors with suggested spots are marked (D55).
+  const suggested = useEditor((s) =>
+    s.optimizer?.status === 'suggestion'
+      ? s.optimizer.suggestion.moves.map((m) => m.to.floorId).join(' ')
+      : '',
+  )
   const hasFloorBelow = topDown.at(-1)?.id !== floorId
 
   return (
@@ -26,22 +32,32 @@ export function FloorStack() {
         + Floor above
       </button>
       <ul>
-        {topDown.map((floor) => (
-          <li key={floor.id}>
-            <button
-              type="button"
-              aria-current={floor.id === floorId ? 'true' : undefined}
-              title={
-                floor.id === floorId
-                  ? `${floor.name}, on show`
-                  : `Show ${floor.name} (PageUp, PageDown)`
-              }
-              onClick={() => store.getState().setFloor(floor.id)}
-            >
-              {floor.name || 'Unnamed floor'}
-            </button>
-          </li>
-        ))}
+        {topDown.map((floor) => {
+          const hasSuggestion = suggested.split(' ').includes(floor.id)
+          return (
+            <li key={floor.id}>
+              <button
+                type="button"
+                aria-current={floor.id === floorId ? 'true' : undefined}
+                title={
+                  (floor.id === floorId
+                    ? `${floor.name}, on show`
+                    : `Show ${floor.name} (PageUp, PageDown)`) +
+                  (hasSuggestion ? '. Has suggested spots.' : '')
+                }
+                onClick={() => store.getState().setFloor(floor.id)}
+              >
+                {floor.name || 'Unnamed floor'}
+                {hasSuggestion && (
+                  <span className="floor-suggested">
+                    <span aria-hidden="true"> ◌</span>
+                    <span className="visually-hidden">, suggested spots</span>
+                  </span>
+                )}
+              </button>
+            </li>
+          )
+        })}
       </ul>
       <button
         type="button"

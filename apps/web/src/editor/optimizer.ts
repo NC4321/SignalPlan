@@ -1,8 +1,10 @@
 import {
   MAX_ADDED,
   type AccessPointTemplate,
+  type FloorShare,
   type PlacementMessage,
   type PlacementRequest,
+  type Spot,
 } from '@signalplan/engine'
 import {
   addAccessPoint,
@@ -12,7 +14,6 @@ import {
   type Band,
   type CoverageTarget,
   type Plan,
-  type Point,
 } from '@signalplan/floorplan'
 import { produce, type Draft } from 'immer'
 import type { StoreApi } from 'zustand/vanilla'
@@ -24,7 +25,7 @@ import { formatLength, type Units } from './units.ts'
 /**
  * The optimizer panel (D44, D45, D46): which access points a search moves or
  * adds, the search in its own worker, and the suggestion it leaves for Apply
- * or Dismiss.
+ * or Dismiss. Searches score the whole home, every floor by its area (D55).
  */
 
 /** Goals "How many access points do I need?" offers, as shares (D46). */
@@ -38,22 +39,27 @@ export interface Mover {
   apId: string | undefined
   /** Its name, or the name a new one will get. */
   name: string
-  /** Where it is now; undefined for a new one. */
-  from: Point | undefined
+  /** Where it is now, on its floor; undefined for a new one. */
+  from: Spot | undefined
   /** Its height and radios; a new one gets a copy. */
   template: AccessPointTemplate
 }
 
-export type SuggestedMove = Mover & { to: Point }
+/** Where it should go; an access point that moves stays on its floor (D55). */
+export type SuggestedMove = Mover & { to: Spot }
 
 /** Suggested spots, waiting for Apply or Dismiss. */
 export interface Suggestion {
   moves: SuggestedMove[]
-  floorId: string
   band: Band
-  /** Shares of the floor at the target, before and after, on 10 cm cells. */
+  /**
+   * Shares of the home's floor area at the target, before and after, on
+   * 10 cm cells (D55).
+   */
   before: number
   after: number
+  /** The same for each floor with floor area, from the lowest up. */
+  floors: FloorShare[]
   /** The weakest signal inside the walls before (when nothing is added) and after. */
   beforeWeakestDbm: number | undefined
   weakestDbm: number
@@ -104,14 +110,16 @@ const broadcasts = (ap: AccessPoint, band: Band) =>
   ap.radios.some((r) => r.band === band)
 
 /**
- * What a search does (D44, D45). "best": the selected access point moves;
- * with nothing selected, every unlocked one that broadcasts on the band moves
- * (together, if there are several); on an empty floor, one is added.
- * "one-more", only with nothing selected on a floor that has access points:
- * one is added, a copy of the first that broadcasts on the band, and the
- * unlocked ones move to suit. "how-many", only with nothing selected: as
- * "one-more", but adding as few as reach `goal` (none if moving is enough).
- * Everything else stays, and access points on other floors count as fixed.
+ * What a search does (D44, D45, D55). Every search scores the whole home.
+ * "best": the selected access point moves; with nothing selected, every
+ * unlocked one that broadcasts on the band, on any floor, moves (together,
+ * if there are several); in a plan with none, one is added. "one-more",
+ * only with nothing selected in a plan that has access points: one is added,
+ * a copy of the first that broadcasts on the band (on the floor on show if
+ * there is one), and the unlocked ones move to suit. "how-many", only with
+ * nothing selected: as "one-more", but adding as few as reach `goal` (none
+ * if moving is enough). Access points that move stay on their own floor;
+ * added ones may go on any. Everything else stays put and counts.
  */
 export function planSearch(
   plan: Plan,
@@ -121,24 +129,23 @@ export function planSearch(
   kind: SearchKind = 'best',
   goal: CoverageGoal = DEFAULT_COVERAGE_GOAL,
 ): SearchJob | undefined {
-  const onFloor = plan.accessPoints.filter((ap) => ap.floorId === floorId)
-  const unlocked = onFloor.filter((ap) => !ap.locked)
+  const all = plan.accessPoints
+  const unlocked = all.filter((ap) => !ap.locked)
   const movable = unlocked.filter((ap) => broadcasts(ap, band))
   const base = {
     plan,
-    floorId,
     band,
     minDbm: targetBand(plan.coverageTarget).minDbm,
   }
-  // Access points on other floors stay put and count too (D52).
   const fixedWithout = (moving: readonly AccessPoint[]) =>
     plan.accessPoints.filter((ap) => !moving.includes(ap))
   const moverOf = (ap: AccessPoint): Mover => ({
     apId: ap.id,
     name: ap.name,
-    from: { x: ap.x, y: ap.y },
+    from: spotOf(ap),
     template: templateOf(ap),
   })
+  const area = areaWord(plan)
   const moveOne = (ap: AccessPoint): SearchJob => ({
     kind: 'ready',
     label: `Find a better spot for ${ap.name}`,
@@ -149,13 +156,16 @@ export function planSearch(
         ...base,
         fixed: fixedWithout([ap]),
         template: templateOf(ap),
-        current: { x: ap.x, y: ap.y },
+        current: spotOf(ap),
       },
     },
     movers: [moverOf(ap)],
   })
 
-  const model = onFloor.find((ap) => broadcasts(ap, band))
+  // New ones copy an access point on the floor on show, if there is one.
+  const model =
+    all.find((ap) => ap.floorId === floorId && broadcasts(ap, band)) ??
+    all.find((ap) => broadcasts(ap, band))
   const template = model ? templateOf(model) : DEFAULT_TEMPLATE
 
   if (kind === 'how-many') {
@@ -163,7 +173,7 @@ export function planSearch(
     return {
       kind: 'ready',
       label: 'How many access points do I need?',
-      what: `how many access points cover ${goalText(goal)} of the floor`,
+      what: `how many access points cover ${goalText(goal)} of the ${area}`,
       request: {
         kind: 'how-many',
         problem: {
@@ -180,7 +190,7 @@ export function planSearch(
   }
 
   if (kind === 'one-more') {
-    if (selection.length > 0 || onFloor.length === 0) return undefined
+    if (selection.length > 0 || all.length === 0) return undefined
     return {
       kind: 'ready',
       label: 'Suggest one more access point',
@@ -211,7 +221,7 @@ export function planSearch(
     const only = selection.length === 1 ? selection[0] : undefined
     const ap =
       only?.kind === 'accessPoint'
-        ? onFloor.find((a) => a.id === only.id)
+        ? all.find((a) => a.id === only.id)
         : undefined
     if (!ap) {
       return {
@@ -229,7 +239,7 @@ export function planSearch(
     return moveOne(ap)
   }
 
-  if (onFloor.length === 0) {
+  if (all.length === 0) {
     return {
       kind: 'ready',
       label: 'Find the best spot for an access point',
@@ -281,6 +291,18 @@ export function planSearch(
   }
 }
 
+const spotOf = (ap: AccessPoint): Spot => ({
+  x: ap.x,
+  y: ap.y,
+  floorId: ap.floorId,
+})
+
+/**
+ * What a share is of: "the home" with several floors, or "the floor" (D55).
+ */
+export const areaWord = (plan: Pick<Plan, 'floors'>) =>
+  plan.floors.length > 1 ? 'home' : 'floor'
+
 const bandOff = (name: string, band: Band): SearchJob => ({
   kind: 'unavailable',
   reason: `${name} doesn’t broadcast on ${BAND_LABELS[band]}. Turn the band on under Bands first.`,
@@ -302,7 +324,10 @@ export function suggestionRecipe(suggestion: Suggestion) {
   return (plan: Draft<Plan>) => {
     for (const move of suggestion.moves) {
       if (move.apId === undefined) {
-        const id = addAccessPoint(plan, suggestion.floorId, move.to)
+        const id = addAccessPoint(plan, move.to.floorId, {
+          x: move.to.x,
+          y: move.to.y,
+        })
         const added = plan.accessPoints.find((a) => a.id === id)!
         added.heightM = move.template.heightM
         added.radios = move.template.radios.map((radio) => ({ ...radio }))
@@ -332,7 +357,8 @@ export function searchOutcome(
   if (message.kind === 'error') {
     return { status: 'message', text: `Couldn’t search: ${message.message}` }
   }
-  const { band, floorId, plan, template } = job.request.problem
+  const { band, plan, template } = job.request.problem
+  const area = areaWord(plan)
   const result = message.result
   switch (result.kind) {
     case 'no-floor-area':
@@ -381,7 +407,7 @@ export function searchOutcome(
         const target = targetBand(plan.coverageTarget)
         return {
           status: 'message',
-          text: `No more access points needed: ${percent(result.before ?? 0)} of the floor is already at ${target.label} or better on ${BAND_LABELS[band]}, which meets the ${goalText(howMany.goal)} goal.`,
+          text: `No more access points needed: ${percent(result.before ?? 0)} of the ${area} is already at ${target.label} or better on ${BAND_LABELS[band]}, which meets the ${goalText(howMany.goal)} goal.`,
         }
       }
       if (inPlace) {
@@ -398,11 +424,11 @@ export function searchOutcome(
         status: 'suggestion',
         suggestion: {
           moves,
-          floorId,
           band,
-          // With nothing else on the floor, nothing is covered before.
+          // With nothing else in the plan, nothing is covered before.
           before: result.before ?? 0,
           after: result.share,
+          floors: result.floors.map((f) => ({ ...f, before: f.before ?? 0 })),
           beforeWeakestDbm: adds ? undefined : result.beforeWeakestDbm,
           weakestDbm: result.weakestDbm,
           stoppedEarly: result.stoppedEarly,
@@ -425,8 +451,9 @@ export const goalText = (goal: number) => `${Math.round(goal * 100)}%`
 function howManyText(
   { goal, added, reached }: NonNullable<Suggestion['howMany']>,
   stoppedEarly: boolean,
+  area: string,
 ): string {
-  const share = `${goalText(goal)} of the floor`
+  const share = `${goalText(goal)} of the ${area}`
   if (!reached) {
     // Stopped early, not every count was tried.
     return stoppedEarly
@@ -437,9 +464,14 @@ function howManyText(
   return `You need ${added} more access point${added === 1 ? '' : 's'} for ${share}.`
 }
 
+/** What the suggestion's shares are of: the home with several floors. */
+const suggestionArea = (suggestion: Suggestion) =>
+  suggestion.floors.length > 1 ? 'home' : 'floor'
+
 /**
  * The before → after line, rounded down like the coverage summary (D27),
- * e.g. "72% → 91% of the floor at Fair or better on 5 GHz."
+ * e.g. "72% → 91% of the floor at Fair or better on 5 GHz." With several
+ * floors it's of the home (D55).
  */
 export function suggestionText(
   suggestion: Suggestion,
@@ -447,11 +479,26 @@ export function suggestionText(
 ): string {
   const goal = targetBand(target)
   const { before, after, beforeWeakestDbm, weakestDbm } = suggestion
-  const line = `${percent(before)} → ${percent(after)} of the floor at ${goal.label} or better on ${BAND_LABELS[suggestion.band]}.`
+  const line = `${percent(before)} → ${percent(after)} of the ${suggestionArea(suggestion)} at ${goal.label} or better on ${BAND_LABELS[suggestion.band]}.`
   if (percent(before) !== percent(after) || beforeWeakestDbm === undefined) {
     return line
   }
   return `${line} The weakest spot improves from ${beforeWeakestDbm.toFixed(0)} to ${weakestDbm.toFixed(0)} dBm.`
+}
+
+/**
+ * One line per floor when a suggestion covers several (D55), from the top
+ * down like the floor stack, e.g. "Upstairs: 40% → 88%".
+ */
+export function suggestionFloorLines(
+  suggestion: Suggestion,
+  plan: Pick<Plan, 'floors'>,
+): string[] {
+  if (suggestion.floors.length < 2) return []
+  return [...suggestion.floors].reverse().map(({ floorId, before, share }) => {
+    const name = plan.floors.find((f) => f.id === floorId)?.name || 'Floor'
+    return `${name}: ${percent(before ?? 0)} → ${percent(share)}`
+  })
 }
 
 /**
@@ -462,9 +509,15 @@ export function suggestionSummary(
   suggestion: Suggestion,
   target: CoverageTarget | undefined,
   units: Units,
+  plan?: Pick<Plan, 'floors'>,
 ): string {
+  // With several floors, each spot says which floor it's on (D55).
+  const floorName = (floorId: string) =>
+    suggestion.floors.length > 1 && plan
+      ? ` on ${plan.floors.find((f) => f.id === floorId)?.name || 'a floor'}`
+      : ''
   const clauses = suggestion.moves.map(({ apId, name, to }) => {
-    const at = `${formatLength(to.x, units)}, ${formatLength(to.y, units)}`
+    const at = `${formatLength(to.x, units)}, ${formatLength(to.y, units)}${floorName(to.floorId)}`
     return apId === undefined ? `add ${name} at ${at}` : `move ${name} to ${at}`
   })
   const last = clauses.pop()!
@@ -473,7 +526,7 @@ export function suggestionSummary(
     ? ' The search hit its 10 second limit, so this is the best found so far.'
     : ''
   const lead = suggestion.howMany
-    ? `${howManyText(suggestion.howMany, suggestion.stoppedEarly)} `
+    ? `${howManyText(suggestion.howMany, suggestion.stoppedEarly, suggestionArea(suggestion))} `
     : ''
   return `${lead}${list[0]!.toUpperCase()}${list.slice(1)}: ${suggestionText(suggestion, target)}${early}`
 }

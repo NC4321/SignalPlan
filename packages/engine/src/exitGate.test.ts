@@ -19,7 +19,6 @@ describe('optimizer exit gate', () => {
       const router = plan.accessPoints[0]!
       return createScorer({
         plan,
-        floorId: router.floorId,
         band: '5GHz',
         minDbm: GOOD_DBM,
         fixed: [],
@@ -34,7 +33,6 @@ describe('optimizer exit gate', () => {
       const router = plan.accessPoints[0]!
       const problem = {
         plan,
-        floorId: router.floorId,
         band: '5GHz' as const,
         minDbm: GOOD_DBM,
         fixed: [],
@@ -47,7 +45,7 @@ describe('optimizer exit gate', () => {
 
       const result = searchSinglePlacement({
         ...problem,
-        current: { x: router.x, y: router.y },
+        current: { x: router.x, y: router.y, floorId: router.floorId },
       })
       if (result.kind !== 'found') throw new Error(result.kind)
       expect(result.stoppedEarly).toBe(false)
@@ -62,13 +60,16 @@ describe('naiveCentre', () => {
     const plan = { floors: [floor] } as Parameters<typeof naiveCentre>[0]
     const scorer = createScorer({
       plan,
-      floorId: floor.id,
       band: '5GHz',
       minDbm: GOOD_DBM,
       fixed: [],
       template: { heightM: 1, radios: [{ band: '5GHz' }] },
     })!
-    expect(naiveCentre(plan, floor.id, scorer)).toEqual({ x: 4, y: 2 })
+    expect(naiveCentre(plan, floor.id, scorer)).toEqual({
+      x: 4,
+      y: 2,
+      floorId: floor.id,
+    })
   })
 
   it('moves off a wall to the nearest allowed spot', () => {
@@ -80,7 +81,6 @@ describe('naiveCentre', () => {
     const plan = { floors: [floor] } as Parameters<typeof naiveCentre>[0]
     const scorer = createScorer({
       plan,
-      floorId: floor.id,
       band: '5GHz',
       minDbm: GOOD_DBM,
       fixed: [],

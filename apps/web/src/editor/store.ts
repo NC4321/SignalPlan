@@ -456,8 +456,8 @@ export function createEditorStore(
           (state.tool === 'floorOpening' && !canCutFloor(state.plan, floorId))
             ? 'select'
             : state.tool,
+        // A search or suggestion covers the whole home, so it stays (D55).
         notice: undefined,
-        ...dropOptimizer(state.optimizer, 'the floor changed'),
       })
     },
 
@@ -550,13 +550,16 @@ export function createEditorStore(
             : `Move ${only.name} to the suggested spot`,
         suggestionRecipe(suggestion),
       )
-      // Select everything that moved or was added.
+      // Select everything that moved or was added on the floor on show.
+      const { floorId } = get()
       const added = get().plan.accessPoints.filter(
         (ap) => !plan.accessPoints.some((old) => old.id === ap.id),
       )
       const ids = [
-        ...suggestion.moves.flatMap((m) => (m.apId ? [m.apId] : [])),
-        ...added.map((ap) => ap.id),
+        ...suggestion.moves.flatMap((m) =>
+          m.apId && m.to.floorId === floorId ? [m.apId] : [],
+        ),
+        ...added.filter((ap) => ap.floorId === floorId).map((ap) => ap.id),
       ]
       get().select(ids.map((id) => ({ kind: 'accessPoint', id })))
     },

@@ -2,19 +2,21 @@ import type { Plan } from '@signalplan/floorplan'
 import { describe, expect, it } from 'vitest'
 import { searchHowMany, searchMultiPlacement } from './multiSearch.ts'
 import { searchSinglePlacement } from './search.ts'
-import { bigHouse, gateHomes } from './testPlans.ts'
+import { bigHouse, gateHomes, twoStoreyHouse } from './testPlans.ts'
 
 /**
  * Speed of the placement optimizer against the 10 s budget (D40), on the
- * exit gate homes and the 300 m² big house (D47). Run with `pnpm speed`.
+ * exit gate homes, the 300 m² big house (D47) and the two-storey house,
+ * scored over both floors (D55). Run with `pnpm speed`.
  *
  * The budget is for a desktop. Each search runs once with its own 10 s cap
  * lifted, so the real time is measured, and CI fails at 1.5× the budget, as
  * for the coverage grid (D26). The searches use Excellent (−50 dBm) on
  * 5 GHz, the strictest target, where every home needs extra access points
  * for the whole floor, so "how many" does the most work. Every search
- * starts from the plan's first access point; the big house's second one is
- * left out.
+ * starts from the plan's first access point; the big house's and the
+ * two-storey house's second one is left out, so added ones may go on either
+ * floor.
  */
 // Both exist in Node and in Web Workers; the engine's lib has no DOM or Node types.
 declare const performance: { now(): number }
@@ -29,7 +31,6 @@ function problemFor(plan: Plan) {
   const router = plan.accessPoints[0]!
   return {
     plan,
-    floorId: router.floorId,
     band: '5GHz' as const,
     minDbm: EXCELLENT_DBM,
     fixed: [],
@@ -44,7 +45,10 @@ const searches: [string, (plan: Plan) => { kind: string }][] = [
     (plan) => {
       const { router, ...problem } = problemFor(plan)
       return searchSinglePlacement(
-        { ...problem, current: { x: router.x, y: router.y } },
+        {
+          ...problem,
+          current: { x: router.x, y: router.y, floorId: router.floorId },
+        },
         { budgetMs: Infinity },
       )
     },
@@ -75,6 +79,10 @@ describe('optimizer speed at Excellent on 5 GHz', () => {
   const homes = [
     ...gateHomes(),
     { name: 'Big house (300 m², 60 walls)', plan: bigHouse() },
+    {
+      name: 'Two-storey house (2 × 150 m², 60 walls each, stairwell)',
+      plan: twoStoreyHouse(),
+    },
   ]
   for (const { name, plan } of homes) {
     for (const [search, run] of searches) {

@@ -46,13 +46,15 @@ export function naiveCentre(plan: Plan, floorId: string, scorer: Scorer) {
   const middle = {
     x: (Math.min(...xs) + Math.max(...xs)) / 2,
     y: (Math.min(...ys) + Math.max(...ys)) / 2,
+    floorId,
   }
   if (scorer.allows(middle)) return middle
   const distance = (p: { x: number; y: number }) =>
     Math.hypot(p.x - middle.x, p.y - middle.y)
-  return candidatePositions(scorer, 0.1).reduce((a, b) =>
-    distance(b) < distance(a) ? b : a,
+  const onFloor = candidatePositions(scorer, 0.1).filter(
+    (at) => at.floorId === floorId,
   )
+  return onFloor.reduce((a, b) => (distance(b) < distance(a) ? b : a))
 }
 
 /**

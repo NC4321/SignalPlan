@@ -44,7 +44,6 @@ function problem(
       floors: [floor],
       accessPoints: [...fixed, ...moving],
     } as Plan,
-    floorId: 'f',
     band: '5GHz',
     minDbm,
     fixed,
@@ -235,8 +234,8 @@ describe('searchHowMany', () => {
     const result = reached(searchHowMany(howMany(twoRooms(), 0.9, { moving })))
     expect(result).toMatchObject({ added: 0, reached: true, share: 1 })
     expect(result.positions).toEqual([
-      { x: 2, y: 2 },
-      { x: 6, y: 2 },
+      { x: 2, y: 2, floorId: 'f' },
+      { x: 6, y: 2, floorId: 'f' },
     ])
   })
 

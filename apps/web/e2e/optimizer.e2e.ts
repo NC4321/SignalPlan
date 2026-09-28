@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
-import { openEditor } from './helpers.ts'
+import { clickPlan, openEditor } from './helpers.ts'
 
 const panel = (page: Page) =>
   page.getByRole('complementary', { name: 'Properties' })
@@ -204,4 +204,59 @@ test('counts the access points needed for the coverage goal (D46)', async ({
   await expect(goal).toHaveValue('1')
   await page.reload()
   await expect(panel(page).getByLabel('Coverage goal')).toHaveValue('0.9')
+})
+
+test('suggests spots across floors and keeps them when switching floors (D55)', async ({
+  page,
+}) => {
+  await openEditor(page)
+  const floors = page.getByRole('navigation', { name: 'Floors' })
+  await floors.getByRole('button', { name: '+ Floor above' }).click()
+  // Close an upper floor over the sample home's front 8 m.
+  await page.keyboard.press('w')
+  for (const [x, y] of [
+    [0, 0],
+    [15, 0],
+    [15, 8],
+    [0, 8],
+    [0, 0],
+  ] as const) {
+    await clickPlan(page, x, y)
+  }
+  await page.keyboard.press('Escape')
+  await page.keyboard.press('v')
+  // Over a concrete slab, the router downstairs doesn't reach it.
+  await panel(page)
+    .getByLabel('Floor construction')
+    .selectOption('concrete-slab')
+  await panel(page).getByLabel('Coverage target').selectOption('excellent')
+
+  await panel(page)
+    .getByRole('button', { name: 'Suggest one more access point' })
+    .click()
+  // The router stays downstairs; the new one goes upstairs.
+  await expect(optimizerStatus(page)).toContainText(
+    /^Move Wi-Fi 6E router to .* on Main floor and add Access point 1 at .* on Upper floor: \d+% → \d+% of the home at Excellent or better on 5 GHz\.$/,
+  )
+  const byFloor = panel(page).getByRole('list', { name: 'By floor' })
+  await expect(byFloor.getByRole('listitem')).toHaveText([
+    /^Upper floor: 0% → \d+%$/,
+    /^Main floor: 83% → \d+%$/,
+  ])
+  await expect(
+    floors.getByRole('button', { name: /^Upper floor.*suggested spots$/ }),
+  ).toBeVisible()
+
+  // Switching floors keeps the suggestion, and shows that floor's spots.
+  await floors.getByRole('button', { name: /^Main floor/ }).click()
+  await expect(coverageStatus(page)).toHaveText(
+    /^With the suggestion: Main floor: /,
+  )
+  await panel(page).getByRole('button', { name: 'Apply' }).click()
+  await floors.getByRole('button', { name: /^Upper floor/ }).click()
+  await expect(coverageStatus(page)).toHaveText(/^Upper floor: \d+% of 120 m²/)
+  await expect(page.getByRole('button', { name: 'Undo' })).toHaveAttribute(
+    'title',
+    /Apply the suggested spots/,
+  )
 })

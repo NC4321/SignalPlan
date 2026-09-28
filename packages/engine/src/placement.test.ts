@@ -88,7 +88,6 @@ function problem(
 ): PlacementProblem {
   return {
     plan: plan(floor, fixed),
-    floorId: 'f',
     band: '5GHz',
     minDbm,
     fixed,
@@ -120,13 +119,17 @@ describe('createScorer', () => {
     const metal = MATERIAL_LOSS_DB['5GHz'].metal
     expect(freeSpaceDbm(1.125) - metal).toBeLessThan(freeSpaceDbm(1.3))
     const scorer = createScorer(problem(twoRooms('metal'), freeSpaceDbm(1.3)))!
-    expect(scorer.share([scorer.signal({ x: 1, y: 1 })])).toBe(0.5)
-    expect(scorer.share([scorer.signal({ x: 3, y: 1 })])).toBe(0.5)
+    expect(scorer.share([scorer.signal({ x: 1, y: 1, floorId: 'f' })])).toBe(
+      0.5,
+    )
+    expect(scorer.share([scorer.signal({ x: 3, y: 1, floorId: 'f' })])).toBe(
+      0.5,
+    )
     // Two moving access points, one per room, cover it all.
     expect(
       scorer.share([
-        scorer.signal({ x: 1, y: 1 }),
-        scorer.signal({ x: 3, y: 1 }),
+        scorer.signal({ x: 1, y: 1, floorId: 'f' }),
+        scorer.signal({ x: 3, y: 1, floorId: 'f' }),
       ]),
     ).toBe(1)
   })
@@ -136,7 +139,7 @@ describe('createScorer', () => {
       problem(twoRooms('metal'), freeSpaceDbm(1.3), [ap('fixed', 3, 1)]),
     )!
     expect(scorer.share([])).toBe(0.5)
-    expect(scorer.share([scorer.signal({ x: 1, y: 1 })])).toBe(1)
+    expect(scorer.share([scorer.signal({ x: 1, y: 1, floorId: 'f' })])).toBe(1)
   })
 
   it('ignores a template with no radio in the band', () => {
@@ -145,8 +148,10 @@ describe('createScorer', () => {
       ...p,
       template: { heightM: 1, radios: [{ band: '6GHz' }] },
     })!
-    expect(scorer.signal({ x: 1, y: 1 })).toHaveLength(0)
-    expect(scorer.share([scorer.signal({ x: 1, y: 1 })])).toBe(0.5)
+    expect(scorer.signal({ x: 1, y: 1, floorId: 'f' })).toHaveLength(0)
+    expect(scorer.share([scorer.signal({ x: 1, y: 1, floorId: 'f' })])).toBe(
+      0.5,
+    )
   })
 
   it('agrees with the coverage summary on the sample home', () => {
@@ -157,7 +162,6 @@ describe('createScorer', () => {
     const router = home.accessPoints[0]!
     const scorer = createScorer({
       plan: home,
-      floorId,
       band: '5GHz',
       minDbm: -67,
       fixed: [],
@@ -201,7 +205,6 @@ describe('createScorer', () => {
     }
     const problem = {
       plan: home,
-      floorId,
       band: '5GHz' as const,
       minDbm: -60,
       template: router,
@@ -226,18 +229,18 @@ describe('candidatePositions', () => {
     const points = candidatePositions(scorer)
     // x = 0.25 … 3.75 and y = 0.25 … 1.75: 8 × 4, all 0.25 m from walls.
     expect(points).toHaveLength(32)
-    expect(points[0]).toEqual({ x: 0.25, y: 0.25 })
-    expect(points.at(-1)).toEqual({ x: 3.75, y: 1.75 })
+    expect(points[0]).toEqual({ x: 0.25, y: 0.25, floorId: 'f' })
+    expect(points.at(-1)).toEqual({ x: 3.75, y: 1.75, floorId: 'f' })
   })
 
   it('refuses positions outside, on or against a wall', () => {
     const scorer = createScorer(problem(twoRooms('drywall'), -67))!
-    expect(scorer.allows({ x: 1, y: 1 })).toBe(true)
-    expect(scorer.allows({ x: 1.85, y: 1 })).toBe(true)
-    expect(scorer.allows({ x: 1.95, y: 1 })).toBe(false)
-    expect(scorer.allows({ x: 2, y: 1 })).toBe(false)
-    expect(scorer.allows({ x: -0.5, y: 1 })).toBe(false)
-    expect(scorer.allows({ x: 9, y: 9 })).toBe(false)
+    expect(scorer.allows({ x: 1, y: 1, floorId: 'f' })).toBe(true)
+    expect(scorer.allows({ x: 1.85, y: 1, floorId: 'f' })).toBe(true)
+    expect(scorer.allows({ x: 1.95, y: 1, floorId: 'f' })).toBe(false)
+    expect(scorer.allows({ x: 2, y: 1, floorId: 'f' })).toBe(false)
+    expect(scorer.allows({ x: -0.5, y: 1, floorId: 'f' })).toBe(false)
+    expect(scorer.allows({ x: 9, y: 9, floorId: 'f' })).toBe(false)
   })
 })
 

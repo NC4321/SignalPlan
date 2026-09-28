@@ -1,4 +1,4 @@
-import type { AccessPoint, Point } from '@signalplan/floorplan'
+import type { AccessPoint } from '@signalplan/floorplan'
 import { DEFAULT_CELL_M } from './coverage.ts'
 import {
   betterScore,
@@ -8,10 +8,13 @@ import {
   type PlacementProblem,
   type PlacementScore,
   type Scorer,
+  type Spot,
 } from './placement.ts'
 import {
+  floorShares,
   REFINE_STEPS_M,
   SEARCH_BUDGET_MS,
+  type FloorShare,
   type SearchOptions,
 } from './search.ts'
 
@@ -31,7 +34,10 @@ export const JUMP_CHANCE = 0.2
 export const ANNEAL_START_STEP_M = 2
 
 export interface MultiPlacementProblem extends PlacementProblem {
-  /** Access points that may move, at their current spots (the unlocked ones). */
+  /**
+   * Access points that may move, at their current spots (the unlocked
+   * ones). Each stays on its own floor; added ones may go on any (D55).
+   */
   moving: readonly AccessPoint[]
   /** How many access points to add; each is like `template`. */
   add: number
@@ -41,13 +47,18 @@ export type MultiSearchResult =
   | {
       kind: 'found'
       /** New spots for `moving`, in order, then those of the added ones. */
-      positions: Point[]
-      /** Share of the floor at the target with them there, on 10 cm cells. */
+      positions: Spot[]
+      /**
+       * Share of the home's floor area at the target with them there, on
+       * 10 cm cells (D55).
+       */
       share: number
       weakestDbm: number
       /** The same with `moving` where they are now and nothing added. */
       before: number
       beforeWeakestDbm: number
+      /** Each floor's share before and after, from the lowest up. */
+      floors: FloorShare[]
       /** True if the time budget ran out and the search stopped early. */
       stoppedEarly: boolean
     }
@@ -85,6 +96,7 @@ export function searchMultiPlacement(
     weakestDbm: placed.weakestDbm,
     before: session.before.share,
     beforeWeakestDbm: session.before.weakestDbm,
+    floors: session.floors(placed.at, add),
     stoppedEarly: session.stoppedEarly(),
   }
 }
@@ -109,13 +121,18 @@ export type HowManyResult =
       /** False if even the most added didn't reach the goal. */
       reached: boolean
       /** New spots for `moving`, in order, then those of the added ones. */
-      positions: Point[]
-      /** Share of the floor at the target with them there, on 10 cm cells. */
+      positions: Spot[]
+      /**
+       * Share of the home's floor area at the target with them there, on
+       * 10 cm cells (D55).
+       */
       share: number
       weakestDbm: number
       /** The same with `moving` where they are now and nothing added. */
       before: number
       beforeWeakestDbm: number
+      /** Each floor's share before and after, from the lowest up. */
+      floors: FloorShare[]
       /** True if the time budget ran out and the search stopped early. */
       stoppedEarly: boolean
     }
@@ -140,11 +157,11 @@ export function searchHowMany(
   const session = startSession(problem, options)
   if (!session) return { kind: 'no-floor-area' }
   const { before } = session
-  const current = moving.map((ap) => ({ x: ap.x, y: ap.y }))
+  const current = moving.map(spotOf)
   const reaches = (share: number) => share >= goal - 1e-9
   const result = (
     added: number,
-    placed: { at: Point[] } & PlacementScore,
+    placed: { at: Spot[] } & PlacementScore,
   ): HowManyResult => {
     options.onProgress?.(1)
     return {
@@ -156,6 +173,7 @@ export function searchHowMany(
       weakestDbm: placed.weakestDbm,
       before: before.share,
       beforeWeakestDbm: before.weakestDbm,
+      floors: session.floors(placed.at, added),
       stoppedEarly: session.stoppedEarly(),
     }
   }
@@ -170,8 +188,8 @@ export function searchHowMany(
   }
   session.expect(work)
 
-  let best: ({ at: Point[]; added: number } & PlacementScore) | undefined
-  let previous: Point[] | undefined
+  let best: ({ at: Spot[]; added: number } & PlacementScore) | undefined
+  let previous: Spot[] | undefined
   for (let add = first; add <= most; add++) {
     const placed = session.place(add, previous)
     // Another access point is only worth it for a larger share: one more
@@ -186,6 +204,12 @@ export function searchHowMany(
 const hasRadio = (problem: PlacementProblem) =>
   problem.template.radios.some((r) => r.band === problem.band)
 
+const spotOf = (ap: AccessPoint): Spot => ({
+  x: ap.x,
+  y: ap.y,
+  floorId: ap.floorId,
+})
+
 interface Session {
   /** The moving ones where they are, with nothing added, on 10 cm cells. */
   before: PlacementScore
@@ -199,11 +223,13 @@ interface Session {
    * With `previous`, the winner for one fewer, that plus one placed greedily
    * is a third start.
    */
-  place: (add: number, previous?: readonly Point[]) => Confirmed
+  place: (add: number, previous?: readonly Spot[]) => Confirmed
+  /** Each floor's share with these spots (`add` of them added), and before. */
+  floors: (at: readonly Spot[], add: number) => FloorShare[]
   stoppedEarly: () => boolean
 }
 
-type Confirmed = { at: Point[] } & PlacementScore
+type Confirmed = { at: Spot[] } & PlacementScore
 
 /**
  * What searches with different numbers added share: the scorers, the
@@ -244,33 +270,66 @@ function startSession(
     options.onProgress?.(Math.min(done / total, 1))
   }
 
-  const lattice = new Map<string, Float32Array[]>()
-  const latticeFor = (template: AccessPointTemplate) => {
+  // Candidates each moving access point may take: those on its own floor,
+  // or (for an added one, `undefined`) on any floor (D55).
+  const everywhere = candidates.map((_, k) => k)
+  const onFloor = new Map<string, number[]>()
+  candidates.forEach((at, k) => {
+    const list = onFloor.get(at.floorId) ?? []
+    list.push(k)
+    onFloor.set(at.floorId, list)
+  })
+  const allowed = (floorId: string | undefined) =>
+    floorId === undefined ? everywhere : (onFloor.get(floorId) ?? [])
+  const floorOf = (i: number) => moving[i]?.floorId
+
+  // Each kind's signal from a candidate, worked out the first time it's needed.
+  const lattice = new Map<string, (Float32Array | undefined)[]>()
+  const latticeSignal = (template: AccessPointTemplate, k: number) => {
     const kind = kindOf(template)
     let signals = lattice.get(kind)
     if (!signals) {
-      signals = []
-      for (const at of candidates) {
-        if (outOfTime() && signals.length > 0) break
-        signals.push(coarse.signal(at, template))
-        progress(1)
-      }
+      signals = new Array<Float32Array | undefined>(candidates.length)
       lattice.set(kind, signals)
     }
-    return signals
+    let signal = signals[k]
+    if (!signal) {
+      signal = coarse.signal(candidates[k]!, template)
+      signals[k] = signal
+      progress(1)
+    }
+    return signal
   }
-  /** Adds an access point like `template` at the best lattice spot. */
-  const placeGreedily = (layout: Layout, template: AccessPointTemplate) => {
-    const signals = latticeFor(template)
+  /**
+   * Adds an access point like `template` at the best lattice spot it may
+   * take, on `floorId` or anywhere.
+   */
+  const placeGreedily = (
+    layout: Layout,
+    template: AccessPointTemplate,
+    floorId: string | undefined,
+  ) => {
     let best: (PlacementScore & { k: number }) | undefined
-    for (let k = 0; k < signals.length; k++) {
+    for (const k of allowed(floorId)) {
       if (best && outOfTime()) break
-      const score = coarse.score([...layout.signals, signals[k]!])
+      const score = coarse.score([
+        ...layout.signals,
+        latticeSignal(template, k),
+      ])
       if (!best || betterScore(score, best)) best = { ...score, k }
       progress(1)
     }
-    layout.at.push(candidates[best!.k]!)
-    layout.signals.push(signals[best!.k]!)
+    if (!best) {
+      // A moving access point on a floor with no candidates (no closed
+      // outline) stays where it is. Added ones can go anywhere, and there
+      // is always a candidate somewhere.
+      const ap = moving[layout.at.length]!
+      layout.at.push(spotOf(ap))
+      layout.signals.push(coarse.signal(spotOf(ap), ap))
+      return
+    }
+    layout.at.push(candidates[best.k]!)
+    layout.signals.push(latticeSignal(template, best.k))
   }
 
   const counts = (add: number) => {
@@ -284,8 +343,8 @@ function startSession(
 
   // Starts and counts share many spots, so 10 cm signals are kept too.
   const fineSignals = new Map<string, Float32Array>()
-  const fineSignal = (at: Point, template: AccessPointTemplate) => {
-    const key = `${at.x},${at.y}|${kindOf(template)}`
+  const fineSignal = (at: Spot, template: AccessPointTemplate) => {
+    const key = `${at.floorId}|${at.x},${at.y}|${kindOf(template)}`
     let signal = fineSignals.get(key)
     if (!signal) {
       signal = fine.signal(at, template)
@@ -295,13 +354,26 @@ function startSession(
   }
 
   const kept: Layout = {
-    at: moving.map((ap) => ({ x: ap.x, y: ap.y })),
-    signals: moving.map((ap) => coarse.signal(ap, ap)),
+    at: moving.map(spotOf),
+    signals: moving.map((ap) => coarse.signal(spotOf(ap), ap)),
   }
   const fresh: Layout = { at: [], signals: [] }
+  const beforeSignals = moving.map((ap) => fine.signal(spotOf(ap), ap))
+  const templatesFor = (add: number): AccessPointTemplate[] => [
+    ...moving,
+    ...Array.from({ length: add }, () => problem.template),
+  ]
 
   return {
-    before: fine.score(moving.map((ap) => fine.signal(ap, ap))),
+    before: fine.score(beforeSignals),
+    floors(at, add) {
+      const templates = templatesFor(add)
+      return floorShares(
+        fine,
+        at.map((p, i) => fineSignal(p, templates[i]!)),
+        beforeSignals,
+      )
+    },
     latticeWork: candidates.length * kinds.size,
     // Rough work units: greedy checks, annealing steps, polishing.
     placeWork(add, grown = false) {
@@ -315,19 +387,16 @@ function startSession(
     stoppedEarly: () => stoppedEarly,
     place(add, previous) {
       const { count, steps, polishWork } = counts(add)
-      const templates: AccessPointTemplate[] = [
-        ...moving,
-        ...Array.from({ length: add }, () => problem.template),
-      ]
+      const templates = templatesFor(add)
       // Two starts: the moving ones where they are with the added ones
       // placed greedily, and every one placed greedily in turn. Greedy
       // placements only depend on the ones before, so they're kept between
       // counts and extended.
       for (let i = kept.at.length; i < count; i++) {
-        placeGreedily(kept, templates[i]!)
+        placeGreedily(kept, templates[i]!, floorOf(i))
       }
       for (let i = fresh.at.length; i < count; i++) {
-        placeGreedily(fresh, templates[i]!)
+        placeGreedily(fresh, templates[i]!, floorOf(i))
       }
       const first = (layout: Layout): Layout => ({
         at: layout.at.slice(0, count),
@@ -339,7 +408,7 @@ function startSession(
           at: [...previous],
           signals: previous.map((p, i) => coarse.signal(p, templates[i])),
         }
-        placeGreedily(grown, problem.template)
+        placeGreedily(grown, problem.template, undefined)
         starts.push(grown)
       }
       const start = starts.reduce((a, b) =>
@@ -347,16 +416,20 @@ function startSession(
       )
 
       // Refine all of them together, then polish each in turn.
-      let best = anneal(coarse, start, templates, candidates, steps, {
-        outOfTime,
-        progress,
-      })
+      let best = anneal(
+        coarse,
+        start,
+        templates,
+        (i) => allowed(floorOf(i)).map((k) => candidates[k]!),
+        steps,
+        { outOfTime, progress },
+      )
       if (refine) best = polish(coarse, best, templates, outOfTime)
       progress(polishWork)
 
       // Confirm on 10 cm cells: refining wins only if it beats every start,
       // so it never lowers the score.
-      const fineScore = (at: Point[]): Confirmed => ({
+      const fineScore = (at: Spot[]): Confirmed => ({
         at,
         ...fine.score(at.map((p, i) => fineSignal(p, templates[i]!))),
       })
@@ -368,7 +441,7 @@ function startSession(
 }
 
 interface Layout {
-  at: Point[]
+  at: Spot[]
   signals: Float32Array[]
 }
 
@@ -387,7 +460,8 @@ function anneal(
   scorer: Scorer,
   start: Layout,
   templates: readonly AccessPointTemplate[],
-  candidates: readonly Point[],
+  /** The lattice candidates access point i may jump to. */
+  candidatesFor: (i: number) => readonly Spot[],
   steps: number,
   {
     outOfTime,
@@ -403,6 +477,7 @@ function anneal(
   const tStart = 0.01 * scorer.cellCount
   const tEnd = 0.05
   const finest = REFINE_STEPS_M.at(-1)!
+  const jumps = start.at.map((_, i) => candidatesFor(i))
 
   for (let step = 0; step < steps; step++) {
     if (outOfTime()) break
@@ -412,7 +487,8 @@ function anneal(
     const reach = ANNEAL_START_STEP_M * (finest / ANNEAL_START_STEP_M) ** t
     const i = step % current.at.length
 
-    let to: Point
+    let to: Spot
+    const candidates = jumps[i]!
     if (random() < JUMP_CHANCE && candidates.length > 0) {
       to = candidates[Math.floor(random() * candidates.length)]!
     } else {
@@ -422,6 +498,7 @@ function anneal(
       to = {
         x: round(from.x + length * Math.cos(angle)),
         y: round(from.y + length * Math.sin(angle)),
+        floorId: from.floorId,
       }
     }
     // Draw the acceptance number every step, so the sequence doesn't depend
@@ -477,6 +554,7 @@ function polish(
             const to = {
               x: round(best.at[i]!.x + dx * step),
               y: round(best.at[i]!.y + dy * step),
+              floorId: best.at[i]!.floorId,
             }
             if (!scorer.allows(to)) continue
             const signals = [...best.signals]
