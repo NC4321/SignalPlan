@@ -4,6 +4,10 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-09-28
+
+M2: smart placement. The optimizer suggests where to put one or more access points, and how many a home needs, with a before → after comparison.
+
 ### Added
 
 - Optimizer exit gate: two more test homes (a 65 m² concrete apartment and a 220 m² L-shaped house) next to the sample home. A test shows the suggested router spot beats a router in the middle of each home at Good on 5 GHz (87.4% → 90.5%, 72.1% → 97.4%, 75.6% → 100%), and `pnpm speed` now checks that every search finishes within the 10 s budget (CI fails at 15 s). `docs/MODEL.md` has a new section on how the optimizer works and its limits (D47).
@@ -59,5 +63,6 @@ M1: single-floor MVP. Draw a floor to scale, add doors, windows and access point
 - Wall tool: between chains, pressing on an access point now selects or drags it instead of starting a wall (hold Alt to start a wall there). Door and Window tools grab access points the same way.
 - Access point tool: pressing on an existing access point now grabs it to move it, instead of stacking a new one on top.
 
-[Unreleased]: https://github.com/NC4321/SignalPlan/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/NC4321/SignalPlan/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/NC4321/SignalPlan/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/NC4321/SignalPlan/releases/tag/v0.1.0
