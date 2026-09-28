@@ -89,6 +89,13 @@ A running log of project decisions, newest last. Each entry records what was dec
 - **Limits:** Chromium doesn't throttle dedicated workers, so slow-phone worker times are the desktop times × 4–6, not measured.
 - **Revisit if:** a real phone or the usability test (#46) feels laggy, multi-floor or larger plans push the big house past its budget, or a spatial index becomes worthwhile.
 
+### D30. Wall loss stays at normal incidence — 2026-09-27
+
+- **Decision:** each wall crossing keeps the loss computed for a wave meeting the wall head on, whatever the angle of the path. No build issue follows.
+- **Why:** the P.2040 slab method in `slab.ts` already takes an angle, so the effect was measured rather than guessed. Loss doesn't simply grow with angle: from 0° to 60° it moves by a few dB either way, and plain glass, low-E glass and the stud wall lose _less_ at some angles between 30° and 60° than head on (e.g. low-E glass at 5 GHz: 29.9 dB at 0°, 22.2 dB at 60°). Past about 80° every material climbs steeply, up to 40 dB or more near 89°. Replaying the sample home and the big house with angle-dependent loss (from a 1° table, so compute isn't the obstacle) moved the median cell by at most 0.5 dB and 90% of cells by at most about 3 dB, and the share of the floor at −67 dBm or better by 0.2 points at most. Without a cap on the angle, a few nearly parallel crossings dropped by 8–22 dB. The effect is well inside P.1238-13's 5 dB spread and the model's other known limits (D24), and a heatmap that brightens behind glass at an angle would look like a bug.
+- **Validation and P.1238:** unchanged. The Shakya et al. samples were measured head on, and the P.1238 comparison in [MODEL.md](MODEL.md#against-the-itu-r-p1238-13-indoor-model) counts walls without angles.
+- **Revisit if:** Phase 7 measurements show a consistent error along corridors or beside long walls; if so, use the P.2040 angle with a cap of about 60–75° so grazing crossings stay finite.
+
 ## Phase 3
 
 ### D12. Heatmap colours — 2026-09-27
