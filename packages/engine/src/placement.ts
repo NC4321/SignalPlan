@@ -10,7 +10,7 @@ import {
   signalDbm,
   type Grid,
 } from './coverage.ts'
-import { preparedWallLoss } from './crossings.ts'
+import { indexedWallLoss, indexWalls } from './crossings.ts'
 import { floorAreaMask } from './floorArea.ts'
 import { crossingLossDb, floorCrossing, prepareStack } from './floors.ts'
 
@@ -168,16 +168,23 @@ export function createScorer(problem: PlacementProblem): Scorer | undefined {
     for (const f of floors) {
       const end = f.start + f.cellCount
       if (f.storey === from) {
-        const walls = stack[from]!.walls
+        const walls = indexWalls(stack[from]!.walls, ap.x, ap.y)
         for (let k = f.start; k < end; k++) {
           const x = cellX[k]!
           const y = cellY[k]!
-          const loss = preparedWallLoss(walls, ap.x, ap.y, x, y)
+          const loss = indexedWallLoss(walls, ap.x, ap.y, x, y)
           out[k] = signalDbm(ap, radio, x, y, loss)
         }
         continue
       }
-      const crossing = floorCrossing(stack, from, apZ, f.storey, f.receiverZ)
+      const crossing = floorCrossing(
+        stack,
+        from,
+        apZ,
+        f.storey,
+        f.receiverZ,
+        ap,
+      )
       const dz = apZ - f.receiverZ
       for (let k = f.start; k < end; k++) {
         const x = cellX[k]!

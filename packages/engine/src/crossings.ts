@@ -181,6 +181,14 @@ export function preparedWallLoss(
   fromY: number,
   toX: number,
   toY: number,
+  /**
+   * Only these segments, in increasing order, from `ids[lo]` up to but not
+   * including `ids[hi]`; every segment if omitted. Leaving out segments the
+   * path can't cross gives the same total.
+   */
+  ids?: Int32Array,
+  lo = 0,
+  hi = walls.count,
 ): number {
   const rx = toX - fromX
   const ry = toY - fromY
@@ -194,7 +202,8 @@ export function preparedWallLoss(
   const { hitT, hitLoss } = walls
 
   let hits = 0
-  for (let i = 0; i < walls.count; i++) {
+  for (let k = lo; k < hi; k++) {
+    const i = ids ? ids[k]! : k
     if (
       walls.maxX[i]! < loX ||
       walls.minX[i]! > hiX ||
@@ -245,4 +254,139 @@ export function preparedWallLoss(
     total += loss
   }
   return total
+}
+
+/** Directions from a point are sorted into this many equal sectors. */
+const SECTORS = 256
+
+/** Paths shorter than this test every wall. */
+const TINY_PATH_M = 1e-9
+
+/** Walls closer than this to the point are listed in every sector. */
+const NEAR_M = 1e-4
+
+/**
+ * Walls sorted by direction as seen from one point, the access point (D56).
+ * Every path from it is part of a ray from that point, so a path only needs
+ * the walls whose angle range contains the ray's: `sectorIds` lists, for
+ * each sector, the walls that could be crossed by a ray through it, in
+ * increasing order. The totals are the same as testing every wall.
+ */
+export interface WallIndex {
+  walls: PreparedWalls
+  x: number
+  y: number
+  /** Sector s lists `ids[start[s]]` up to `ids[start[s + 1]]`. */
+  start: Int32Array
+  ids: Int32Array
+}
+
+/**
+ * A direction as a number from 0 up to 4 that grows with the angle
+ * anticlockwise from +x, without trigonometry.
+ */
+function pseudoAngle(dx: number, dy: number): number {
+  const p = dx / (Math.abs(dx) + Math.abs(dy))
+  return dy < 0 ? 3 + p : 1 - p
+}
+
+const sectorOf = (angle: number) =>
+  Math.min(Math.floor((angle / 4) * SECTORS), SECTORS - 1)
+
+export function indexWalls(
+  walls: PreparedWalls,
+  x: number,
+  y: number,
+): WallIndex {
+  // For each wall, the sectors it spans as seen from (x, y): the arc from one
+  // end to the other the short way round, with its ends stretched by the
+  // crossing slack and one extra sector each side to be safe.
+  const spans: [number, number][] = []
+  for (let i = 0; i < walls.count; i++) {
+    const length = walls.length[i]!
+    if (length === 0) {
+      spans.push([0, -1])
+      continue
+    }
+    const ux = walls.sx[i]! / length
+    const uy = walls.sy[i]! / length
+    const ax = walls.ax[i]! - ux * 2 * SAME_CROSSING_M - x
+    const ay = walls.ay[i]! - uy * 2 * SAME_CROSSING_M - y
+    const bx = walls.ax[i]! + walls.sx[i]! + ux * 2 * SAME_CROSSING_M - x
+    const by = walls.ay[i]! + walls.sy[i]! + uy * 2 * SAME_CROSSING_M - y
+    // Distance from the point to the stretched segment.
+    const along = Math.min(
+      Math.max(-(ax * ux + ay * uy), 0),
+      length + 4 * SAME_CROSSING_M,
+    )
+    const near = Math.hypot(ax + ux * along, ay + uy * along) < NEAR_M
+    if (near) {
+      spans.push([0, SECTORS - 1])
+      continue
+    }
+    let from = pseudoAngle(ax, ay)
+    let to = pseudoAngle(bx, by)
+    // The short way round: the arc from `from` to `to` anticlockwise.
+    if (ax * by - ay * bx < 0) [from, to] = [to, from]
+    const first = sectorOf(from) - 1
+    let last = sectorOf(to) + 1
+    if (last < first) last += SECTORS
+    spans.push(last - first >= SECTORS ? [0, SECTORS - 1] : [first, last])
+  }
+  const counts = new Int32Array(SECTORS + 1)
+  const each = (visit: (sector: number, i: number) => void) =>
+    spans.forEach(([first, last], i) => {
+      if (last - first >= SECTORS - 1 && first === 0) {
+        for (let s = 0; s < SECTORS; s++) visit(s, i)
+        return
+      }
+      for (let s = first; s <= last; s++) visit((s + SECTORS) % SECTORS, i)
+    })
+  each((sector) => counts[sector + 1]!++)
+  const start = new Int32Array(SECTORS + 1)
+  for (let s = 0; s < SECTORS; s++) start[s + 1] = start[s]! + counts[s + 1]!
+  const ids = new Int32Array(start[SECTORS]!)
+  const fill = start.slice(0, SECTORS)
+  // Walls in index order, so each sector's list is increasing.
+  each((sector, i) => {
+    ids[fill[sector]!++] = i
+  })
+  return { walls, x, y, start, ids }
+}
+
+/**
+ * The same total as `preparedWallLoss` for a path along a ray from the
+ * index's point, testing only the walls in the ray's sector.
+ */
+export function indexedWallLoss(
+  index: WallIndex,
+  fromX: number,
+  fromY: number,
+  toX: number,
+  toY: number,
+): number {
+  // Paths this short make the crossing arithmetic overflow, so every wall
+  // is tested, exactly as `preparedWallLoss` does.
+  if (Math.hypot(toX - fromX, toY - fromY) < TINY_PATH_M) {
+    return preparedWallLoss(index.walls, fromX, fromY, toX, toY)
+  }
+  // The path's far end gives the ray's direction.
+  let dx = toX - index.x
+  let dy = toY - index.y
+  if (dx === 0 && dy === 0) {
+    dx = fromX - index.x
+    dy = fromY - index.y
+    if (dx === 0 && dy === 0) return 0
+  }
+  const sector = sectorOf(pseudoAngle(dx, dy))
+  return preparedWallLoss(
+    index.walls,
+    fromX,
+    fromY,
+    toX,
+    toY,
+    index.ids,
+    index.start[sector]!,
+    index.start[sector + 1]!,
+  )
 }

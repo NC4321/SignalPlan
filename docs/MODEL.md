@@ -56,19 +56,21 @@ For several access points (D45), added ones go in one at a time at the best latt
 
 The gain over the middle is small in the sample home, where brick and concrete walls leave about a tenth of the floor short of Good from any single spot. It is large where the middle sits behind a strong wall from much of the floor: in the apartment's living room, or at the L-shape's inner corner.
 
-**Speed.** `pnpm speed` also runs `optimizer.speed.ts`: the best spot for the router, one more access point, and how many for 100% of the floor, at Excellent on 5 GHz, where every home needs more access points. The big house starts from its first access point only. Each search runs once with its 10 s cap lifted, so the real time is measured. The budget is 10 s on a desktop, and CI fails at 15 s (1.5×, as D26). On the development machine (i5-12600K), from 2026-09-28:
+**Speed.** `pnpm speed` also runs `optimizer.speed.ts`: the best spot for the router, one more access point, and how many for 100% of the floor, at Excellent on 5 GHz, where every home needs more access points. The big house starts from its first access point only. Each search runs once with its 10 s cap lifted, so the real time is measured. The budget is 10 s on a desktop, and CI fails at 15 s (1.5×, as D26). On the development machine (i5-12600K), from 2026-09-28, with walls sorted by direction (D56):
 
 | Plan                    | Best spot | One more | How many for 100% |
 | ----------------------- | --------- | -------- | ----------------- |
-| Sample home (150 m²)    | 0.35 s    | 0.51 s   | 0.98 s (2 more)   |
-| Apartment (65 m²)       | 0.06 s    | 0.12 s   | 0.14 s (1 more)   |
-| L-shaped house (220 m²) | 0.76 s    | 1.05 s   | 1.25 s (1 more)   |
-| Big house (300 m²)      | 2.59 s    | 3.34 s   | 5.57 s (2 more)   |
-| Two-storey house (D55)  | 1.84 s    | 4.17 s   | 7.11 s            |
+| Sample home (150 m²)    | 0.25 s    | 0.36 s   | 0.73 s (2 more)   |
+| Apartment (65 m²)       | 0.05 s    | 0.12 s   | 0.13 s (1 more)   |
+| L-shaped house (220 m²) | 0.51 s    | 0.74 s   | 0.85 s (1 more)   |
+| Big house (300 m²)      | 1.19 s    | 1.59 s   | 2.63 s (2 more)   |
+| Two-storey house (D55)  | 0.93 s    | 2.08 s   | 3.61 s (2 more)   |
+
+Before D56 they were 0.35 / 0.51 / 0.98 s, 0.06 / 0.12 / 0.14 s, 0.76 / 1.05 / 1.25 s, 2.59 / 3.34 / 5.57 s and 1.84 / 4.17 / 7.11 s.
 
 The two-storey house is the coverage speed plan's (two 150 m² floors of 25 rooms over a timber joist floor, with a stairwell), scored over both floors from its router downstairs; its second access point is left out, so added ones may go on either floor. It has as many cells and lattice spots as the big house, and each signal also crosses a floor, so it is the slowest search.
 
-On the CI runner (GitHub ubuntu-latest), in the run for #84: sample home 0.48 / 0.70 / 1.35 s, apartment 0.08 / 0.18 / 0.21 s, L-shaped house 1.03 / 1.45 / 1.70 s, and big house 3.46 / 4.50 / 7.39 s. That is about 1.35× the desktop, less than the grid's 1.8×, and the slowest search stays under the 10 s budget itself. The runner varies: in the runs for #100 and #101 it was about 1.8× the desktop (big house 4.81 / 6.19 / 10.18 s, two-storey house 3.32 / 7.54 / 12.70 s; then 10.37 s and 13.04 s for how many), so both how-many searches went past 10 s there, under the 15 s CI limit but with little room for the two-storey house. At that speed a real search stops at 10 s and returns the best layout found so far.
+On the CI runner (GitHub ubuntu-latest), in the run for #84: sample home 0.48 / 0.70 / 1.35 s, apartment 0.08 / 0.18 / 0.21 s, L-shaped house 1.03 / 1.45 / 1.70 s, and big house 3.46 / 4.50 / 7.39 s. That is about 1.35× the desktop, less than the grid's 1.8×, and the slowest search stays under the 10 s budget itself. The runner varies: in the runs for #100 and #101 it was about 1.8× the desktop (big house 4.81 / 6.19 / 10.18 s, two-storey house 3.32 / 7.54 / 12.70 s; then 10.37 s and 13.04 s for how many), so both how-many searches went past 10 s there, under the 15 s CI limit but with little room for the two-storey house. At that speed a real search stopped at 10 s and returned the best layout found so far, which led to D56. With walls sorted by direction (D56), the run for #103 took: sample home 0.49 / 0.69 / 1.37 s, apartment 0.10 / 0.22 / 0.25 s, L-shaped house 0.93 / 1.38 / 1.58 s, big house 2.12 / 2.88 / 4.70 s and two-storey house 1.64 / 3.73 / 6.41 s, all within the 10 s budget itself.
 
 **Limits.** The optimizer finds good spots for this model, not guaranteed best ones, and inherits every limit of the model below.
 
@@ -90,18 +92,22 @@ The Phase 2 budget is a 100 m² floor at 10 cm cells in under 200 ms. Large home
 - a "big house" of 25 rooms, each 4 × 3 m, in 20 × 15 m, laid out the same way;
 - a two-storey house (D51): two floors of 25 rooms, each 3 × 2 m, in 15 × 10 m, laid out the same way, with a timber joist floor between, a 1 × 3 m stairwell through it (D54), the router downstairs and one access point upstairs. It's 300 m² in all, so it has the big house's budget, and each floor is timed with both access points, one of them through the floor.
 
-Median per band, from 2026-09-27:
+Median on 5 GHz, from 2026-09-28, with walls sorted by direction (D56); CI from the run for #103:
 
 | Plan                            | Grid   | Budget | Desktop (i5-12600K) | CI runner (GitHub ubuntu-latest) |
 | ------------------------------- | ------ | ------ | ------------------- | -------------------------------- |
-| Sample home (22 walls, 1 AP)    | 204 m² | 200 ms | 3.5 ms              | 6.3 ms                           |
-| Room grid (60 walls, 2 APs)     | 144 m² | 200 ms | 11 ms               | 21 ms                            |
-| Big house (300 m², 60 walls, 2) | 374 m² | 50 ms  | 28 ms               | 50 ms                            |
-| Two-storey house, each floor    | 204 m² | 50 ms  | 20 ms               | 31 ms                            |
+| Sample home (22 walls, 1 AP)    | 204 m² | 200 ms | 2.4 ms              | 4.8 ms                           |
+| Room grid (60 walls, 2 APs)     | 144 m² | 200 ms | 4.8 ms              | 9.3 ms                           |
+| Big house (300 m², 60 walls, 2) | 374 m² | 50 ms  | 11.5 ms             | 22 ms                            |
+| Two-storey house, each floor    | 204 m² | 50 ms  | 8.7 ms              | 16.5 ms                          |
+
+Before D56 the desktop took 3.5, 11, 28 and 20 ms, and CI 6.3, 21, 50 and 31 ms.
 
 CI runs about 1.8× slower than the desktop and runner hardware varies, so the CI check fails at 1.5× each budget (D26): 300 ms, or 75 ms for the big house.
 
 **How it's fast.** Before the grid is filled, each wall segment's direction, length, bounding box and loss are worked out once. Then, for each cell, a segment whose bounding box is clear of the path's is skipped, and hits go into reused buffers instead of new arrays. The arithmetic is otherwise the one in `crossings` and `wallLoss`, in the same order. So every cell gets exactly the same value as `predictDbm`, and property tests check this bit for bit. This made the grid 5–7× faster (the big house went from about 210 ms to 28 ms) without a spatial index (D11).
+
+**Walls sorted by direction (D56).** Every path from an access point, on its own floor or through the storeys to another, lies along a ray from the access point. So before a grid or an optimizer signal is filled, each floor's wall segments are sorted into 256 equal sectors of direction as seen from the access point: a segment goes into every sector its angle range touches, one more on each side, with its ends stretched by the crossing slack, and a segment within 0.1 mm of the access point goes into all of them. A cell then tests only the segments in its ray's sector, in the same order as before, so the totals are exactly the same; a property test checks this bit for bit over 5,000 random layouts, including stretches of paths that start partway along the ray, and paths shorter than 1 nm test every segment. Directions use a pseudo-angle (from |dx| and |dy|) rather than trigonometry. This roughly halved both the optimizer's searches and the grid on large homes.
 
 **While dragging.** In the browser, CPU throttling of 4× and 6× keeps the editor at 56–60 frames a second: drawing the heatmap bitmap on the page is cheap. The grid runs in a Web Worker, and only the newest request waits behind the one running. Chromium's throttling doesn't reach workers, so worker time on a slow phone is estimated as the desktop time × 4–6. For the big house that's about 110–170 ms per update.
 
