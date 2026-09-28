@@ -6,6 +6,7 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ### Added
 
+- README demo GIF (draw walls, place an access point, drag it), recorded by `scripts/record-demo.mjs` so it can be regenerated.
 - Engine: wall losses validated against NIST measurements at 5 and 6 GHz; drywall, glass and lumber stay within 5 dB in a unit test, and the brick and concrete disagreement is documented in `docs/MODEL.md`.
 - File › Export image…: a PNG of the floor with its heatmap, access point names, legend, coverage summary and a scale bar, in three sizes and a light or dark theme, named after the plan and band.
 - Coverage summary: under the heatmap legend, the share of the floor inside the outer walls that reaches a chosen target (Excellent, Good, Fair or Weak; Fair by default), for the band on show. The target is saved with the plan as the optional `coverageTarget`.
