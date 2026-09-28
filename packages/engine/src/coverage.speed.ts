@@ -10,13 +10,10 @@ import { bigHouse, roomGrid } from './testPlans.ts'
  * file at a time so other tests don't compete for the CPU.
  *
  * The budget is for a Web Worker on a laptop, but this check runs on CI.
- * GitHub's ubuntu-latest runners measured about 2.1× slower than a desktop
- * i5-12600K (sample home 40 vs 18 ms, room grid 170 vs 80 ms), and runner
- * hardware varies. The room grid, far busier than a real 100 m² home, lands
- * at ~170 ms there: within budget, but too close for a check that must not
- * flake. So CI fails at 1.5× the budget. That still catches the room grid
- * getting ~1.8× slower, or the sample home ~7× slower, while normal runner
- * variation passes. The budget itself is printed with every result.
+ * GitHub's ubuntu-latest runners measure about 1.8–2.1× slower than a desktop
+ * i5-12600K, and runner hardware varies, so CI fails at 1.5× each budget (D26).
+ * Large homes have a tighter budget: 200 ms on a device 4× slower than the
+ * desktop (D29). Timings are in docs/MODEL.md; each result prints its budget.
  */
 // Both exist in Node and in Web Workers; the engine's lib has no DOM or Node types.
 declare const performance: { now(): number }

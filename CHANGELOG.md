@@ -28,3 +28,7 @@ All notable changes to this project are documented here. The format follows [Kee
 - Editor foundation: full-screen layout, pan and zoom, adaptive metric/imperial grid, undo and redo, units toggle, and browser tests with Playwright in CI.
 - Web: live heatmap of the sample flat with a draggable router, band switcher, signal readout and a colour-blind-safe quality legend.
 - CI: typecheck, lint, format check, tests, build, and Cloudflare Pages deploys with pull request previews.
+
+### Changed
+
+- Engine: the coverage grid is 5–7× faster with identical results (a 300 m² house went from ~210 ms to 28 ms), so the heatmap keeps up while dragging on slower devices. `pnpm speed` adds the 300 m² house with a 50 ms budget.
