@@ -34,8 +34,14 @@ describe('errorStep', () => {
     // 2.6 dB reads "+3 dB", so it takes the +3 to +5 colour.
     expect(errorStep(2.6)).toBe(2)
     expect(errorStep(2.4)).toBe(3)
-    expect(errorStep(-9.5)).toBe(5)
+    expect(errorStep(-9.4)).toBe(5)
     expect(errorStep(-9.6)).toBe(6)
+  })
+
+  it('rounds halves away from zero, alike either way', () => {
+    expect(errorStep(2.5)).toBe(2)
+    expect(errorStep(-2.5)).toBe(4)
+    expect(errorStep(-9.5)).toBe(6)
   })
 })
 

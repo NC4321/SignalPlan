@@ -171,10 +171,18 @@ export function EditorCanvas({
       })),
     [floor.surveySpots, errors, band],
   )
-  // The pin under a mouse or pen, for its card of readings (D73).
-  const [hoverSpotId, setHoverSpotId] = useState<string>()
+  // The pin under a mouse or pen, for its card of readings (D73). It's found
+  // from the pointer each time, so zooming or moving the pin updates it.
+  const [hovering, setHovering] = useState(false)
   const surveyCard = useMemo(() => {
-    const spot = floor.surveySpots?.find((s) => s.id === hoverSpotId)
+    const spot =
+      hovering && camera && pointer
+        ? surveySpotAt(
+            camera,
+            floor.surveySpots ?? [],
+            toScreen(camera, pointer),
+          )
+        : undefined
     if (!spot) return undefined
     return {
       at: spot,
@@ -182,7 +190,15 @@ export function EditorCanvas({
       title: `${surveySpotName(spot.id)}, ${BAND_LABELS[band]}`,
       lines: spotCardLines(spot, band, errors.readings, plan.accessPoints),
     }
-  }, [floor.surveySpots, hoverSpotId, band, errors, plan.accessPoints])
+  }, [
+    floor.surveySpots,
+    hovering,
+    camera,
+    pointer,
+    band,
+    errors,
+    plan.accessPoints,
+  ])
   const ghost = useEditor(ghostFloor)
   const ghostScene = useMemo(
     () =>
@@ -851,11 +867,7 @@ export function EditorCanvas({
           }
 
           store.getState().setPointer(toPlan(current, at))
-          setHoverSpotId(
-            event.pointerType !== 'touch' && !drag.current
-              ? surveySpotAt(current, floor.surveySpots ?? [], at)?.id
-              : undefined,
-          )
+          setHovering(event.pointerType !== 'touch' && !drag.current)
           // Over an access point that a press would grab, show no wall or
           // opening preview, only the grab cursor.
           const grabbing = grabsAccessPoint(at, event.altKey)
@@ -950,7 +962,7 @@ export function EditorCanvas({
         }}
         onPointerLeave={() => {
           store.getState().setPointer(undefined)
-          setHoverSpotId(undefined)
+          setHovering(false)
           // Mid-chain, keep the preview: it sets the direction of a typed length.
           if (!store.getState().chain && !store.getState().outline) {
             setPreview(undefined)

@@ -1226,7 +1226,7 @@ button.danger-fill {
 }
 
 .survey-floor h4,
-.properties h4 {
+h4.survey-report {
   margin: 0.5rem 0 0.2rem;
   font-size: 0.85rem;
 }

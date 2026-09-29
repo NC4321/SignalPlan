@@ -2727,7 +2727,7 @@ function SurveyReport() {
       )}
       {worst.length > 0 && (
         <>
-          <h4>Furthest off</h4>
+          <h4 className="survey-report">Furthest off</h4>
           <ul className="object-list">
             {worst.map((entry) => (
               <li key={entry.spotId}>

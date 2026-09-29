@@ -5,14 +5,14 @@ import {
   type SpotError,
 } from '@signalplan/engine'
 import type { AccessPoint, Band, Plan, SurveySpot } from '@signalplan/floorplan'
-import { useMemo } from 'react'
 import type { Rgb } from '../mapView.ts'
 import { useEditor } from './context.ts'
 
 /**
  * Survey pins coloured by predicted − measured (D73). The steps are for
- * reading the map at a glance, not model numbers: within ±3 dB is neutral,
- * then 3–6, 6–10 and 10 dB or more either way.
+ * reading the map at a glance, not model numbers. On the error rounded to
+ * whole dB: under 3 dB either way (±2) is neutral, then 3–5, 6–9 and 10 dB
+ * or more either way.
  */
 export const ERROR_STEPS_DB = [3, 6, 10] as const
 
@@ -31,8 +31,12 @@ export const ERROR_RGB: readonly Rgb[] = [
   [84, 39, 136],
 ]
 
-/** The error rounded as a pin shows it, to whole dB, never −0. */
-export const roundedErrorDb = (db: number) => Math.round(db) || 0
+/**
+ * The error rounded as a pin shows it, to whole dB, halves away from zero
+ * so +2.5 and −2.5 dB round alike, never −0.
+ */
+export const roundedErrorDb = (db: number) =>
+  Math.sign(db) * Math.round(Math.abs(db)) || 0
 
 /**
  * Which of `ERROR_RGB` an error falls in, from its value rounded to whole dB,
@@ -96,10 +100,18 @@ export function surveyErrors(plan: Plan): SurveyErrors {
   return { readings, spots: spotErrors(readings) }
 }
 
+/** Worked out once per plan, however many components ask. */
+const cache = new WeakMap<Plan, SurveyErrors>()
+
 /** Every reading's prediction and error, worked out again when the plan changes. */
 export function useSurveyErrors(): SurveyErrors {
   const plan = useEditor((s) => s.plan)
-  return useMemo(() => surveyErrors(plan), [plan])
+  let errors = cache.get(plan)
+  if (!errors) {
+    errors = surveyErrors(plan)
+    cache.set(plan, errors)
+  }
+  return errors
 }
 
 /**

@@ -13,10 +13,15 @@ test.beforeEach(async ({ page }) => {
  * 17 px above the spot with a 7 px radius (render.ts).
  */
 async function pinColour(page: Page, x: number, y: number) {
+  return canvasColour(page, x, y, -4)
+}
+
+/** The canvas colour `dx` px right of a pin's head centre. */
+async function canvasColour(page: Page, x: number, y: number, dx: number) {
   const canvas = page.locator('.editor-canvas')
   const box = (await canvas.boundingBox())!
   const tip = await screenPoint(page, x, y)
-  const at = { x: tip.x - box.x - 4, y: tip.y - box.y - 17 }
+  const at = { x: tip.x - box.x + dx, y: tip.y - box.y - 17 }
   return canvas.evaluate((el: HTMLCanvasElement, p) => {
     const ratio = el.width / el.getBoundingClientRect().width
     const data = el
@@ -62,6 +67,21 @@ test('pins and the report compare predicted with measured (D73)', async ({
   await expect(
     panel(page).getByRole('heading', { name: 'Survey pins' }),
   ).toBeVisible()
+
+  // Hovering the pin draws its card, in the surface colour, past its label.
+  const head = await screenPoint(page, 3, 4)
+  await page.mouse.move(head.x + 200, head.y + 200)
+  await expect
+    .poll(() => canvasColour(page, 3, 4, 100))
+    .not.toEqual([255, 255, 255])
+  await page.mouse.move(head.x, head.y - 17)
+  await expect
+    .poll(() => canvasColour(page, 3, 4, 100))
+    .toEqual([255, 255, 255])
+  await page.mouse.move(head.x + 200, head.y + 200)
+  await expect
+    .poll(() => canvasColour(page, 3, 4, 100))
+    .not.toEqual([255, 255, 255])
 
   // The report, in the plan panel once back to Select with nothing selected.
   await page.locator('.editor-canvas').focus()
