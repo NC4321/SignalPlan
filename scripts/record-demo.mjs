@@ -7,7 +7,7 @@
  *              better spot, then one more access point suggested
  *   3d         docs/demo-3d.gif: the two-storey home in the 3D view
  *   views      docs/demo-views.gif: the sample home with two access points,
- *              shown as Signal, Overlap and Roaming
+ *              shown as Roaming, Overlap, Signal and Roaming again
  *
  * To rerun them:
  *

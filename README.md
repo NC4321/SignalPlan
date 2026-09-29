@@ -34,7 +34,7 @@ Free · Runs in your browser · No account · Plans stay on your device
       Stack floors, cut stairwells, and see how signal passes between storeys in an interactive 3D view.
     </td>
     <td width="33%" valign="top">
-      <img src="docs/demo-views.gif" alt="A home with two access points shown as a signal heatmap, then as an overlap map, then as a roaming map with switch lines">
+      <img src="docs/demo-views.gif" alt="A home with two access points shown as a roaming map with switch lines, then as an overlap map, then as a signal heatmap">
       <h3>Overlap and roaming</h3>
       See where access points compete, which one a phone would use, and where it would switch.
     </td>
