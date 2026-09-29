@@ -2709,13 +2709,12 @@ function SurveySpotSection({ spot }: { spot: SurveySpot }) {
       >
         Add a reading
       </button>
-      <button
-        type="button"
-        className="add-reading"
-        onClick={chooseReadingsFile}
-      >
-        Import readings into {name}…
+      <button type="button" onClick={chooseReadingsFile}>
+        Import readings…
       </button>
+      <p className="hint">
+        Rows in the file with no spot or position go to {name}.
+      </p>
       <TextField
         label="Note"
         value={spot.note ?? ''}

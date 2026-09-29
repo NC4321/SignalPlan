@@ -70,17 +70,17 @@ A floor may have a **background** image to trace over. `x` and `y` place its top
 
 Readings can be imported from a CSV or JSON file (File › Import readings…, or the Survey section). A file whose text starts with `[` or `{` is read as JSON; anything else is CSV with a header line, separated by commas, semicolons or tabs, with quoted cells as in RFC 4180. Each row or object is one reading:
 
-| Column             | Also accepted                           | Meaning                                                                          |
-| ------------------ | --------------------------------------- | -------------------------------------------------------------------------------- |
-| `bssid` (required) | `mac`, `mac address`                    | The radio's BSSID, with colons, dashes or dots, in any case                      |
-| `dbm` (required)   | `rssi`, `rssi (dBm)`, `signal`, `level` | The signal in dBm, −120 to 0; a unit or a minus sign (−) is fine                 |
-| `spot`             | `spot id`, `spot name`                  | An existing spot: `Spot 3`, `spot3` or `3`                                       |
-| `x`, `y`           | `x (m)`, `y (m)`                        | A new spot's position in plan metres; rows with the same position share one spot |
-| `floor`            |                                         | The floor a position is on, by name or id; without it, the floor on show         |
-| `ssid`             | `network`, `network name`               | The network name, shown when mapping a BSSID                                     |
-| `band`             |                                         | `2.4`, `5` or `6` (GHz), a hint when mapping a BSSID                             |
-| `frequency`        | `frequency (MHz)`, `freq`               | The channel's centre in MHz (or GHz), a hint for the band                        |
-| `channel`          | `ch`                                    | The channel number, a weaker hint (1–14 → 2.4 GHz, 32–177 → 5 GHz)               |
+| Column             | Also accepted                                              | Meaning                                                                                                                       |
+| ------------------ | ---------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| `bssid` (required) | `mac`, `mac address`                                       | The radio's BSSID, with colons, dashes or dots, in any case, leading zeros optional                                           |
+| `dbm` (required)   | `rssi`, `rssi (dBm)`, `signal`, `signal strength`, `level` | The signal in dBm, −120 to 0; a unit or a minus sign (−) is fine                                                              |
+| `spot`             | `spot id`, `spot name`                                     | An existing spot: `Spot 3`, `spot3` or `3`                                                                                    |
+| `x`, `y`           | `x (m)`, `y (m)`                                           | A spot's position in plan metres: an existing spot within 1 cm, or else a new one; rows with the same position share one spot |
+| `floor`            |                                                            | The floor a position is on, by id, or by name if no other floor has it; without it, the floor on show                         |
+| `ssid`             | `network`, `network name`                                  | The network name, shown when mapping a BSSID                                                                                  |
+| `band`             |                                                            | `2.4`, `5` or `6` (GHz), a hint when mapping a BSSID                                                                          |
+| `frequency`        | `frequency (MHz)`, `freq`                                  | The channel's centre in MHz (or GHz), a hint for the band                                                                     |
+| `channel`          | `ch`                                                       | The channel number, a weaker hint (1–14 → 2.4 GHz, 32–177 → 5 GHz)                                                            |
 
 Column names ignore case, spaces and marks, and other columns (such as a time) are ignored. A row gives a `spot` or an `x` and `y`, not both; a row with neither goes to the spot selected when importing. Any bad row, unknown spot or unknown floor stops the whole import, with a list of where the problems are.
 

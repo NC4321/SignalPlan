@@ -43,7 +43,7 @@ test('imports readings, mapping unknown BSSIDs once (D72)', async ({
   // spot go to the selected one.
   await importFile(
     page,
-    'Import readings into Spot 1…',
+    'Import readings…',
     'scan.csv',
     [
       'SSID,BSSID,RSSI,Channel',
@@ -86,7 +86,7 @@ test('imports readings, mapping unknown BSSIDs once (D72)', async ({
   // The mapping was saved: the next file, with positions, needs no dialog.
   await importFile(
     page,
-    'Import readings into Spot 1…',
+    'Import readings…',
     'second.csv',
     ['bssid,dbm,x,y', `${ROUTER_5},-66,8,5`, `${NEXT_DOOR},-81,8,5`].join('\n'),
   )
@@ -122,4 +122,30 @@ test('says what’s wrong with a bad file and imports nothing (D72)', async ({
   await expect(dialog).toContainText('isn’t a BSSID')
   await dialog.getByRole('button', { name: 'OK' }).click()
   await expect(panel(page)).toContainText('No spots yet on any floor.')
+})
+
+test('an undo while mapping is caught at Import, not half-applied (D72)', async ({
+  page,
+}) => {
+  await page.keyboard.press('s')
+  await clickPlan(page, 3, 4)
+  await importFile(
+    page,
+    'Import readings…',
+    'scan.csv',
+    ['bssid,dbm', `${ROUTER_5},-60`].join('\n'),
+  )
+  const dialog = page.getByRole('dialog', {
+    name: 'Which radio is each BSSID?',
+  })
+  await dialog
+    .getByRole('combobox', { name: new RegExp(ROUTER_5) })
+    .selectOption({ label: 'Wi-Fi 6E router, 5 GHz' })
+  // With focus on a button, undo removes the spot the rows were going to.
+  await dialog.getByRole('button', { name: 'Cancel' }).focus()
+  await page.keyboard.press('ControlOrMeta+z')
+  await dialog.getByRole('button', { name: 'Import' }).click()
+  await expect(
+    page.getByRole('dialog', { name: 'These readings can’t be imported' }),
+  ).toContainText('No spot or position')
 })

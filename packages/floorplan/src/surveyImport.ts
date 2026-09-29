@@ -46,7 +46,17 @@ type Field = keyof Omit<ReadingRow, 'where'> | 'channel' | 'frequency'
 /** Column names each field is known by, lower case without spaces or marks. */
 const ALIASES: Record<Field, readonly string[]> = {
   bssid: ['bssid', 'mac', 'macaddress'],
-  dbm: ['dbm', 'rssi', 'rssidbm', 'signal', 'signaldbm', 'level', 'leveldbm'],
+  dbm: [
+    'dbm',
+    'rssi',
+    'rssidbm',
+    'signal',
+    'signaldbm',
+    'signalstrength',
+    'signalstrengthdbm',
+    'level',
+    'leveldbm',
+  ],
   ssid: ['ssid', 'network', 'networkname'],
   band: ['band'],
   channel: ['channel', 'ch'],
@@ -167,47 +177,59 @@ function readRow(
   return row
 }
 
-/** Splits CSV text into rows of cells, with quoted cells as RFC 4180 has them. */
-function csvRows(text: string, delimiter: string): string[][] {
-  const rows: string[][] = []
+/**
+ * Splits CSV text into rows of cells, with quoted cells as RFC 4180 has
+ * them, and the line each row starts on.
+ */
+function csvRows(
+  text: string,
+  delimiter: string,
+): { line: number; cells: string[] }[] {
+  const rows: { line: number; cells: string[] }[] = []
   let row: string[] = []
   let cell = ''
   let quoted = false
+  let line = 1
+  let start = 1
   for (let i = 0; i < text.length; i++) {
     const c = text[i]!
+    const newline = c === '\n' || c === '\r'
+    if (newline && text[i] === '\r' && text[i + 1] === '\n') i++
     if (quoted) {
       if (c === '"' && text[i + 1] === '"') {
         cell += '"'
         i++
       } else if (c === '"') quoted = false
-      else cell += c
+      else cell += newline ? '\n' : c
+      if (newline) line++
     } else if (c === '"' && cell === '') quoted = true
     else if (c === delimiter) {
       row.push(cell)
       cell = ''
-    } else if (c === '\n' || c === '\r') {
-      if (c === '\r' && text[i + 1] === '\n') i++
+    } else if (newline) {
       row.push(cell)
-      rows.push(row)
+      rows.push({ line: start, cells: row })
       row = []
       cell = ''
+      line++
+      start = line
     } else cell += c
   }
   if (cell !== '' || row.length > 0) {
     row.push(cell)
-    rows.push(row)
+    rows.push({ line: start, cells: row })
   }
   return rows
 }
 
 function readCsv(text: string): ReadingsResult {
-  const firstLine = text.split(/\r?\n/, 1)[0] ?? ''
+  const firstLine = text.split(/\r\n|\r|\n/, 1)[0] ?? ''
   // Commas, or semicolons or tabs where a spreadsheet saved those instead.
   const delimiter = [',', ';', '\t'].reduce((best, d) =>
     firstLine.split(d).length > firstLine.split(best).length ? d : best,
   )
   const [header, ...body] = csvRows(text, delimiter)
-  const fields = (header ?? []).map(fieldOf)
+  const fields = (header?.cells ?? []).map(fieldOf)
   const missing = (['bssid', 'dbm'] as const).filter((f) => !fields.includes(f))
   if (missing.length > 0) {
     return fail(
@@ -217,9 +239,9 @@ function readCsv(text: string): ReadingsResult {
   }
   const rows: ReadingRow[] = []
   const issues: PlanIssue[] = []
-  body.forEach((cells, i) => {
+  body.forEach(({ line, cells }) => {
     if (cells.every((c) => c.trim() === '')) return
-    const where = `line ${i + 2}`
+    const where = `line ${line}`
     const byField: Partial<Record<Field, unknown>> = {}
     fields.forEach((field, c) => {
       if (field && byField[field] === undefined) byField[field] = cells[c]
@@ -315,6 +337,9 @@ export interface PreparedImport {
 export type PrepareResult =
   { ok: true; prepared: PreparedImport } | { ok: false; issues: PlanIssue[] }
 
+/** A position this close to an existing spot, in metres, is that spot. */
+export const SAME_SPOT_M = 0.01
+
 const nameKey = (text: string) => text.toLowerCase().replace(/\s+/g, '')
 
 /** The access point and band each BSSID in the plan belongs to. */
@@ -353,11 +378,14 @@ export function prepareImport(
       }
     }
   }
-  const floors = new Map<string, string>()
+  // A floor by id, or by name when only one floor has it.
+  const floors = new Map<string, string | 'ambiguous'>()
   for (const floor of plan.floors) {
-    floors.set(nameKey(floor.id), floor.id)
-    floors.set(nameKey(floor.name), floor.id)
+    const name = nameKey(floor.name)
+    const other = floors.get(name)
+    floors.set(name, other && other !== floor.id ? 'ambiguous' : floor.id)
   }
+  for (const floor of plan.floors) floors.set(nameKey(floor.id), floor.id)
   const selected =
     context.selectedSpotId && findSurveySpot(plan, context.selectedSpotId)
       ? context.selectedSpotId
@@ -377,8 +405,25 @@ export function prepareImport(
         row.floor === undefined
           ? context.floorId
           : floors.get(nameKey(row.floor))
-      if (floorId) {
-        targeted.push({ row, target: { floorId, x: row.x, y: row.y } })
+      if (floorId === 'ambiguous') {
+        issues.push({
+          path: row.where,
+          message: `More than one floor is called “${row.floor}”: rename one, or use its id.`,
+        })
+      } else if (floorId) {
+        // A spot already at this position takes the readings, so importing
+        // a file again replaces them rather than adding a spot.
+        const same = plan.floors
+          .find((f) => f.id === floorId)
+          ?.surveySpots?.find(
+            (s) =>
+              Math.abs(s.x - row.x!) < SAME_SPOT_M &&
+              Math.abs(s.y - row.y!) < SAME_SPOT_M,
+          )
+        targeted.push({
+          row,
+          target: same ? { spotId: same.id } : { floorId, x: row.x, y: row.y },
+        })
       } else {
         issues.push({ path: row.where, message: `No floor “${row.floor}”.` })
       }
@@ -453,7 +498,7 @@ export function meanPowerDbm(values: readonly number[]): number {
  * mine, adds new spots, and sets one reading per spot, access point and
  * band, the mean power of that spot's rows for it. An existing reading for
  * the same access point and band is replaced. Rows whose BSSID has no
- * choice are skipped.
+ * choice, or a choice of a radio that's gone, are skipped.
  */
 export function applyImport(
   plan: Plan,
@@ -476,7 +521,8 @@ export function applyImport(
     const radio = plan.accessPoints
       .find((ap) => ap.id === choice.apId)
       ?.radios.find((r) => r.band === choice.band)
-    if (!radio) throw new Error(`No ${choice.band} radio on "${choice.apId}".`)
+    // The radio may have gone since the choice was made: skip its rows.
+    if (!radio) continue
     radio.bssids ??= []
     if (!radio.bssids.includes(bssid)) {
       radio.bssids.push(bssid)

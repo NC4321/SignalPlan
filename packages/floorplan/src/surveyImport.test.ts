@@ -180,6 +180,35 @@ describe('parseReadings (D72)', () => {
   })
 })
 
+describe('parseReadings: awkward files (D72)', () => {
+  it('reads BSSIDs without leading zeros, as macOS tools print them', () => {
+    expect(rowsOf('bssid,rssi\n0:1a:2b:3:4d:5e,-60')[0]!.bssid).toBe(
+      '00:1a:2b:03:4d:5e',
+    )
+  })
+
+  it('reads old Mac line endings, and counts lines as a text editor does', () => {
+    expect(rowsOf(`bssid;dbm\r${A};-60\r${B};-61`)).toHaveLength(2)
+    // A blank line and a quoted cell over two lines move the line numbers.
+    const result = parseReadings(
+      `ssid,bssid,dbm\n\n"Two\nlines",${A},-60\nHome,oops,-60`,
+    )
+    expect(result).toEqual({
+      ok: false,
+      issues: [
+        {
+          path: 'line 5',
+          message: '“oops” isn’t a BSSID like a4:2b:b0:12:34:56.',
+        },
+      ],
+    })
+  })
+
+  it('knows "Signal strength (dBm)" as the dBm column', () => {
+    expect(rowsOf(`BSSID,Signal strength (dBm)\n${A},-60`)[0]!.dbm).toBe(-60)
+  })
+})
+
 describe('prepareImport (D72)', () => {
   it('matches rows to named spots, new positions or the selected spot', () => {
     const p = plan()
@@ -228,6 +257,36 @@ describe('prepareImport (D72)', () => {
           path: 'line 4',
           message:
             'No spot or position: select a spot first, or add a spot column, or x and y.',
+        },
+      ],
+    })
+  })
+
+  it('puts a position on an existing spot there, so importing again replaces', () => {
+    const p = plan()
+    addSurveySpot(p, 'down', { x: 2, y: 3 })
+    const rows = rowsOf(`bssid,dbm,x,y\n${A},-60,2.004,3\n${A},-60,2.02,3`)
+    const result = prepareImport(p, rows, { floorId: 'down' })
+    if (!result.ok) throw new Error('expected ok')
+    expect(result.prepared.rows.map((r) => r.target)).toEqual([
+      { spotId: 'spot1' },
+      { floorId: 'down', x: 2.02, y: 3 },
+    ])
+  })
+
+  it('refuses a floor name two floors share', () => {
+    const p = plan()
+    p.floors[1]!.name = 'Ground floor'
+    const rows = rowsOf(
+      `bssid,dbm,x,y,floor\n${A},-60,1,1,ground floor\n${A},-60,1,1,up`,
+    )
+    expect(prepareImport(p, rows, { floorId: 'down' })).toEqual({
+      ok: false,
+      issues: [
+        {
+          path: 'line 2',
+          message:
+            'More than one floor is called “ground floor”: rename one, or use its id.',
         },
       ],
     })
@@ -344,6 +403,21 @@ describe('applyImport (D72)', () => {
     expect(findSurveySpot(p, 'spot1')!.spot.readings).toEqual([
       { apId: 'router', band: '2.4GHz', dbm: -52 },
     ])
+  })
+
+  it('skips rows mapped to a radio that has gone since', () => {
+    const p = plan()
+    const rows = rowsOf(`bssid,dbm,x,y\n${A},-60,1,1`)
+    const result = prepareImport(p, rows, { floorId: 'down' })
+    if (!result.ok) throw new Error('expected ok')
+    p.accessPoints[0]!.radios = [{ band: '2.4GHz' }]
+    const summary = applyImport(
+      p,
+      result.prepared,
+      choose([[A, { apId: 'router', band: '5GHz' }]]),
+    )
+    expect(summary).toMatchObject({ readingsAdded: 0, rowsSkipped: 1 })
+    expect(checkStructure(p)).toEqual([])
   })
 
   it('adds no spot for a position whose rows are all skipped', () => {

@@ -7,6 +7,7 @@ import {
   type ImportSummary,
   type PlanIssue,
   type PreparedImport,
+  type ReadingRow,
 } from '@signalplan/floorplan'
 import { useId, useRef, useState, type ReactNode } from 'react'
 import { BAND_LABELS } from './coverageText.ts'
@@ -29,19 +30,27 @@ export function SurveyImportProvider({ children }: { children: ReactNode }) {
     file: string
     issues: PlanIssue[]
   }>()
-  const [mapping, setMapping] = useState<{
-    file: string
-    prepared: PreparedImport
-  }>()
+  const [pending, setPending] = useState<Pending>()
+  const [picked, setPicked] = useState<Record<string, string>>({})
+
+  /** Matches the rows against the plan as it is now. */
+  const prepare = (file: string, rows: ReadingRow[], context: Context) => {
+    const result = prepareImport(store.getState().plan, rows, context)
+    if (!result.ok) setProblem({ file, issues: result.issues })
+    return result.ok ? result.prepared : undefined
+  }
 
   const finish = (
-    prepared: PreparedImport,
+    { file, rows, context }: Pending,
     choices: ReadonlyMap<string, BssidChoice>,
   ) => {
+    // The plan may have changed while the dialog was open, say by an undo,
+    // so the rows are matched again before anything is added.
+    const prepared = prepare(file, rows, context)
+    if (!prepared) return
     let summary: ImportSummary | undefined
-    const state = store.getState()
     // Readings don't change coverage, so a suggestion stays.
-    state.edit(
+    store.getState().edit(
       'Import readings',
       (plan) => {
         summary = applyImport(plan, prepared, choices)
@@ -59,18 +68,17 @@ export function SurveyImportProvider({ children }: { children: ReactNode }) {
     }
     const state = store.getState()
     const only = state.selection.length === 1 ? state.selection[0] : undefined
-    const prepared = prepareImport(state.plan, parsed.rows, {
+    const context = {
       floorId: state.floorId,
       selectedSpotId: only?.kind === 'surveySpot' ? only.id : undefined,
-    })
-    if (!prepared.ok) {
-      setProblem({ file: file.name, issues: prepared.issues })
-      return
     }
-    if (prepared.prepared.unknown.length === 0) {
-      finish(prepared.prepared, new Map())
-    } else {
-      setMapping({ file: file.name, prepared: prepared.prepared })
+    const prepared = prepare(file.name, parsed.rows, context)
+    if (!prepared) return
+    const next = { file: file.name, rows: parsed.rows, context, prepared }
+    if (prepared.unknown.length === 0) finish(next, new Map())
+    else {
+      setPicked({})
+      setPending(next)
     }
   }
 
@@ -114,41 +122,53 @@ export function SurveyImportProvider({ children }: { children: ReactNode }) {
           y for each row, or a spot selected first.
         </p>
       </Dialog>
-      {mapping && (
-        <MappingDialog
-          key={mapping.file + mapping.prepared.unknown.length}
-          file={mapping.file}
-          prepared={mapping.prepared}
-          onCancel={() => setMapping(undefined)}
-          onImport={(choices) => {
-            setMapping(undefined)
-            finish(mapping.prepared, choices)
-          }}
-        />
-      )}
+      <MappingDialog
+        pending={pending}
+        picked={picked}
+        setPicked={setPicked}
+        onCancel={() => setPending(undefined)}
+        onImport={(choices) => {
+          const current = pending
+          setPending(undefined)
+          if (current) finish(current, choices)
+        }}
+      />
     </SurveyImportContext>
   )
 }
 
+type Context = { floorId: string; selectedSpotId: string | undefined }
+
+/** A file waiting for its BSSIDs to be mapped. */
+interface Pending {
+  file: string
+  rows: ReadingRow[]
+  context: Context
+  prepared: PreparedImport
+}
+
 /**
  * Which radio each BSSID the plan doesn't know yet belongs to, or "not
- * mine" for a neighbour's. Every one needs an answer before importing.
+ * mine" for a neighbour's. Every one needs an answer before importing. It
+ * stays mounted, so closing it returns focus to where the import started.
  */
 function MappingDialog({
-  file,
-  prepared,
+  pending,
+  picked,
+  setPicked,
   onCancel,
   onImport,
 }: {
-  file: string
-  prepared: PreparedImport
+  pending: Pending | undefined
+  picked: Record<string, string>
+  setPicked: (
+    update: (p: Record<string, string>) => Record<string, string>,
+  ) => void
   onCancel: () => void
   onImport: (choices: Map<string, BssidChoice>) => void
 }) {
   const plan = useEditor((s) => s.plan)
-  const [picked, setPicked] = useState<Record<string, string>>({})
-  const hintId = useId()
-  const { unknown } = prepared
+  const unknown = pending?.prepared.unknown ?? []
   const done = unknown.every((u) => picked[u.bssid])
   const floorName = (floorId: string) =>
     plan.floors.length > 1
@@ -157,6 +177,7 @@ function MappingDialog({
   const radios = plan.accessPoints.flatMap((ap) =>
     ap.radios.map((r) => ({
       value: `${ap.id}\n${r.band}`,
+      band: r.band,
       label: `${ap.name}${floorName(ap.floorId)}, ${BAND_LABELS[r.band]}`,
     })),
   )
@@ -171,7 +192,7 @@ function MappingDialog({
     )
   return (
     <Dialog
-      open
+      open={pending !== undefined}
       title="Which radio is each BSSID?"
       onClose={onCancel}
       actions={
@@ -191,8 +212,8 @@ function MappingDialog({
         </>
       }
     >
-      <p id={hintId}>
-        “{file}” has readings from{' '}
+      <p>
+        “{pending?.file}” has readings from{' '}
         {unknown.length === 1 ? 'a BSSID' : `${unknown.length} BSSIDs`} no
         access point has yet. Pick the radio each belongs to (a Wi-Fi scanner
         shows the network name and band), or Not mine for a neighbour’s. Your
@@ -205,25 +226,23 @@ function MappingDialog({
             unknown={u}
             radios={radios}
             value={picked[u.bssid] ?? ''}
-            describedBy={hintId}
             onChange={(value) => setPicked((p) => ({ ...p, [u.bssid]: value }))}
           />
         ))}
       </ul>
-      {!done && (
-        <button
-          type="button"
-          onClick={() =>
-            setPicked((p) =>
-              Object.fromEntries(
-                unknown.map(({ bssid }) => [bssid, p[bssid] || NOT_MINE]),
-              ),
-            )
-          }
-        >
-          Mark the rest not mine
-        </button>
-      )}
+      <button
+        type="button"
+        disabled={done}
+        onClick={() =>
+          setPicked((p) =>
+            Object.fromEntries(
+              unknown.map(({ bssid }) => [bssid, p[bssid] || NOT_MINE]),
+            ),
+          )
+        }
+      >
+        Mark the rest not mine
+      </button>
     </Dialog>
   )
 }
@@ -232,16 +251,19 @@ function BssidRow({
   unknown,
   radios,
   value,
-  describedBy,
   onChange,
 }: {
   unknown: PreparedImport['unknown'][number]
-  radios: { value: string; label: string }[]
+  radios: { value: string; band: Band; label: string }[]
   value: string
-  describedBy: string
   onChange: (value: string) => void
 }) {
   const id = useId()
+  const noteId = useId()
+  const chosen = radios.find((r) => r.value === value)
+  // The file's band is only a hint, but a different one is worth a look.
+  const mismatch =
+    chosen && unknown.band !== undefined && chosen.band !== unknown.band
   const { bssid, ssids, band, count, strongestDbm } = unknown
   const details = [
     ssids.length > 0 ? ssids.join(', ') : 'no network name',
@@ -260,7 +282,7 @@ function BssidRow({
       <select
         id={id}
         value={value}
-        aria-describedby={describedBy}
+        aria-describedby={mismatch ? noteId : undefined}
         onChange={(event) => onChange(event.target.value)}
       >
         <option value="" disabled>
@@ -273,6 +295,12 @@ function BssidRow({
           </option>
         ))}
       </select>
+      {mismatch && (
+        <p id={noteId} className="field-note field-warning">
+          The file says {BAND_LABELS[unknown.band!]}, but this radio is{' '}
+          {BAND_LABELS[chosen.band]}.
+        </p>
+      )}
     </li>
   )
 }
