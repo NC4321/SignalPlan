@@ -8,6 +8,8 @@ import {
   MAX_ADDED,
   radioChannelIssue,
   radioTuning,
+  summariseErrors,
+  worstSpots,
   REGION_RULES,
   regionBand,
   type ChannelIssue,
@@ -126,6 +128,13 @@ import {
 } from './optimizer.ts'
 import { useOptimizer } from './optimizerContext.ts'
 import { useSurveyImport } from './surveyImportContext.ts'
+import {
+  errorLegendRows,
+  formatDbm,
+  formatErrorDb,
+  useSurveyErrors,
+  type SurveyErrors,
+} from './surveyErrors.ts'
 
 const MODEL_URL = 'https://github.com/NC4321/SignalPlan/blob/main/docs/MODEL.md'
 const FLOORPLAN_IMPORT_URL =
@@ -501,6 +510,7 @@ export function PropertiesPanel({
 
       <section>
         <MapLegend map={map} />
+        {!in3d && (floor.surveySpots ?? []).length > 0 && <PinLegend />}
         <CoverageSummary message={coverageText} />
         <p className="hint">
           Predictions come from a simplified model.{' '}
@@ -2647,6 +2657,122 @@ function SurveyList() {
           </button>
         </p>
       )}
+      {withSpots.length > 0 && <SurveyReport />}
+    </>
+  )
+}
+
+/** How many of the spots furthest off the report lists (D73). */
+const WORST_SPOT_COUNT = 5
+
+/**
+ * Predicted versus measured (D73): mean and RMS error for each band with
+ * readings, and the spots furthest off, each with a button that shows its
+ * floor and band and selects it.
+ */
+function SurveyReport() {
+  const store = useEditorStore()
+  const floors = useEditor((s) => s.plan.floors)
+  const errors = useSurveyErrors()
+  const summary = summariseErrors(errors.readings)
+  const worst = worstSpots(errors.readings, WORST_SPOT_COUNT)
+  const total = floors.reduce(
+    (n, f) =>
+      n + (f.surveySpots ?? []).reduce((m, s) => m + s.readings.length, 0),
+    0,
+  )
+  const skipped = total - errors.readings.length
+  return (
+    <>
+      <h3>Predicted versus measured</h3>
+      {summary.length === 0 ? (
+        <p className="hint">
+          Add readings to see how far the model is from what you measured.
+        </p>
+      ) : (
+        <>
+          <table className="error-table">
+            <thead>
+              <tr>
+                <th scope="col">Band</th>
+                <th scope="col">Readings</th>
+                <th scope="col">Mean error</th>
+                <th scope="col">RMS error</th>
+              </tr>
+            </thead>
+            <tbody>
+              {summary.map((row) => (
+                <tr key={row.band}>
+                  <th scope="row">{BAND_LABELS[row.band]}</th>
+                  <td>{row.count}</td>
+                  <td>{formatErrorDb(row.meanDb)}</td>
+                  <td>{row.rmsDb.toFixed(1)} dB</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <p className="hint">
+            Error is predicted minus measured. A mean above 0 means the model
+            expects more signal than you measured; the RMS error is how far off
+            a reading typically is, either way.
+          </p>
+        </>
+      )}
+      {skipped > 0 && (
+        <p className="hint">
+          {skipped === 1 ? '1 reading isn’t' : `${skipped} readings aren’t`}{' '}
+          compared: {skipped === 1 ? 'its' : 'their'} band is turned off on the
+          access point.
+        </p>
+      )}
+      {worst.length > 0 && (
+        <>
+          <h4 className="survey-report">Furthest off</h4>
+          <ul className="object-list">
+            {worst.map((entry) => (
+              <li key={entry.spotId}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const state = store.getState()
+                    state.setFloor(entry.floorId)
+                    state.setBand(entry.band)
+                    state.select([{ kind: 'surveySpot', id: entry.spotId }])
+                  }}
+                >
+                  {surveySpotName(entry.spotId)}
+                  {floors.length > 1 &&
+                    `, ${floors.find((f) => f.id === entry.floorId)?.name ?? ''}`}
+                  , {BAND_LABELS[entry.band]}: {formatErrorDb(entry.meanDb)}
+                </button>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+    </>
+  )
+}
+
+/** The survey pins' colours (D73), while the floor on show has any. */
+function PinLegend() {
+  return (
+    <>
+      <h2>Survey pins</h2>
+      <ul className="legend">
+        {errorLegendRows().map((row) => (
+          <li key={row.label}>
+            <span className="swatch" style={{ background: rgbCss(row.rgb) }} />
+            <span className="legend-label">{row.label}</span>
+            <span className="legend-range" />
+          </li>
+        ))}
+      </ul>
+      <p className="hint legend-note">
+        Each pin is the mean of predicted minus measured over its readings on
+        the band on show: orange where the model expects more signal than you
+        measured, purple where less.
+      </p>
     </>
   )
 }
@@ -2662,6 +2788,7 @@ function SurveySpotSection({ spot }: { spot: SurveySpot }) {
   const units = useEditor((s) => s.units)
   const plan = useEditor((s) => s.plan)
   const { chooseReadingsFile } = useSurveyImport()
+  const errors = useSurveyErrors()
   const name = surveySpotName(spot.id)
   // Readings don't change coverage, so a suggestion stays (D71).
   const edit = (label: string, change: (plan: Draft<Plan>) => void) =>
@@ -2688,7 +2815,14 @@ function SurveySpotSection({ spot }: { spot: SurveySpot }) {
         </p>
       )}
       {spot.readings.map((_, i) => (
-        <ReadingRow key={i} spot={spot} index={i} plan={plan} edit={edit} />
+        <ReadingRow
+          key={i}
+          spot={spot}
+          index={i}
+          plan={plan}
+          errors={errors}
+          edit={edit}
+        />
       ))}
       <button
         type="button"
@@ -2741,11 +2875,13 @@ function ReadingRow({
   spot,
   index,
   plan,
+  errors,
   edit,
 }: {
   spot: SurveySpot
   index: number
   plan: Plan
+  errors: SurveyErrors
   edit: (label: string, change: (plan: Draft<Plan>) => void) => void
 }) {
   const apId = useId()
@@ -2763,6 +2899,9 @@ function ReadingRow({
       ? ` (${plan.floors.find((f) => f.id === floorId)?.name ?? ''})`
       : ''
   const bandOff = !ap?.radios.some((r) => r.band === reading.band)
+  const compared = errors.readings.find(
+    (e) => e.spotId === spot.id && e.index === index,
+  )
   const label = `${ap?.name ?? ''}, ${BAND_LABELS[reading.band]}`
   const hidden = <span className="visually-hidden">{label} </span>
   return (
@@ -2841,6 +2980,12 @@ function ReadingRow({
           }}
         />
       </div>
+      {compared && (
+        <p className="field-note reading-prediction">
+          Predicted {formatDbm(compared.predictedDbm)}, error{' '}
+          {formatErrorDb(compared.errorDb)}
+        </p>
+      )}
       {bandOff && (
         <p id={noteId} className="field-note field-warning">
           {ap?.name} has {BAND_LABELS[reading.band]} turned off, so this reading

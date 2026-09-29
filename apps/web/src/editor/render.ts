@@ -7,7 +7,7 @@ import type {
   Point,
   WallMaterial,
 } from '@signalplan/floorplan'
-import { cellColour, type MapData } from '../mapView.ts'
+import { cellColour, rgbCss, type MapData, type Rgb } from '../mapView.ts'
 import { toPlan, toScreen, type Camera } from './camera.ts'
 import type { Selection } from './store.ts'
 import type { SnapKind } from './snap.ts'
@@ -45,10 +45,24 @@ export interface Scene {
   segments: readonly MaterialSegment[]
   accessPoints: readonly AccessPoint[]
   /**
-   * Survey spots (D71), each labelled with its strongest reading on the band
-   * on show, or "–" when it has none.
+   * Survey spots (D71), each labelled and coloured with its mean error on the
+   * band on show (D73), or "–" and neutral when it has no readings on it.
    */
-  surveySpots?: readonly { id: string; x: number; y: number; label: string }[]
+  surveySpots?:
+    | readonly {
+        id: string
+        x: number
+        y: number
+        label: string
+        rgb: Rgb | undefined
+      }[]
+    | undefined
+  /**
+   * The card beside a hovered pin (D73): a title and a line per reading on
+   * the band on show.
+   */
+  surveyCard?:
+    { at: Point; label: string; title: string; lines: string[] } | undefined
   /** Survey tool: where a click would add a spot. */
   surveyPreview?: Point | undefined
   /** Access point tool: where a click would add one. */
@@ -292,6 +306,7 @@ export function draw(
     drawPin(context, colour, toScreen(camera, spot), {
       label: spot.label,
       selected: isSelected('surveySpot', spot.id),
+      rgb: spot.rgb,
     })
   }
   if (scene.surveyPreview) {
@@ -300,6 +315,7 @@ export function draw(
     drawPin(context, colour, toScreen(camera, scene.surveyPreview), {
       label: undefined,
       selected: false,
+      rgb: undefined,
     })
     context.restore()
   }
@@ -341,14 +357,24 @@ export function draw(
     context.fillText(ap.name, x, at.y)
     context.restore()
   }
+  if (scene.surveyCard) {
+    drawCard(context, colour, scene.surveyCard, scene, camera)
+  }
 }
 
-/** A map pin with its tip at `tip`, and its label to the right of its head. */
+/**
+ * A map pin with its tip at `tip`, and its label to the right of its head.
+ * With `rgb`, its head is filled with that colour (D73).
+ */
 function drawPin(
   context: CanvasRenderingContext2D,
   colour: (name: string) => string,
   tip: Point,
-  { label, selected }: { label: string | undefined; selected: boolean },
+  {
+    label,
+    selected,
+    rgb,
+  }: { label: string | undefined; selected: boolean; rgb: Rgb | undefined },
 ) {
   const r = PIN_HEAD_PX
   const cy = tip.y - PIN_HEAD_Y_PX
@@ -373,16 +399,28 @@ function drawPin(
     context.strokeStyle = colour('--selection-halo')
     context.stroke()
   }
+  if (!selected) {
+    // An outline in the canvas colour keeps a pin clear of the heatmap.
+    path()
+    context.lineWidth = 5
+    context.lineJoin = 'round'
+    context.strokeStyle = colour('--canvas')
+    context.stroke()
+  }
   path()
-  context.fillStyle = colour(selected ? '--accent' : '--ap')
+  context.fillStyle = rgb ? rgbCss(rgb) : colour(selected ? '--accent' : '--ap')
   context.fill()
-  context.lineWidth = 2
+  context.lineWidth = selected && rgb ? 3 : 2
   context.lineJoin = 'round'
   context.strokeStyle = colour(selected ? '--accent' : '--ap-ring')
   context.stroke()
   context.beginPath()
   context.arc(tip.x, cy, r * 0.35, 0, Math.PI * 2)
-  context.fillStyle = colour(selected ? '--canvas' : '--ap-ring')
+  context.fillStyle = rgb
+    ? isDark(rgb)
+      ? '#ffffff'
+      : '#1d1b22'
+    : colour(selected ? '--canvas' : '--ap-ring')
   context.fill()
   if (label === undefined) return
   const x = tip.x + r + 5
@@ -391,6 +429,63 @@ function drawPin(
   context.strokeText(label, x, cy)
   context.fillStyle = colour('--text')
   context.fillText(label, x, cy)
+}
+
+/** Whether white reads better than near-black on this colour. */
+const isDark = ([r, g, b]: Rgb) => 0.299 * r + 0.587 * g + 0.114 * b < 128
+
+const CARD_PAD_PX = 8
+const CARD_LINE_PX = 17
+
+/**
+ * A card of text beside a hovered pin's head (D73), kept inside the canvas:
+ * to the right of the pin, or to its left near the right edge.
+ */
+function drawCard(
+  context: CanvasRenderingContext2D,
+  colour: (name: string) => string,
+  card: NonNullable<Scene['surveyCard']>,
+  size: { width: number; height: number },
+  camera: Camera,
+) {
+  const tip = toScreen(camera, card.at)
+  context.save()
+  context.textBaseline = 'middle'
+  context.font = '600 12px system-ui, sans-serif'
+  const titleWidth = context.measureText(card.title).width
+  context.font = '12px system-ui, sans-serif'
+  const width =
+    Math.max(
+      titleWidth,
+      ...card.lines.map((l) => context.measureText(l).width),
+    ) +
+    CARD_PAD_PX * 2
+  const height = (card.lines.length + 1) * CARD_LINE_PX + CARD_PAD_PX * 2 - 4
+  // Right of the pin's label, as drawn by `drawPin`, or left of the pin.
+  context.font = '600 12px system-ui, sans-serif'
+  const right = PIN_HEAD_PX + 5 + context.measureText(card.label).width + 8
+  let x = tip.x + right
+  if (x + width > size.width - 4) x = tip.x - PIN_HEAD_PX - 8 - width
+  x = Math.max(4, x)
+  let y = tip.y - PIN_HEAD_Y_PX - height / 2
+  y = Math.min(Math.max(4, y), size.height - height - 4)
+  context.beginPath()
+  context.roundRect(x, y, width, height, 6)
+  context.fillStyle = colour('--surface')
+  context.fill()
+  context.lineWidth = 1
+  context.strokeStyle = colour('--border')
+  context.stroke()
+  context.fillStyle = colour('--text')
+  context.font = '600 12px system-ui, sans-serif'
+  let lineY = y + CARD_PAD_PX + CARD_LINE_PX / 2 - 2
+  context.fillText(card.title, x + CARD_PAD_PX, lineY)
+  context.font = '12px system-ui, sans-serif'
+  for (const line of card.lines) {
+    lineY += CARD_LINE_PX
+    context.fillText(line, x + CARD_PAD_PX, lineY)
+  }
+  context.restore()
 }
 
 /**
