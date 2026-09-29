@@ -17,6 +17,9 @@ import { drawWall, WALL_STYLES } from './wallStyles.ts'
 
 export const AP_RADIUS_PX = 9
 
+/** How strongly a faded heatmap is drawn behind survey pins (D74). */
+export const FADED_HEATMAP_ALPHA = 0.25
+
 /**
  * A survey pin (D71): its tip is the spot, and its round head sits this far
  * above it, with this radius.
@@ -42,6 +45,8 @@ export interface Scene {
   grid?: boolean | undefined
   coverage: Coverage | undefined
   heatmap: OffscreenCanvas | undefined
+  /** Draw the heatmap faintly, so survey pins stand out (D74). */
+  heatmapFaded?: boolean | undefined
   segments: readonly MaterialSegment[]
   accessPoints: readonly AccessPoint[]
   /**
@@ -173,6 +178,7 @@ export function draw(
     const { grid } = scene.coverage
     const origin = toScreen(camera, { x: grid.originX, y: grid.originY })
     context.imageSmoothingEnabled = false
+    if (scene.heatmapFaded) context.globalAlpha = FADED_HEATMAP_ALPHA
     context.drawImage(
       scene.heatmap,
       origin.x,
@@ -180,6 +186,7 @@ export function draw(
       grid.cols * grid.cellM * camera.scale,
       grid.rows * grid.cellM * camera.scale,
     )
+    context.globalAlpha = 1
   }
 
   const wallWidth = baseWallWidth(camera)

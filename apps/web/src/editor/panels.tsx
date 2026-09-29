@@ -2566,9 +2566,31 @@ function SurveyToolSection() {
         </li>
         <li>Drag a pin to move it. Esc returns to Select.</li>
       </ul>
+      <FadeHeatmapField />
       <ReadingHint />
       <SurveyList />
     </section>
+  )
+}
+
+/**
+ * Whether the heatmap fades while surveying (D74), so its purples aren't
+ * mistaken for the pins'. Not saved.
+ */
+function FadeHeatmapField() {
+  const store = useEditorStore()
+  const fade = useEditor((s) => s.fadeHeatmapForSurvey)
+  return (
+    <label className="check-field">
+      <input
+        type="checkbox"
+        checked={fade}
+        onChange={(event) =>
+          store.getState().setFadeHeatmapForSurvey(event.target.checked)
+        }
+      />
+      Fade heatmap behind pins
+    </label>
   )
 }
 
@@ -2860,6 +2882,7 @@ function SurveySpotSection({ spot }: { spot: SurveySpot }) {
           })
         }
       />
+      <FadeHeatmapField />
       <ReadingHint />
       <p className="hint">
         Drag the pin to move it, or use the arrow keys (Shift for bigger steps).

@@ -57,6 +57,7 @@ import {
   canCutFloor,
   DEFAULT_OPENING_WIDTH_M,
   ghostFloor,
+  heatmapFaded,
   heatmapShown,
   sameItem,
   type SelectionItem,
@@ -121,6 +122,7 @@ export function EditorCanvas({
   const units = useEditor((s) => s.units)
   const selection = useEditor((s) => s.selection)
   const showHeatmap = useEditor(heatmapShown)
+  const fadeHeatmap = useEditor(heatmapFaded)
   const tool = useEditor((s) => s.tool)
   const chain = useEditor((s) => s.chain)
   const outline = useEditor((s) => s.outline)
@@ -332,6 +334,7 @@ export function EditorCanvas({
       units,
       coverage: showHeatmap ? coverage : undefined,
       heatmap: showHeatmap ? heatmap : undefined,
+      heatmapFaded: fadeHeatmap,
       segments,
       accessPoints,
       ghost: ghostScene,
@@ -396,6 +399,7 @@ export function EditorCanvas({
     coverage,
     heatmap,
     showHeatmap,
+    fadeHeatmap,
     segments,
     accessPoints,
     selection,
