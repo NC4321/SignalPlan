@@ -83,3 +83,19 @@ test('the 3D view follows the map on show', async ({ page }) => {
     page.getByRole('list', { name: 'Floors in the 3D view' }),
   ).toContainText('has two or more access points competing')
 })
+
+test('shows signal to interference and noise (D66)', async ({ page }) => {
+  await show(page).selectOption({ label: 'Interference' })
+  const legend = panel(page)
+  await expect(
+    legend.getByRole('heading', { name: 'Signal to interference and noise' }),
+  ).toBeVisible()
+  await expect(legend.locator('.legend')).toContainText('≥ 39 dB')
+  // The sample's one access point leaves its channel on Auto.
+  await expect(legend.locator('.legend-note')).toContainText(
+    '1 access point has its channel on Auto',
+  )
+  await expect(summary(page)).toContainText(
+    'is too noisy for any rate (below 9 dB) on 5 GHz.',
+  )
+})

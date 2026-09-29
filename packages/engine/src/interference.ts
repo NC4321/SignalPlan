@@ -45,8 +45,10 @@ export function noiseFloorDbm(widthMHz: number): number {
 
 /**
  * IEEE 802.11 minimum receiver sensitivity in a 20 MHz channel, in dBm, for
- * the rates the Interference view's bands are named after: VHT (802.11-2020
- * Table 21-25) and HE (802.11ax) MCS values. Wider channels add 3 dB per
+ * the rates the Interference view's bands are named after: the HE (Wi-Fi 6)
+ * table in the 802.11 working group's text, doc. 11-16/1406r0, drafted as
+ * P802.11ax/D1.0 Table 28-41 (the ratified 802.11ax-2021 wasn't available).
+ * Its MCS 0–9 rows are the VHT (Wi-Fi 5) values. Wider channels add 3 dB per
  * doubling to both the sensitivity and the noise, so the SINR a rate needs
  * doesn't depend on the width.
  */
