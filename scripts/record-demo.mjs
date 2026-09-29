@@ -1,16 +1,23 @@
 /**
- * Records the README demo, docs/demo.gif: a new plan, a brick room with a
- * concrete wall across it, a router placed and then dragged around.
+ * Records the README's demo GIFs. The clip is the first argument:
  *
- * To rerun it:
+ *   editor     docs/demo.gif: a new plan, a brick room with a concrete wall
+ *              across it, a router placed and then dragged around
+ *   optimizer  docs/demo-optimizer.gif: the sample home's router moved to a
+ *              better spot, then one more access point suggested
+ *   3d         docs/demo-3d.gif: the two-storey home in the 3D view
+ *   views      docs/demo-views.gif: the sample home with two access points,
+ *              shown as Signal, Overlap and Roaming
+ *
+ * To rerun them:
  *
  *   pnpm build
  *   pnpm --filter @signalplan/web preview        # serves on port 4173
- *   node scripts/record-demo.mjs                 # needs ffmpeg on the PATH
+ *   node scripts/record-demo.mjs editor          # needs ffmpeg on the PATH
  *
  * Options through environment variables: DEMO_URL (default
  * http://localhost:4173/), CHROMIUM_PATH (default: Playwright's own browser),
- * DEMO_OUT (default docs/demo.gif). It isn't run in CI.
+ * DEMO_OUT (default: the clip's file above). It isn't run in CI.
  */
 import { execFileSync } from 'node:child_process'
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
@@ -22,11 +29,24 @@ const root = new URL('..', import.meta.url).pathname
 const require = createRequire(join(root, 'apps/web/package.json'))
 const { chromium } = require('@playwright/test')
 
+const clips = {
+  editor: 'docs/demo.gif',
+  optimizer: 'docs/demo-optimizer.gif',
+  '3d': 'docs/demo-3d.gif',
+  views: 'docs/demo-views.gif',
+}
+// The gallery clips show at a third of the README's width, so they keep only
+// the tool rail, canvas and status bar, cutting the top bar and panel.
+const galleryCrop = 'crop=1028:754:0:46,'
+const clip = process.argv[2] ?? 'editor'
+if (!(clip in clips)) {
+  throw new Error(`Unknown clip "${clip}"; use one of ${Object.keys(clips)}`)
+}
 const url = process.env.DEMO_URL ?? 'http://localhost:4173/'
-const out = process.env.DEMO_OUT ?? join(root, 'docs/demo.gif')
+const out = process.env.DEMO_OUT ?? join(root, clips[clip])
 const width = 1280
 const height = 800
-const gifWidth = 800
+const gifWidth = clip === 'editor' ? 800 : 640
 const fps = 12
 
 // Headless Chromium draws no pointer, so show one: an arrow that follows the
@@ -121,6 +141,7 @@ async function clickAt(x, y, ms) {
   await page.waitForTimeout(120)
 }
 async function clickLocator(locator, ms) {
+  await locator.scrollIntoViewIfNeeded()
   const box = await locator.boundingBox()
   await clickAt(box.x + box.width / 2, box.y + box.height / 2, ms)
 }
@@ -140,68 +161,150 @@ async function at(x, y) {
   }
 }
 
-// Set-up, cut from the recording: a new plan without its default router.
-await page.goto(url)
-await page.locator('.editor-canvas[data-scale]').waitFor()
-await page.getByText('File', { exact: true }).click()
-await page.getByRole('button', { name: 'New plan' }).click()
-const router = await at(5, 4)
-await page.mouse.click(router.x, router.y)
-await page.keyboard.press('Delete')
-await page.mouse.move(mouse.x, mouse.y)
-await screencast.send('Page.startScreencast', {
-  format: 'png',
-  maxWidth: width,
-  maxHeight: height,
-})
-await page.waitForTimeout(600)
-const clipStart = now()
-
-// The demo.
-await page.waitForTimeout(500)
 const tools = page.getByRole('toolbar', { name: 'Tools' })
 const panel = page.getByRole('complementary', { name: 'Properties' })
-await clickLocator(tools.getByRole('button', { name: 'Wall' }), 450)
-await clickLocator(panel.getByRole('radio', { name: 'Brick' }), 400)
-for (const [x, y] of [
-  [1, 1],
-  [9, 1],
-  [9, 7],
-  [1, 7],
-  [1, 1],
-]) {
-  const p = await at(x, y)
-  await clickAt(p.x, p.y, 380)
-}
-await clickLocator(panel.getByRole('radio', { name: 'Concrete' }), 450)
-for (const [x, y] of [
-  [5.5, 1],
-  [5.5, 4.5],
-]) {
-  const p = await at(x, y)
-  await clickAt(p.x, p.y, 400)
-}
-await page.keyboard.press('Escape')
-await page.keyboard.press('Escape')
-await clickLocator(tools.getByRole('button', { name: 'Access point' }), 450)
-const placed = await at(3, 4)
-await clickAt(placed.x, placed.y, 450)
-await page.keyboard.press('Escape')
-await page.waitForTimeout(700)
+const coverage = page.locator('.status-bar .coverage-status')
 
-// Drag the router behind the concrete wall and back.
-await glide(placed.x, placed.y, 200)
-await page.mouse.down()
-for (const [x, y] of [
-  [7.3, 2.3],
-  [7.5, 5.8],
-  [4, 5.5],
-]) {
-  const p = await at(x, y)
-  await glide(p.x, p.y, 950)
+let clipStart = 0
+/** Starts recording; everything before it is set-up, cut from the clip. */
+async function record() {
+  await page.mouse.move(mouse.x, mouse.y)
+  await screencast.send('Page.startScreencast', {
+    format: 'png',
+    maxWidth: width,
+    maxHeight: height,
+  })
+  await page.waitForTimeout(600)
+  clipStart = now()
+  await page.waitForTimeout(500)
 }
-await page.mouse.up()
-await page.waitForTimeout(900)
+
+/** Opens one of the checked-in test homes. */
+async function openFixture(name) {
+  await page
+    .getByLabel('Open a plan file')
+    .setInputFiles(join(root, 'packages/floorplan/fixtures', name))
+  await page.locator('.editor-canvas[data-scale]').waitFor()
+}
+
+/** Finds a suggestion with an optimizer button, then applies it. */
+async function suggestAndApply(name) {
+  await clickLocator(panel.getByRole('button', { name }), 450)
+  const apply = panel.getByRole('button', { name: 'Apply' })
+  await apply.waitFor()
+  await page.waitForTimeout(1800)
+  await clickLocator(apply, 450)
+  await page.waitForTimeout(900)
+}
+
+await page.goto(url)
+await page.locator('.editor-canvas[data-scale]').waitFor()
+
+if (clip === 'editor') {
+  // Set-up: a new plan without its default router.
+  await page.getByText('File', { exact: true }).click()
+  await page.getByRole('button', { name: 'New plan' }).click()
+  const router = await at(5, 4)
+  await page.mouse.click(router.x, router.y)
+  await page.keyboard.press('Delete')
+  await record()
+
+  await clickLocator(tools.getByRole('button', { name: 'Wall' }), 450)
+  await clickLocator(panel.getByRole('radio', { name: 'Brick' }), 400)
+  for (const [x, y] of [
+    [1, 1],
+    [9, 1],
+    [9, 7],
+    [1, 7],
+    [1, 1],
+  ]) {
+    const p = await at(x, y)
+    await clickAt(p.x, p.y, 380)
+  }
+  await clickLocator(panel.getByRole('radio', { name: 'Concrete' }), 450)
+  for (const [x, y] of [
+    [5.5, 1],
+    [5.5, 4.5],
+  ]) {
+    const p = await at(x, y)
+    await clickAt(p.x, p.y, 400)
+  }
+  await page.keyboard.press('Escape')
+  await page.keyboard.press('Escape')
+  await clickLocator(tools.getByRole('button', { name: 'Access point' }), 450)
+  const placed = await at(3, 4)
+  await clickAt(placed.x, placed.y, 450)
+  await page.keyboard.press('Escape')
+  await page.waitForTimeout(700)
+
+  // Drag the router behind the concrete wall and back.
+  await glide(placed.x, placed.y, 200)
+  await page.mouse.down()
+  for (const [x, y] of [
+    [7.3, 2.3],
+    [7.5, 5.8],
+    [4, 5.5],
+  ]) {
+    const p = await at(x, y)
+    await glide(p.x, p.y, 950)
+  }
+  await page.mouse.up()
+  await page.waitForTimeout(900)
+} else if (clip === 'optimizer') {
+  // The sample home opens by default, with its router by the front door.
+  await coverage.getByText(/^86% of/).waitFor()
+  await record()
+  await suggestAndApply('Find a better spot for Wi-Fi 6E router')
+  await coverage.getByText(/^92% of/).waitFor()
+  // Applying selects the router; clear that to suggest a new one.
+  await page.locator('.editor-canvas').focus()
+  await page.keyboard.press('Escape')
+  await suggestAndApply('Suggest one more access point')
+  await coverage.getByText(/^100% of/).waitFor()
+  await page.waitForTimeout(1200)
+} else if (clip === '3d') {
+  await openFixture('two-storey-home.json')
+  await page.getByRole('group', { name: 'View' }).getByText('3D').click()
+  await page.locator('.view3d-canvas canvas').waitFor()
+  await page.waitForTimeout(1500)
+  await record()
+
+  // Spread the floors apart, then turn the house around.
+  const slider = panel.getByLabel('Spread floors apart')
+  const box = await slider.boundingBox()
+  const y = box.y + box.height / 2
+  await glide(box.x + 6, y, 500)
+  await page.mouse.down()
+  await glide(box.x + box.width * 0.55, y, 1200)
+  await page.mouse.up()
+  await page.waitForTimeout(600)
+  const view = await page.locator('.view3d-canvas canvas').boundingBox()
+  const cx = view.x + view.width / 2
+  const cy = view.y + view.height / 2
+  await glide(cx - 120, cy + 60, 450)
+  await page.mouse.down()
+  await glide(cx + 160, cy + 20, 2200)
+  await glide(cx + 40, cy - 40, 1200)
+  await page.mouse.up()
+  await page.waitForTimeout(1200)
+} else if (clip === 'views') {
+  // Set-up: a second access point at the far end of the house.
+  await page.keyboard.press('a')
+  const second = await at(12, 3)
+  await page.mouse.click(second.x, second.y)
+  await page.keyboard.press('Escape')
+  await page.keyboard.press('Escape')
+  const show = page.getByLabel('Show', { exact: true })
+  await show.selectOption({ label: 'Roaming' })
+  await page.locator('.editor-canvas').focus()
+  await record()
+
+  await page.waitForTimeout(1200)
+  for (const label of ['Overlap', 'Signal', 'Roaming']) {
+    await show.selectOption({ label })
+    await page.waitForTimeout(2000)
+  }
+}
 const clipEnd = now()
 await screencast.send('Page.stopScreencast')
 
@@ -218,7 +321,8 @@ for (let t = clipStart; t <= clipEnd; t += 1 / fps) {
   writeFileSync(join(frameDir, name), Buffer.from(frames[next].data, 'base64'))
 }
 
-const filters = `scale=${gifWidth}:-1:flags=lanczos`
+const crop = clip === 'editor' ? '' : galleryCrop
+const filters = `${crop}scale=${gifWidth}:-1:flags=lanczos`
 execFileSync(
   'ffmpeg',
   [
