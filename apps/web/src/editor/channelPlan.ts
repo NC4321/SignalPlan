@@ -159,7 +159,7 @@ export function bandSummary(plan: Plan, band: BandChannelPlan): string[] {
       interference: 'there’d be more interference',
     }[worse]
     lines.push(
-      `${listNames(onDfs)} ${onDfs.length === 1 ? 'is on a DFS channel' : 'are on DFS channels'}: without them, ${without}.`,
+      `${listNames(onDfs)} ${onDfs.length === 1 ? 'is on a DFS channel' : 'are on DFS channels'}: without DFS channels, ${without}.`,
     )
   }
   if (!band.exact) {

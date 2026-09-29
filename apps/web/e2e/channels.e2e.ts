@@ -235,7 +235,7 @@ test.describe('channel planner (D68)', () => {
     await dfs(page).check()
     await plan.click()
     await expect(five).toContainText(
-      'Bedroom 2 mesh point and Upstairs mesh point are on DFS channels: without them, the plan would narrow to 40 MHz.',
+      'Bedroom 2 mesh point and Upstairs mesh point are on DFS channels: without DFS channels, the plan would narrow to 40 MHz.',
     )
     const radios = five.getByRole('listitem')
     await expect(radios).toHaveText([

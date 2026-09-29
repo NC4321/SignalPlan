@@ -459,7 +459,8 @@ export function planBandChannels(
     best.radios.some((r) => r.dfs && !r.fixed)
   ) {
     const plain = bestPlan(plan, band, nodes, links, false, nodeLimit)
-    const worse = plainIsWorse(best, plain)
+    // Only a finished search says how good a plan without DFS can be.
+    const worse = plain.exact ? plainIsWorse(best, plain) : undefined
     if (worse) {
       withoutDfs = {
         clashes: plain.clashes,

@@ -201,7 +201,7 @@ describe('channel plan text (D68)', () => {
         withoutDfs: { clashes: 1, autoWidthMHz: 80, worse: 'clashes' },
       }),
     ).toBe(
-      'Office and Loft are on DFS channels: without them, 1 clash would be left.',
+      'Office and Loft are on DFS channels: without DFS channels, 1 clash would be left.',
     )
     expect(
       why({
@@ -209,19 +209,19 @@ describe('channel plan text (D68)', () => {
         withoutDfs: { clashes: 3, autoWidthMHz: 80, worse: 'clashes' },
       }),
     ).toBe(
-      'Office and Loft are on DFS channels: without them, 3 clashes would be left instead of 1.',
+      'Office and Loft are on DFS channels: without DFS channels, 3 clashes would be left instead of 1.',
     )
     expect(
       why({ withoutDfs: { clashes: 0, autoWidthMHz: 40, worse: 'width' } }),
     ).toBe(
-      'Office and Loft are on DFS channels: without them, the plan would narrow to 40 MHz.',
+      'Office and Loft are on DFS channels: without DFS channels, the plan would narrow to 40 MHz.',
     )
     expect(
       why({
         withoutDfs: { clashes: 0, autoWidthMHz: 80, worse: 'interference' },
       }),
     ).toBe(
-      'Office and Loft are on DFS channels: without them, there’d be more interference.',
+      'Office and Loft are on DFS channels: without DFS channels, there’d be more interference.',
     )
     // A DFS channel set by hand isn't the planner's choice.
     expect(
@@ -234,7 +234,7 @@ describe('channel plan text (D68)', () => {
         }),
       ).at(-1),
     ).toBe(
-      'Loft is on a DFS channel: without them, 2 clashes would be left instead of 1.',
+      'Loft is on a DFS channel: without DFS channels, 2 clashes would be left instead of 1.',
     )
   })
 })
@@ -277,7 +277,7 @@ describe('Phase 6 exit gate: the channel plan’s explanation (D69)', () => {
   it('explains a clash-free plan at 80 MHz with DFS', () => {
     expect(explain(threeAp(true, true))).toEqual([
       'No access points that hear each other share a channel on 5 GHz.',
-      'Bedroom 2 mesh point and Upstairs mesh point are on DFS channels: without them, 1 clash would be left.',
+      'Bedroom 2 mesh point and Upstairs mesh point are on DFS channels: without DFS channels, 1 clash would be left.',
       'Wi-Fi 6E router: 155 (5775 MHz) at 80 MHz — Apart from Bedroom 2 mesh point and Upstairs mesh point, which it hears; clear of Next door.',
       'Bedroom 2 mesh point: 58 (5290 MHz, DFS) at 80 MHz — Apart from Wi-Fi 6E router and Upstairs mesh point, which it hears; clear of Next door.',
       'Upstairs mesh point: 106 (5530 MHz, DFS) at 80 MHz — Apart from Wi-Fi 6E router and Bedroom 2 mesh point, which it hears; clear of Next door.',
