@@ -32,6 +32,21 @@ export {
   type FloorConstruction,
   type FloorLossTable,
 } from './materials.ts'
+export {
+  AUTO_WIDTH_MHZ,
+  autoChannelCount,
+  noiseFloorDbm,
+  overlapShare,
+  radioTuning,
+  RECEIVER_NOISE_FIGURE_DB,
+  requiredSinrDb,
+  SENSITIVITY_20MHZ_DBM,
+  sinrDb,
+  sourceTunings,
+  THERMAL_NOISE_DBM_PER_HZ,
+  type Rate,
+  type Tuning,
+} from './interference.ts'
 export { freeSpacePathLoss, SPEED_OF_LIGHT } from './pathLoss.ts'
 export {
   betterScore,

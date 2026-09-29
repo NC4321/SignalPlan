@@ -250,7 +250,12 @@ export function renderExport(
   context.textBaseline = 'middle'
   context.fillStyle = colour('--text')
   context.font = `600 15px ${FONT}`
-  const legend = mapLegend(show, settings, map.accessPointNames)
+  const legend = mapLegend(
+    show,
+    settings,
+    map.accessPointNames,
+    map.autoChannels,
+  )
   context.fillText(legend.title, x, y)
   y += 30
   for (const row of legend.rows) {

@@ -475,7 +475,12 @@ function MapLegend({ map }: { map: MapData | undefined }) {
   const show = useEditor((s) => s.show)
   const plan = useEditor((s) => s.plan)
   const names = map ? map.accessPointNames : []
-  const legend = mapLegend(show, viewSettings(plan), names)
+  const legend = mapLegend(
+    show,
+    viewSettings(plan),
+    names,
+    map ? map.autoChannels : 0,
+  )
   return (
     <>
       <h2>{legend.title}</h2>

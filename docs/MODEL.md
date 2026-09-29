@@ -38,12 +38,41 @@ The editor reports the share of the **floor area** at or above a target level (D
 
 ### Overlap and roaming
 
-The heatmap can show three maps ([D64](DECISIONS.md#d64-overlap-and-roaming-views--2026-09-28)). **Signal** is the strongest access point's signal, as above. The other two work from each access point's own signal in every cell (`views.ts`), which the engine keeps alongside the strongest.
+The heatmap can show four maps ([D64](DECISIONS.md#d64-overlap-and-roaming-views--2026-09-28), [D66](DECISIONS.md#d66-sinr-and-the-interference-view--2026-09-28)). **Signal** is the strongest access point's signal, as above. **Overlap** and **Roaming** work from each access point's own signal in every cell (`views.ts`), which the engine keeps alongside the strongest.
 
 - **Overlap** counts the access points that compete for a device in a cell: those within the **overlap margin** of the strongest there (8 dB by default) and at or above the **roaming threshold** (−70 dBm by default). Cells where no access point reaches the threshold count 0 and are left uncoloured. The summary gives the share of the floor with two or more, rounded up, so 0% only ever means none.
 - **Roaming** colours each cell by its strongest access point, if that one reaches the roaming threshold, and draws a line where the strongest changes. A gap, where none reaches the threshold, is hatched grey. The summary gives the share of the floor in gaps, rounded up.
 
 Both defaults come from Apple's _Wi-Fi roaming support in Apple devices_ (Apple Platform Deployment guide, published 2024-09-25), checked against it on 2026-09-28. iPhone and iPad keep their access point until its signal passes −70 dBm (Macs: −75 dBm), and then move to a candidate 8 dB stronger while sending data (12 dB when idle, and always on a Mac). That's a rule for when a phone moves, not a definition of overlap: SignalPlan uses the 8 dB as a fixed margin in every cell, whether the device is sending data or not and before its signal has fallen to −70 dBm, and takes the strongest access point as the one a device is on, ignoring that a device stays on its current access point until the trigger. Both numbers can be changed per plan, and are saved with it.
+
+### Interference
+
+The fourth map, **Interference** ([D66](DECISIONS.md#d66-sinr-and-the-interference-view--2026-09-28)), shows signal to interference and noise, SINR, in dB (`interference.ts`). In each cell a device is taken to be on the strongest access point, as in Roaming:
+
+SINR = S − 10·log10( Σ share_i · 10^(I_i / 10) + 10^(N / 10) )
+
+- **S** is the strongest access point's signal in dBm, and **I_i** each other access point's signal in the same cell, on this floor or another.
+- **share_i** is how much of access point _i_'s power lands in the receiving channel. Power is taken as spread evenly across a channel, so the share is the overlap of the two channels' spans in MHz over _i_'s width (spans as in [Channels and regions](#channels-and-regions)). Channels 1 and 3 on 2.4 GHz, 2402–2422 and 2412–2432 MHz, share 10 of 20 MHz, so half; 1 and 6 don't overlap. A 40 MHz channel inside an 80 MHz one gets half of the 80 MHz radio's power, and the 80 MHz radio all of the 40 MHz one's. Real transmitters don't spread power evenly: 802.11's spectral mask lets some power leak beyond the channel's edge and puts less in its outer MHz. That's a simplification, not a sourced shape.
+- **N** is the noise floor for the receiving channel's width B: N = kT₀ + 10·log10(B) + NF = −173.98 dBm/Hz + 10·log10(B in Hz) + 10 dB, so −90.97 dBm in 20 MHz and −84.95 dBm in 80 MHz. kT₀ is the Boltzmann constant (1.380649 × 10⁻²³ J/K, exact in the SI Brochure, 9th edition) times the reference temperature T₀ "fixed, by convention, around 290 K" (ITU-R V.573-5, term F03). NF is a receiver noise figure of 10 dB. It comes from IEEE 802.11 working-group document 11-03/845r1, "Receiver Sensitivity Tables for MIMO-OFDM 802.11n" (Mahadevappa and ten Brink, Realtek, November 2003), which works out receiver sensitivities with a "10dB noise figure (conservative [4])" and a "5dB implementation margin (conservative [4])", where [4] is IEEE Std 802.11a-1999, as "(-174+73+10+5)dBm+Es/N0" in 20 MHz. The standard's own text wasn't available to check, so SignalPlan cites the working-group document, not the standard.
+
+Wider channels show their cost both ways: each doubling adds 3.01 dB of noise, and a wider span overlaps more neighbours. Two 20 MHz radios on channels 36 and 44 don't interfere; at 80 MHz both are in channel 42 and do.
+
+**Channels on Auto.** A radio whose channel is left to the planner (#115) is taken to be on a channel no one else uses, so it neither causes nor suffers interference: the best case. The legend says how many access points are on Auto. A radio whose width is on Auto uses 20 MHz on 2.4 GHz and 80 MHz on 5 and 6 GHz (common router defaults, not a sourced number), narrowed to the widest the plan's region allows.
+
+**Bands.** Each band starts at the SINR a receiver with that 10 dB noise figure needs for a rate: the rate's minimum sensitivity in 20 MHz less the noise floor above (−90.97 dBm). The 5 dB implementation margin stays inside that SINR, as it does in 11-03/845r1. The sensitivities come from the HE (Wi-Fi 6) table in the IEEE 802.11 working group's text, doc. 11-16/1406r0, "Spec Text for 11ax Receiver Requirements" (November 2016), drafted as P802.11ax/D1.0 Table 28-41. The ratified 802.11ax-2021 wasn't available. Its MCS 0–9 rows are the VHT (Wi-Fi 5) values. Each doubling of width raises the sensitivity by 3 dB, as it does the noise, so the SINR a rate needs is the same at every width.
+
+| Band      | Rate                                      | Sensitivity, 20 MHz | SINR needed |
+| --------- | ----------------------------------------- | ------------------- | ----------- |
+| Fastest   | MCS 11, 1024-QAM 5/6 (Wi-Fi 6's top rate) | −52 dBm             | 39.0 dB     |
+| Very fast | MCS 9, 256-QAM 5/6 (Wi-Fi 5's top rate)   | −57 dBm             | 34.0 dB     |
+| Fast      | MCS 7, 64-QAM 5/6 (Wi-Fi 4's top rate)    | −64 dBm             | 27.0 dB     |
+| Medium    | MCS 4, 16-QAM 3/4                         | −70 dBm             | 21.0 dB     |
+| Slow      | MCS 0, BPSK 1/2 (the slowest)             | −82 dBm             | 9.0 dB      |
+| Unusable  | below MCS 0                               |                     | < 9.0 dB    |
+
+Unusable cells are hatched grey; cells no access point reaches are left clear. The summary gives the share of the floor below 9 dB, rounded up so 0% only means none; cells no access point reaches aren't counted as below 9 dB, since there's no signal to drown. Neighbours' networks join the interference in #114.
+
+Working SINR out on the page adds about 2 ms to the big house's grid (12.7 → 14.5 ms median on the desktop, with every access point on one channel), inside its 50 ms budget; `coverage.speed.ts` checks it.
 
 ### Placement optimizer
 
@@ -161,7 +190,7 @@ Channels step by 4 at 20 MHz, 8 at 40 MHz, 16 at 80 MHz and 32 at 160 MHz. Every
 - 20 MHz channels 32, 68 and 96 (EN 301 893 eq. (1) allows them in the EU; they also fit US rules), and 6 GHz channel 2 (5935 MHz, its own IEEE operating class). Each is a 20 MHz-only edge channel that never joins a wider one.
 - 320 MHz on 6 GHz. The FCC allows it (§ 15.407(a)(11)), but its channel numbers are only in IEEE working-group drafts so far.
 
-A radio can have its width and channel set by hand ([D63](DECISIONS.md#d63-channel-and-width-per-radio--2026-09-28)). `radioChannelIssue` checks them against these lists: a width the region doesn't have on the band, or a channel not in its list at that width, is not allowed, and a DFS channel needs the plan's DFS setting. Nothing in the coverage model uses channels yet; interference comes with #113.
+A radio can have its width and channel set by hand ([D63](DECISIONS.md#d63-channel-and-width-per-radio--2026-09-28)). `radioChannelIssue` checks them against these lists: a width the region doesn't have on the band, or a channel not in its list at that width, is not allowed, and a DFS channel needs the plan's DFS setting. The Interference view uses them (see [Interference](#interference)); coverage itself doesn't depend on the channel.
 
 To add a region, or change one when the rules change: add or edit its entry in `regions.json` (ranges, DFS ranges, channel lists per width, highest EIRP and the note the editor shows), add its code to `REGIONS` in the floorplan schema, add a row above with its sources, and bump the file's `version` date. The unit tests check every channel against the ranges.
 

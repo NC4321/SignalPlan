@@ -2,6 +2,7 @@ import { parsePlan, type Band, type Plan } from '@signalplan/floorplan'
 import sampleHome from '@signalplan/floorplan/fixtures/sample-home.json' with { type: 'json' }
 import { describe, expect, it } from 'vitest'
 import { evaluateCoverage } from './coverage.ts'
+import { sinrDb, sourceTunings } from './interference.ts'
 import { bigHouse, roomGrid, twoStoreyHouse } from './testPlans.ts'
 
 /**
@@ -30,13 +31,18 @@ const CI_MARGIN = 1.5
 const WARM_UP_RUNS = 5
 const RUNS = 30
 
-function measure(plan: Plan, floorId: string, band: Band) {
-  for (let i = 0; i < WARM_UP_RUNS; i++) evaluateCoverage(plan, floorId, band)
+function measure(plan: Plan, floorId: string, band: Band, sinr = false) {
+  const run = () => {
+    const coverage = evaluateCoverage(plan, floorId, band)
+    if (sinr) sinrDb(coverage, sourceTunings(coverage, plan))
+    return coverage
+  }
+  for (let i = 0; i < WARM_UP_RUNS; i++) run()
   const times: number[] = []
   let cells = 0
   for (let i = 0; i < RUNS; i++) {
     const started = performance.now()
-    const coverage = evaluateCoverage(plan, floorId, band)
+    const coverage = run()
     times.push(performance.now() - started)
     cells = coverage.grid.cols * coverage.grid.rows
   }
@@ -102,6 +108,43 @@ describe('coverage grid speed at 10 cm cells', () => {
         report(name, band, budget, r)
         expect(r.areaM2).toBeGreaterThanOrEqual(100)
         expect(r.median).toBeLessThan(budget * CI_MARGIN)
+      })
+    }
+  }
+})
+
+/**
+ * The Interference view works SINR out on the page from the grid (D66), so
+ * the grid and SINR together keep to the large-home budget. Every access
+ * point shares one channel, so each cell adds up an interferer.
+ */
+describe('coverage grid plus SINR speed at 10 cm cells', () => {
+  const sameChannel = (plan: Plan): Plan => ({
+    ...plan,
+    accessPoints: plan.accessPoints.map((ap) => ({
+      ...ap,
+      radios: ap.radios.map((radio) => ({
+        ...radio,
+        channel: radio.band === '2.4GHz' ? 6 : radio.band === '5GHz' ? 42 : 7,
+        channelWidthMHz: radio.band === '2.4GHz' ? 20 : 80,
+      })),
+    })),
+  })
+  const cases: [string, Plan, string][] = [
+    ['Big house (300 m², 2 access points)', sameChannel(bigHouse()), 'main'],
+    [
+      'Two-storey house, ground floor (1 access point per floor)',
+      sameChannel(twoStoreyHouse()),
+      'main',
+    ],
+  ]
+  const bands: Band[] = ['2.4GHz', '5GHz', '6GHz']
+  for (const [name, plan, floorId] of cases) {
+    for (const band of bands) {
+      it(`${name}, ${band}, with SINR`, () => {
+        const r = measure(plan, floorId, band, true)
+        report(`${name} with SINR`, band, LARGE_HOME_BUDGET_MS, r)
+        expect(r.median).toBeLessThan(LARGE_HOME_BUDGET_MS * CI_MARGIN)
       })
     }
   }

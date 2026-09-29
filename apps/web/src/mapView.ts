@@ -1,10 +1,15 @@
 import {
+  autoChannelCount,
   overlapCounts,
+  requiredSinrDb,
   roamingEdges,
   roamingOwners,
+  sinrDb,
+  sourceTunings,
   summariseCoverage,
   viewShares,
   type Coverage,
+  type Rate,
   type ViewSettings,
 } from '@signalplan/engine'
 import type { CoverageTarget, Plan } from '@signalplan/floorplan'
@@ -13,19 +18,73 @@ import { formatArea, type Units } from './editor/units.ts'
 import { QUALITY_BANDS, qualityOf, targetBand } from './quality.ts'
 
 /**
- * What the heatmap shows (D61, D64): signal strength, how many access points
- * compete for a device, or which one it would be on. Not saved, like the band.
+ * What the heatmap shows (D61, D64, D66): signal strength, how many access
+ * points compete for a device, which one it would be on, or signal over
+ * interference and noise. Not saved, like the band.
  */
-export const MAP_KINDS = ['signal', 'overlap', 'roaming'] as const
+export const MAP_KINDS = [
+  'signal',
+  'overlap',
+  'roaming',
+  'interference',
+] as const
 export type MapKind = (typeof MAP_KINDS)[number]
 
 export const MAP_LABELS: Record<MapKind, string> = {
   signal: 'Signal',
   overlap: 'Overlap',
   roaming: 'Roaming',
+  interference: 'Interference',
 }
 
 type Rgb = readonly [number, number, number]
+
+/**
+ * The Interference view's bands (D66), each the SINR an 802.11 receiver
+ * needs for a rate, best first, on the Signal view's viridis ramp. Below the
+ * slowest rate is hatched as unusable.
+ */
+export const SINR_BANDS: readonly {
+  rate: Rate
+  label: string
+  detail: string
+  rgb: Rgb
+}[] = [
+  {
+    rate: 'mcs11',
+    label: 'Fastest',
+    detail: "Wi-Fi 6's top rate",
+    rgb: [0xfd, 0xe7, 0x25],
+  },
+  {
+    rate: 'mcs9',
+    label: 'Very fast',
+    detail: "Wi-Fi 5's top rate",
+    rgb: [0x5e, 0xc9, 0x62],
+  },
+  {
+    rate: 'mcs7',
+    label: 'Fast',
+    detail: "Wi-Fi 4's top rate",
+    rgb: [0x21, 0x91, 0x8c],
+  },
+  { rate: 'mcs4', label: 'Medium', detail: '16-QAM', rgb: [0x3b, 0x52, 0x8b] },
+  {
+    rate: 'mcs0',
+    label: 'Slow',
+    detail: 'the slowest rate',
+    rgb: [0x44, 0x01, 0x54],
+  },
+]
+
+/** SINR bands with their thresholds in dB, worked out once. */
+const SINR_STEPS = SINR_BANDS.map((b) => ({
+  ...b,
+  minDb: requiredSinrDb(b.rate),
+}))
+
+/** The SINR the slowest rate needs: below it a cell is unusable. */
+export const MIN_USABLE_SINR_DB = SINR_STEPS.at(-1)!.minDb
 
 /**
  * Overlap colours for 1, 2 and 3 or more access points: a light-to-dark blue
@@ -75,29 +134,70 @@ export interface MapData {
   counts: Uint8Array | undefined
   owners: Int16Array | undefined
   edges: Uint8Array | undefined
+  /** SINR in dB per cell, for the Interference view. */
+  sinr: Float32Array | undefined
+  /** How many access points leave their channel on Auto; 0 outside Interference. */
+  autoChannels: number
   /** Names in the order of `accessPointIds`, for the Roaming legend. */
   accessPointNames: string[]
 }
 
 /**
  * `plan` is the plan the coverage was worked out for, suggestion included,
- * so the Roaming legend names every access point on the map in its colour.
+ * so the Roaming legend names every access point on the map in its colour
+ * and the Interference view uses every access point's channel.
  */
 export function mapData(
   coverage: Coverage,
   kind: MapKind,
   settings: ViewSettings,
-  plan: Pick<Plan, 'accessPoints'>,
+  plan: Pick<Plan, 'accessPoints' | 'region'>,
 ): MapData {
   const accessPointNames = coverage.accessPointIds.map(
     (id) => plan.accessPoints.find((ap) => ap.id === id)?.name ?? id,
   )
   const counts =
-    kind === 'signal' ? undefined : overlapCounts(coverage, settings)
+    kind === 'overlap' || kind === 'roaming'
+      ? overlapCounts(coverage, settings)
+      : undefined
   const owners =
     kind === 'roaming' ? roamingOwners(coverage, settings) : undefined
   const edges = owners ? roamingEdges(owners, coverage.grid.cols) : undefined
-  return { kind, coverage, settings, counts, owners, edges, accessPointNames }
+  const tunings =
+    kind === 'interference' ? sourceTunings(coverage, plan) : undefined
+  return {
+    kind,
+    coverage,
+    settings,
+    counts,
+    owners,
+    edges,
+    sinr: tunings ? sinrDb(coverage, tunings) : undefined,
+    autoChannels: tunings ? autoChannelCount(tunings) : 0,
+    accessPointNames,
+  }
+}
+
+/** The SINR band a value falls in, or undefined below the slowest rate. */
+export function sinrBand(db: number) {
+  return SINR_STEPS.find((band) => db >= band.minDb)
+}
+
+/**
+ * The share of a floor too noisy for any rate, 0 to 1; undefined without
+ * floor. Cells no access point reaches are left out: they have no signal to
+ * drown, and the map leaves them clear.
+ */
+export function unusableShare(coverage: Coverage, sinr: Float32Array) {
+  let area = 0
+  let unusable = 0
+  coverage.floorArea.forEach((inside, i) => {
+    if (!inside) return
+    area++
+    const db = sinr[i]!
+    if (db !== Number.NEGATIVE_INFINITY && db < MIN_USABLE_SINR_DB) unusable++
+  })
+  return area === 0 ? undefined : unusable / area
 }
 
 /**
@@ -115,14 +215,24 @@ export function cellColour(data: MapData, i: number): Rgb | 'none' {
     }
     case 'roaming': {
       const owner = data.owners![i]!
-      if (owner < 0) {
-        const cols = data.coverage.grid.cols
-        const diagonal = (i % cols) + Math.floor(i / cols)
-        return diagonal % 4 === 0 ? GAP_HATCH_RGB : GAP_RGB
-      }
+      if (owner < 0) return hatch(data, i)
       return data.edges![i] ? EDGE_RGB : accessPointRgb(owner)
     }
+    case 'interference': {
+      const sinr = data.sinr![i]!
+      if (sinr === Number.NEGATIVE_INFINITY) return 'none'
+      const band = sinrBand(sinr)
+      if (band) return band.rgb
+      return hatch(data, i)
+    }
   }
+}
+
+/** Grey with a darker diagonal every fourth cell. */
+function hatch(data: MapData, i: number): Rgb {
+  const cols = data.coverage.grid.cols
+  const diagonal = (i % cols) + Math.floor(i / cols)
+  return diagonal % 4 === 0 ? GAP_HATCH_RGB : GAP_RGB
 }
 
 export type Swatch =
@@ -152,6 +262,7 @@ export function mapLegend(
   kind: MapKind,
   settings: ViewSettings,
   accessPointNames: readonly string[],
+  autoChannels = 0,
 ): Legend {
   const threshold = `${settings.roamThresholdDbm} dBm`
   switch (kind) {
@@ -208,13 +319,44 @@ export function mapLegend(
         ],
         note: `Each area is on its strongest access point. Below ${threshold} a phone looks for another, and a gap has none.`,
       }
+    case 'interference':
+      return {
+        title: 'Signal to interference and noise',
+        rows: [
+          ...SINR_STEPS.map((band, i) => ({
+            label: band.label,
+            detail:
+              i === 0
+                ? `≥ ${Math.round(band.minDb)} dB`
+                : `${Math.round(band.minDb)} to ${Math.round(SINR_STEPS[i - 1]!.minDb)} dB`,
+            swatch: { kind: 'fill', rgb: band.rgb } as const,
+          })),
+          {
+            label: 'Unusable',
+            detail: `< ${Math.round(MIN_USABLE_SINR_DB)} dB`,
+            swatch: { kind: 'hatch' },
+          },
+          { label: 'No signal', detail: '', swatch: { kind: 'none' } },
+        ],
+        note: [
+          `The strongest access point over others on overlapping channels and the noise for its width; wider channels hear more noise. Each band starts at the SINR 802.11 needs for a rate, from ${SINR_BANDS[0]!.detail} down to the slowest.`,
+          autoChannels === 0
+            ? undefined
+            : autoChannels === 1
+              ? '1 access point has its channel on Auto, taken as a channel no one else uses: the best case.'
+              : `${autoChannels} access points have their channels on Auto, each taken as a channel no one else uses: the best case.`,
+        ]
+          .filter((s) => s !== undefined)
+          .join(' '),
+      }
   }
 }
 
 /**
  * The summary line for a map (D27, D64). Signal gives the share at the plan's
- * target, rounded down. Overlap and Roaming give the share with competing
- * access points or in gaps, rounded up, so 0% only ever means none.
+ * target, rounded down. Overlap, Roaming and Interference give the share with
+ * competing access points, in gaps or too noisy for any rate, rounded up, so
+ * 0% only ever means none.
  */
 export function mapMessage(
   data: MapData,
@@ -229,14 +371,25 @@ export function mapMessage(
   const band = BAND_LABELS[coverage.band]
   const { areaM2 } = summariseCoverage(coverage, targetBand(target).minDbm)
   const area = formatArea(areaM2, units)
-  const shares = viewShares(coverage, data.counts!)
   const percent = (share: number) => `${Math.ceil(share * 100)}%`
-  const message =
-    shares === undefined
-      ? 'Close the outer walls to see how much of the floor is covered.'
-      : data.kind === 'overlap'
-        ? `${percent(shares.overlap)} of ${area} has two or more access points competing on ${band}.`
-        : `${percent(shares.gaps)} of ${area} is a gap below ${data.settings.roamThresholdDbm} dBm on ${band}.`
+  const closeWalls =
+    'Close the outer walls to see how much of the floor is covered.'
+  let message: string
+  if (data.kind === 'interference') {
+    const unusable = unusableShare(coverage, data.sinr!)
+    message =
+      unusable === undefined
+        ? closeWalls
+        : `${percent(unusable)} of ${area} is too noisy for any rate (below ${Math.round(MIN_USABLE_SINR_DB)} dB) on ${band}.`
+  } else {
+    const shares = viewShares(coverage, data.counts!)
+    message =
+      shares === undefined
+        ? closeWalls
+        : data.kind === 'overlap'
+          ? `${percent(shares.overlap)} of ${area} has two or more access points competing on ${band}.`
+          : `${percent(shares.gaps)} of ${area} is a gap below ${data.settings.roamThresholdDbm} dBm on ${band}.`
+  }
   return floorName === undefined ? message : `${floorName}: ${message}`
 }
 
