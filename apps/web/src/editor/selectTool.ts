@@ -440,6 +440,13 @@ export function splitRecipe(
   }
 }
 
+/**
+ * Whether the selection is only survey spots, whose edits don't change
+ * coverage and so keep an optimizer search or suggestion (D71).
+ */
+export const onlySurveySpots = (selection: Selection) =>
+  selection.length > 0 && selection.every((s) => s.kind === 'surveySpot')
+
 /** A short label for the undo button, describing what was changed. */
 export function describeSelection(selection: Selection): string {
   if (selection.length !== 1) return `${selection.length} items`

@@ -90,7 +90,11 @@ import { zoomAt } from './camera.ts'
 import { regionPlace } from './region.ts'
 import { BAND_LABELS, settledAnnouncement } from './coverageText.ts'
 import { useEditor, useEditorStore } from './context.ts'
-import { deleteRecipe, describeSelection } from './selectTool.ts'
+import {
+  deleteRecipe,
+  describeSelection,
+  onlySurveySpots,
+} from './selectTool.ts'
 import { bearingDeg } from './snap.ts'
 import {
   formatArea,
@@ -1117,9 +1121,14 @@ function AccessPointSection({ ap }: { ap: AccessPoint }) {
                   ap={ap}
                   radio={radio}
                   onCommit={(bssids) =>
-                    edit(`Change ${BAND_LABELS[band]} BSSIDs`, (plan) => {
-                      setRadioBssids(plan, ap.id, band, bssids)
-                    })
+                    store.getState().edit(
+                      `Change ${BAND_LABELS[band]} BSSIDs`,
+                      (plan) => {
+                        setRadioBssids(plan, ap.id, band, bssids)
+                      },
+                      // BSSIDs don't change coverage (D71).
+                      { keepOptimizer: true },
+                    )
                   }
                 />
               )}
@@ -2171,6 +2180,7 @@ function DeleteButton() {
         state.edit(
           `Delete ${describeSelection(selection)}`,
           deleteRecipe(state.floorId, selection),
+          { keepOptimizer: onlySurveySpots(selection) },
         )
       }}
     >
@@ -2613,8 +2623,9 @@ function SurveySpotSection({ spot }: { spot: SurveySpot }) {
   const units = useEditor((s) => s.units)
   const plan = useEditor((s) => s.plan)
   const name = surveySpotName(spot.id)
+  // Readings don't change coverage, so a suggestion stays (D71).
   const edit = (label: string, change: (plan: Draft<Plan>) => void) =>
-    store.getState().edit(label, change)
+    store.getState().edit(label, change, { keepOptimizer: true })
   const used = new Set(spot.readings.map((r) => `${r.apId} ${r.band}`))
   const free = plan.accessPoints.some((ap) =>
     ap.radios.some((r) => !used.has(`${ap.id} ${r.band}`)),

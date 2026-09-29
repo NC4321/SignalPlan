@@ -43,6 +43,7 @@ import {
   moveSurveySpotRecipe,
   moveWallRecipe,
   nudgeRecipe,
+  onlySurveySpots,
   selectionHasLocked,
   snapDraggedNode,
   splitRecipe,
@@ -815,7 +816,7 @@ export function EditorCanvas({
             origin: { x: origin.x, y: origin.y },
             moved: false,
           }
-          state.beginGesture()
+          state.beginGesture({ keepOptimizer: hit.kind === 'surveySpot' })
         }}
         onPointerMove={(event) => {
           const at = local(event)
@@ -978,6 +979,7 @@ export function EditorCanvas({
           state.edit(
             `Move ${name ?? describeSelection(state.selection)}`,
             nudgeRecipe(floorId, state.selection, delta),
+            { keepOptimizer: onlySurveySpots(state.selection) },
           )
           // The rest of the selection moved; say why a locked one didn't.
           if (selectionHasLocked(state.plan, state.selection)) {

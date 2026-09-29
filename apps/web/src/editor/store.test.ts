@@ -6,7 +6,11 @@ import {
 } from '@signalplan/floorplan'
 import sampleHome from '@signalplan/floorplan/fixtures/sample-home.json'
 import { describe, expect, it } from 'vitest'
-import { deleteRecipe } from './selectTool.ts'
+import {
+  deleteRecipe,
+  moveSurveySpotRecipe,
+  onlySurveySpots,
+} from './selectTool.ts'
 import { createEditorStore, ghostFloor, HISTORY_LIMIT } from './store.ts'
 
 function sample(): Plan {
@@ -631,6 +635,33 @@ describe('survey spots (D71)', () => {
     store.getState().undo()
     expect(store.getState().plan.floors[0]!.surveySpots).toBeUndefined()
     expect(store.getState().selection).toEqual([])
+  })
+
+  it('keeps an optimizer search through survey edits, which don’t change coverage', () => {
+    const store = createEditorStore(sample())
+    const searching = {
+      status: 'searching' as const,
+      fraction: 0.5,
+      what: 'Searching',
+    }
+    store.getState().setOptimizer(searching)
+    store.getState().addSurveySpot({ x: 2, y: 3 })
+    const spot = [{ kind: 'surveySpot' as const, id: 'spot1' }]
+    store.getState().beginGesture({ keepOptimizer: true })
+    store
+      .getState()
+      .updateGesture(moveSurveySpotRecipe('spot1', { x: 4, y: 3 }))
+    store.getState().endGesture('Move survey spot')
+    expect(store.getState().plan.floors[0]!.surveySpots![0]).toMatchObject({
+      x: 4,
+    })
+    store.getState().edit('Delete survey spot', deleteRecipe('main', spot), {
+      keepOptimizer: onlySurveySpots(spot),
+    })
+    expect(store.getState().optimizer).toBe(searching)
+    // Anything else still stops it.
+    store.getState().edit('Move router', moveRouterTo(1))
+    expect(store.getState().optimizer).toBeUndefined()
   })
 
   it('deletes an access point with its readings, and undo brings both back', () => {

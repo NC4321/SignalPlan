@@ -19,7 +19,11 @@ import {
   Toolbar,
 } from './editor/panels.tsx'
 import { useCoverageMessage } from './editor/useCoverageMessage.ts'
-import { deleteRecipe, describeSelection } from './editor/selectTool.ts'
+import {
+  deleteRecipe,
+  describeSelection,
+  onlySurveySpots,
+} from './editor/selectTool.ts'
 import { isTyping } from './editor/util.ts'
 import {
   createOptimizer,
@@ -173,6 +177,7 @@ function App({
         state.edit(
           `Delete ${describeSelection(state.selection)}`,
           deleteRecipe(state.floorId, state.selection),
+          { keepOptimizer: onlySurveySpots(state.selection) },
         )
       } else if (key === 'escape') {
         // Esc finishes the chain; pressed again, it returns to Select (D16).

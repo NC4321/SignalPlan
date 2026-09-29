@@ -138,7 +138,9 @@ export interface EditorState {
   /** The plan's id in the library, or undefined if it hasn't joined it yet. */
   planId: string | undefined
   /** An edit in progress, such as a drag: previews apply to `base`. */
-  gesture: { base: Plan; recipe: Recipe | undefined } | undefined
+  gesture:
+    | { base: Plan; recipe: Recipe | undefined; keepOptimizer: boolean }
+    | undefined
   /**
    * A short note for the status bar, such as why a locked access point
    * didn't move (D43). Cleared by the next edit or selection change.
@@ -167,8 +169,11 @@ export interface EditorState {
     recipe: Recipe,
     options?: { keepOptimizer?: boolean },
   ) => void
-  /** Starts a gesture; the plan at this moment is what previews build on. */
-  beginGesture: () => void
+  /**
+   * Starts a gesture; the plan at this moment is what previews build on.
+   * `keepOptimizer` is as for `edit`.
+   */
+  beginGesture: (options?: { keepOptimizer?: boolean }) => void
   /** Shows the gesture's current result, replacing the previous preview. */
   updateGesture: (recipe: Recipe) => void
   /** Commits the gesture's last preview as one undoable edit. */
@@ -406,8 +411,14 @@ export function createEditorStore(
       }))
     },
 
-    beginGesture: () => {
-      set((state) => ({ gesture: { base: state.plan, recipe: undefined } }))
+    beginGesture: (options) => {
+      set((state) => ({
+        gesture: {
+          base: state.plan,
+          recipe: undefined,
+          keepOptimizer: options?.keepOptimizer ?? false,
+        },
+      }))
     },
 
     updateGesture: (recipe) => {
@@ -416,8 +427,10 @@ export function createEditorStore(
       const [next] = produceWithPatches(gesture.base, recipe)
       set((state) => ({
         plan: next,
-        gesture: { base: gesture.base, recipe },
-        ...dropOptimizer(state.optimizer, 'the plan changed'),
+        gesture: { ...gesture, recipe },
+        ...(gesture.keepOptimizer
+          ? {}
+          : dropOptimizer(state.optimizer, 'the plan changed')),
         ...dropChannelPlan(state),
       }))
     },
@@ -426,7 +439,11 @@ export function createEditorStore(
       const { gesture } = get()
       if (!gesture) return
       set({ plan: gesture.base, gesture: undefined })
-      if (gesture.recipe) get().edit(label, gesture.recipe)
+      if (gesture.recipe) {
+        get().edit(label, gesture.recipe, {
+          keepOptimizer: gesture.keepOptimizer,
+        })
+      }
     },
 
     cancelGesture: () => {
@@ -742,9 +759,14 @@ export function createEditorStore(
     addSurveySpot: (at) => {
       const { floorId } = get()
       let created: string | undefined
-      get().edit('Add survey spot', (draft) => {
-        created = addSurveySpot(draft, floorId, at)
-      })
+      // Survey spots don't change coverage, so a suggestion stays (D71).
+      get().edit(
+        'Add survey spot',
+        (draft) => {
+          created = addSurveySpot(draft, floorId, at)
+        },
+        { keepOptimizer: true },
+      )
       if (created) get().select([{ kind: 'surveySpot', id: created }])
     },
   }))
