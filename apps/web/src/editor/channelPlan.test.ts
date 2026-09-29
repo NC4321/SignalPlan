@@ -131,6 +131,14 @@ describe('channel plan text (D68)', () => {
     expect(
       bandSummary(named, band({ radios: [radio({}), radio({})] })),
     ).toEqual([
+      'No access point hears another on 5 GHz; channels are still spread to cut interference.',
+    ])
+    expect(
+      bandSummary(
+        named,
+        band({ radios: [radio({ hears: ['b'] }), radio({ hears: ['a'] })] }),
+      ),
+    ).toEqual([
       'No access points that hear each other share a channel on 5 GHz.',
     ])
     expect(

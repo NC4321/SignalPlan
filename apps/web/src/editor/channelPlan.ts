@@ -113,9 +113,11 @@ export function bandSummary(plan: Plan, band: BandChannelPlan): string[] {
   const label = BAND_LABELS[band.band]
   if (band.clashes === 0) {
     lines.push(
-      band.radios.length > 1
-        ? `No access points that hear each other share a channel on ${label}.`
-        : `One access point on ${label}.`,
+      band.radios.length <= 1
+        ? `One access point on ${label}.`
+        : band.radios.every((r) => r.hears.length === 0)
+          ? `No access point hears another on ${label}; channels are still spread to cut interference.`
+          : `No access points that hear each other share a channel on ${label}.`,
     )
   } else {
     lines.push(

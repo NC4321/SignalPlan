@@ -53,7 +53,7 @@ SINR = S − 10·log10( Σ share_i · 10^(I_i / 10) + 10^(N / 10) )
 
 - **S** is the strongest access point's signal in dBm, and **I_i** each other access point's signal in the same cell, on this floor or another, or a neighbour's network's typed-in strength (see below).
 - **share_i** is how much of access point _i_'s power lands in the receiving channel. Power is taken as spread evenly across a channel, so the share is the overlap of the two channels' spans in MHz over _i_'s width (spans as in [Channels and regions](#channels-and-regions)). Channels 1 and 3 on 2.4 GHz, 2402–2422 and 2412–2432 MHz, share 10 of 20 MHz, so half; 1 and 6 don't overlap. A 40 MHz channel inside an 80 MHz one gets half of the 80 MHz radio's power, and the 80 MHz radio all of the 40 MHz one's. Real transmitters don't spread power evenly: 802.11's spectral mask lets some power leak beyond the channel's edge and puts less in its outer MHz. That's a simplification, not a sourced shape.
-- **N** is the noise floor for the receiving channel's width B: N = kT₀ + 10·log10(B) + NF = −173.98 dBm/Hz + 10·log10(B in Hz) + 10 dB, so −90.97 dBm in 20 MHz and −84.95 dBm in 80 MHz. kT₀ is the Boltzmann constant (1.380649 × 10⁻²³ J/K, exact in the SI Brochure, 9th edition) times the reference temperature T₀ "fixed, by convention, around 290 K" (ITU-R V.573-5, term F03). NF is a receiver noise figure of 10 dB. It comes from IEEE 802.11 working-group document 11-03/845r1, "Receiver Sensitivity Tables for MIMO-OFDM 802.11n" (Mahadevappa and ten Brink, Realtek, November 2003), which works out receiver sensitivities with a "10dB noise figure (conservative [4])" and a "5dB implementation margin (conservative [4])", where [4] is IEEE Std 802.11a-1999, as "(-174+73+10+5)dBm+Es/N0" in 20 MHz. The standard's own text wasn't available to check, so SignalPlan cites the working-group document, not the standard.
+- **N** is the noise floor for the receiving channel's width B: N = kT₀ + 10·log10(B) + NF = −173.98 dBm/Hz + 10·log10(B in Hz) + 10 dB, so −90.97 dBm in 20 MHz and −84.95 dBm in 80 MHz. kT₀ is the Boltzmann constant (1.380649 × 10⁻²³ J/K, exact in the SI Brochure, 9th edition) times the reference temperature T₀ "fixed, by convention, around 290 K" (ITU-R V.573-5, term F03). NF is a receiver noise figure of 10 dB, the one 802.11 assumes for its minimum sensitivities: IEEE Std 802.11a-1999, 17.3.10.1, says its minimum input levels are measured at the antenna connector, "NF of 10 dB and 5 dB implementation margins are assumed" (read from the copy filed as a USPTO PTAB exhibit, checked 2026-09-29, [D68](DECISIONS.md#d68-channel-planner--2026-09-29)). IEEE 802.11 working-group document 11-03/845r1 (Mahadevappa and ten Brink, Realtek, November 2003) uses the same "10dB noise figure (conservative [4])" and "5dB implementation margin", citing that standard, and works sensitivities out as "(-174+73+10+5)dBm+Es/N0" in 20 MHz.
 
 Wider channels show their cost both ways: each doubling adds 3.01 dB of noise, and a wider span overlaps more neighbours. Two 20 MHz radios on channels 36 and 44 don't interfere; at 80 MHz both are in channel 42 and do.
 
@@ -75,6 +75,25 @@ Unusable cells are hatched grey; cells no access point reaches are left clear. T
 **Neighbours' networks** ([D67](DECISIONS.md#d67-neighbours-networks--2026-09-29)) are typed in by hand: band, channel, width and a rough signal in dBm, as a Wi-Fi analyser app shows it where you stand. They have no position, so each counts at that one strength in every cell of every floor, with the same channel share as an access point. Like interference from the plan's own access points, they only reach radios with a channel set: a radio on Auto is still taken to be on a channel no one else uses. A network whose channel hasn't been picked yet isn't counted. That makes them background interference, not a map of the neighbour: a network 3 dB stronger by the party wall than in the far room counts the same in both.
 
 Working SINR out on the page adds about 2 ms to the big house's grid (12.7 → 14.5 ms median on the desktop, with every access point on one channel), inside its 50 ms budget; `coverage.speed.ts` checks it.
+
+### Channel planner
+
+The channel planner ([D68](DECISIONS.md#d68-channel-planner--2026-09-29), `channelPlan.ts`) suggests a channel, and where it's on Auto a width, for every radio, band by band. It's graph colouring: each radio on the band is a node, and two are joined when either receives the other at or above the clear-channel-assessment (CCA) level for the sender's width. At that level 802.11 makes a receiver treat the channel as busy, so the two take turns on the air rather than sending at once. The levels come from IEEE Std 802.11ac-2013, 22.3.19.5.3, Table 22-27: the start of a transmission in the primary channel at or above −82 dBm for 20 MHz, −79 dBm for 40 MHz, −76 dBm for 80 MHz and −73 dBm for 160 MHz (the 20 MHz level is also 802.11a-1999's, 17.3.10.5). Each access point's signal at the other's antenna is worked out with the same model as coverage, walls and floors included, from its mounting height to the other's.
+
+In a home, most access points hear each other: at the default 23 dBm on 5 GHz, free-space signal stays above −76 dBm out to about 385 m, so only thick walls, floors or low power keep two apart.
+
+A **clash** is two joined radios whose channels overlap, or a radio whose channel overlaps a neighbour's network at or above the CCA level for its width, since the access point would wait for it too. Plans are compared in order:
+
+1. the number of clashes;
+2. the MHz those clashes share;
+3. interference power in mW between every pair of radios, joined or not, and from every neighbour's network, each weighted by the share of its channel that overlaps (as in [Interference](#interference));
+4. the number of channels that need DFS, so DFS is only used when it helps.
+
+Radios with a hand-set channel keep it, and the others choose from the region's channels at their width, DFS ones only when the plan allows them. On 2.4 GHz the planner only suggests 1, 6 and 11 (1, 5, 9 and 13 where the region has channel 13): the model's spans say 1, 5 and 9 don't overlap in the US, but they touch edge to edge and real transmitters leak past a channel's edge. That's a convention, not a sourced number.
+
+Radios whose width is on Auto start at the band's usual width (D66). When no plan without clashes exists there, the planner tries each narrower width the region allows and takes the widest that has one; if none does, it takes the width with the fewest clashes. So three access points that hear each other on 5 GHz in the US without DFS get 40 MHz, since there are only two 80 MHz channels (42 and 155). With DFS off on 5 GHz, it also plans with DFS allowed and says so when that would give fewer clashes or a wider width.
+
+The search is exact: branch and bound, radios with the most neighbours first, each channel tried from the cheapest, and a branch dropped once the cheapest channel for every radio still to go can't beat the best plan found. Channels that no radio is on yet and that meet everything else in the problem the same way are interchangeable, so only one of each such group is tried (symmetry breaking). Past 20,000 choices per band and width it stops with the best plan found and says a better one may exist. `channelPlan.test.ts` checks it against brute force over every graph on four radios. `channelPlan.speed.ts` holds it to 500 ms for every band at once: 12 access points that all hear each other in one room take about 0.3 s on the desktop and are solved exactly.
 
 ### Placement optimizer
 
@@ -459,6 +478,7 @@ With the one or two interior walls a path typically crosses at these distances, 
 
 ## Known limits
 
+- **The channel planner trusts the model's signal between access points.** Reflections that carry signal around a wall, which the model ignores (D24), can let two access points hear each other when the planner thinks they don't. Neighbours' networks count as heard everywhere at the one strength typed in ([D68](DECISIONS.md#d68-channel-planner--2026-09-29)).
 - **Straight line only.** Signals that bend around corners (diffraction) or bounce off walls (reflection) are ignored, so areas behind strong walls are predicted darker than they are. See [D24](DECISIONS.md#d24-propagation-scope-for-m1-omnidirectional-direct-path-only--2026-09-27).
 - **Normal incidence.** Wall loss is computed for a wave meeting the wall head on. The slab code supports angles, but using them moved 90% of cells by at most about 3 dB in the test plans, and not always downwards, so it was left out ([D30](DECISIONS.md#d30-wall-loss-stays-at-normal-incidence--2026-09-27)).
 - **Omnidirectional access points.** Antenna patterns are ignored ([D24](DECISIONS.md#d24-propagation-scope-for-m1-omnidirectional-direct-path-only--2026-09-27)).
@@ -469,6 +489,8 @@ With the one or two interior walls a path typically crosses at these distances, 
 
 ## Sources
 
+- IEEE Std 802.11a-1999, _High-speed Physical Layer in the 5 GHz Band_ (supplement to IEEE Std 802.11-1999). 17.3.10.1 and 17.3.10.5 (read from the copy filed as a USPTO PTAB exhibit, petition 1557847).
+- IEEE Std 802.11ac-2013, _Enhancements for Very High Throughput for Operation in Bands below 6 GHz_ (Amendment 4 to IEEE Std 802.11-2012). 22.3.19.5.3, Table 22-27 (read from the copy filed as a USPTO PTAB exhibit, petition 1557814).
 - Recommendation ITU-R P.1238-13 (09/2025), _Propagation data and prediction methods for the planning of indoor radiocommunication systems and radio local area networks in the frequency range from 300 MHz to 450 GHz_. International Telecommunication Union. Eqs. 1–2, Tables 2 and 5, and the floor loss text after Table 5.
 - Recommendation ITU-R P.2040-4 (09/2025), _Effects of building materials and structures on radiowave propagation above about 100 MHz_. International Telecommunication Union. Table 3; eqs. 27a, 39–44, 57–59.
 - D. Shakya, M. Ying, T. S. Rappaport, H. Poddar, P. Ma, Y. Wang and I. Al-Wazani, "Wideband Penetration Loss through Building Materials and Partitions at 6.75 GHz in FR1(C) and 16.95 GHz in the FR3 Upper Mid-band spectrum", IEEE GLOBECOM 2024. [arXiv:2405.01362](https://arxiv.org/abs/2405.01362). Table II.
