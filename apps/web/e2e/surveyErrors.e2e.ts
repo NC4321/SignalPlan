@@ -131,30 +131,38 @@ async function planColour(page: Page, x: number, y: number) {
 test('the heatmap fades while surveying, unless turned off (D74)', async ({
   page,
 }) => {
-  // A point in the big room, clear of walls, pins, labels and grid lines.
-  const full = await planColour(page, 9.45, 6.45)
-  await page.keyboard.press('s')
-  await expect.poll(() => planColour(page, 9.45, 6.45)).not.toEqual(full)
-  const faded = await planColour(page, 9.45, 6.45)
-  // Faded towards the canvas colour behind it.
   const hex = await page
     .locator('.editor-canvas')
     .evaluate((el) => getComputedStyle(el).getPropertyValue('--canvas').trim())
   const canvas = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16))
   const away = (rgb: (number | undefined)[]) =>
     rgb.reduce((total: number, c, i) => total + Math.abs(c! - canvas[i]!), 0)
-  expect(away(faded)).toBeLessThan(away(full) / 2)
+
+  // A point in the big room, clear of walls, pins, labels and grid lines.
+  // The heatmap comes from a worker, so wait until it's drawn there.
+  const at = [9.45, 6.45] as const
+  await expect
+    .poll(async () => away(await planColour(page, ...at)))
+    .toBeGreaterThan(60)
+  const full = await planColour(page, ...at)
+
+  // The Survey tool fades it towards the canvas colour behind it.
+  await page.keyboard.press('s')
+  await expect
+    .poll(async () => away(await planColour(page, ...at)))
+    .toBeLessThan(away(full) / 2)
+  const faded = await planColour(page, ...at)
 
   const fade = panel(page).getByRole('checkbox', {
     name: 'Fade heatmap behind pins',
   })
   await expect(fade).toBeChecked()
   await fade.uncheck()
-  await expect.poll(() => planColour(page, 9.45, 6.45)).toEqual(full)
+  await expect.poll(() => planColour(page, ...at)).toEqual(full)
   await fade.check()
-  await expect.poll(() => planColour(page, 9.45, 6.45)).toEqual(faded)
+  await expect.poll(() => planColour(page, ...at)).toEqual(faded)
 
   // Back on Select with nothing selected, it's full strength again.
   await page.keyboard.press('v')
-  await expect.poll(() => planColour(page, 9.45, 6.45)).toEqual(full)
+  await expect.poll(() => planColour(page, ...at)).toEqual(full)
 })

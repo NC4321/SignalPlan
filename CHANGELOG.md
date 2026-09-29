@@ -6,7 +6,7 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ### Added
 
-- While the Survey tool is active or a survey spot is selected, the heatmap fades to a quarter strength so the survey pins' colours stand out and its purple isn't mistaken for theirs. A "Fade heatmap behind pins" checkbox in the Survey sections turns this off (not saved) (D74).
+- While the Survey tool is active (with nothing selected) or a survey spot is selected, the heatmap fades to a quarter strength so the survey pins' colours stand out and its purple isn't mistaken for theirs. A "Fade heatmap behind pins" checkbox in the Survey sections turns this off (not saved) (D74).
 
 - Error report: each survey reading is compared with the model's prediction at its spot, for its access point and band, the same way the heatmap works it out (walls, floors, 3D distance). Pins are now labelled and coloured with their mean error on the band on show, predicted minus measured ("+4 dB" means the model expected more signal than you measured), on a colour-blind-safe orange-to-purple scale in steps of 3, 6 and 10 dB, with a Survey pins legend. Hovering a pin shows each reading's measured and predicted values; a selected spot's panel shows them under each reading. The Survey section has a "Predicted versus measured" table per band (number of readings, mean error, RMS error) and the five spots furthest off, each a button that shows its floor and band and selects it (D73).
 

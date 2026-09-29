@@ -817,15 +817,17 @@ export const heatmapShown = (
 ) => state.showHeatmap && !tracingHidesHeatmap(state)
 
 /**
- * Whether the heatmap is drawn faintly so survey pins stand out (D74): with
- * the Survey tool, or a survey spot selected, unless turned off.
+ * Whether the heatmap is drawn faintly so survey pins stand out (D74): while
+ * the panel shows a survey section, with its checkbox to turn this off. That's
+ * the Survey tool with nothing selected, or one survey spot selected.
  */
 export const heatmapFaded = (
   state: Pick<EditorState, 'tool' | 'selection' | 'fadeHeatmapForSurvey'>,
 ) =>
   state.fadeHeatmapForSurvey &&
-  (state.tool === 'survey' ||
-    state.selection.some((item) => item.kind === 'surveySpot'))
+  (state.selection.length === 0
+    ? state.tool === 'survey'
+    : state.selection.length === 1 && state.selection[0]!.kind === 'surveySpot')
 
 /**
  * The floor drawn faintly under the one on show (D53): the one directly

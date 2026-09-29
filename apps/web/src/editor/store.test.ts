@@ -723,5 +723,16 @@ describe('heatmapFaded (D74)', () => {
     const router = store.getState().plan.accessPoints[0]!.id
     store.getState().select([{ kind: 'accessPoint', id: router }])
     expect(faded()).toBe(false)
+
+    // Only while the panel shows a survey section, with its checkbox: not
+    // with the Survey tool and an access point selected, nor a mixed selection.
+    store.getState().setTool('survey')
+    store.getState().select([{ kind: 'accessPoint', id: router }])
+    expect(faded()).toBe(false)
+    store.getState().select([
+      { kind: 'surveySpot', id: 'spot1' },
+      { kind: 'accessPoint', id: router },
+    ])
+    expect(faded()).toBe(false)
   })
 })
