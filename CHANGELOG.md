@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ### Added
 
+- A more polished README: a feature gallery with three new demo GIFs (placement optimizer, 3D view, overlap and roaming), features grouped by task, a summary of the sources and validation behind the model, and the shipped releases. It only names features that exist. `scripts/record-demo.mjs` now records any of the four clips by name (D65).
+
 - Channels by region: with nothing selected, the panel has a Channels section. It sets the plan's region (United States or European Union) and whether 5 GHz DFS channels may be used, with a short explanation of what DFS means. New plans guess the region from the browser's language. The note for power above the legal limit now uses the region's limit. The channels and limits for each region come from a data file, `packages/engine/src/regions.json`, checked against FCC, ETSI, EU and IEEE sources listed in `docs/MODEL.md`. Plans get the optional `region` and `allowDfs` fields (D62).
 
 - Channel and width per radio: under each band's power, the access point panel has a Width menu and then a Channel menu, showing only what the plan's region and DFS setting allow (Auto leaves either open). Changing the width sets the channel back to Auto, and each change can be undone. When a region change or turning DFS off rules out a channel or width you set, it's kept but flagged, and the plan's Channels section lists each such radio with a button that selects it. An access point added by the optimizer copies the width but not the channel. Radios get the optional `channel` and `channelWidthMHz` fields (D63).
