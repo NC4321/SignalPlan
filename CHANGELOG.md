@@ -6,6 +6,10 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ### Added
 
+- Survey tool (S): click the plan where you measured signal to drop a pin, then type in each reading at that spot: the access point and band it's from (menus list the plan's access points and their bands) and its signal in dBm, plus an optional note. Each pin shows its strongest reading on the band on show. Pins drag to move (on touch too), move with the arrow keys, delete with Delete, and every change is one undo step. A Survey spots list, shown with the Survey tool and in the plan panel once there are spots, lists every floor's spots and jumps to one. A hint explains how to read dBm on an iPhone (AirPort Utility's Wi-Fi Scanner) or an Android phone (a Wi-Fi analyser app). Deleting an access point also deletes the readings taken from it. Plans get the optional `surveySpots` field on each floor (D71).
+
+- BSSIDs per radio: under each band, the access point panel takes the BSSIDs the radio broadcasts, typed or pasted in any common form and stored as `a4:2b:b0:12:34:56`. A BSSID already on another radio is refused. Radios get the optional `bssids` field, ready for importing readings (D71).
+
 - Phase 6 exit gate: a three-AP two-storey home (`three-ap-home.json`: the router downstairs, a mesh point in the far downstairs bedroom and one upstairs, all hearing each other, plus a faint neighbour's network). At 80 MHz with DFS allowed the channel planner finds a plan with no clashes; without DFS no such plan exists, and it gives the least-bad one (1 clash, on the pair that hear each other most faintly) and says DFS would clear it. Both are checked against brute force over every assignment, and the panel's explanation for each access point is checked in unit and end-to-end tests. The README's views clip now shows the Interference view before and after replanning with DFS (D69).
 
 - Channel planner: when it puts radios on DFS channels, the plan says why, e.g. "Bedroom 2 mesh point and Upstairs mesh point are on DFS channels: without DFS channels, 1 clash would be left" (or the plan would narrow, or there'd be more interference) (D69).

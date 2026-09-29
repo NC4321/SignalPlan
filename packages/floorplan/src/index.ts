@@ -26,6 +26,24 @@ export {
   setNeighbourWidth,
 } from './neighbours.ts'
 export {
+  addSurveyReading,
+  addSurveySpot,
+  bssidOwner,
+  deleteSurveyReading,
+  deleteSurveySpot,
+  dropOrphanReadings,
+  findSurveySpot,
+  moveSurveySpot,
+  NEW_READING_DBM,
+  parseBssids,
+  setRadioBssids,
+  setReadingDbm,
+  setReadingSource,
+  setSurveyNote,
+  strongestReading,
+  surveySpotName,
+} from './survey.ts'
+export {
   checkStructure,
   loadPlan,
   MIN_WALL_LENGTH_M,

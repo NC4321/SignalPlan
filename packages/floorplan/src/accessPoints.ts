@@ -1,4 +1,5 @@
 import type { Point } from './geometry.ts'
+import { dropOrphanReadings } from './survey.ts'
 import {
   BANDS,
   type AccessPoint,
@@ -61,8 +62,10 @@ export function addAccessPoint(plan: Plan, floorId: string, at: Point): string {
   return id
 }
 
+/** Deletes an access point and the survey readings taken from it (D71). */
 export function deleteAccessPoint(plan: Plan, id: string) {
   plan.accessPoints = plan.accessPoints.filter((ap) => ap.id !== id)
+  dropOrphanReadings(plan)
 }
 
 /**

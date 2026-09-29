@@ -3,6 +3,7 @@ import { planChannels, type BandChannelPlan } from '@signalplan/engine'
 import {
   addFloor,
   addFloorOpening,
+  addSurveySpot,
   adjacentFloorId,
   addWall,
   deleteFloor,
@@ -60,13 +61,15 @@ export type Tool =
   | 'window'
   | 'floorOpening'
   | 'accessPoint'
+  | 'survey'
   | 'calibrate'
 
 /** Sizes for new openings (D19): a 32″ door and a 48″ window. */
 export const DEFAULT_OPENING_WIDTH_M = { door: 0.8128, window: 1.2192 } as const
 
 export type SelectionItem = {
-  kind: 'accessPoint' | 'wall' | 'node' | 'opening' | 'floorOpening'
+  kind:
+    'accessPoint' | 'wall' | 'node' | 'opening' | 'floorOpening' | 'surveySpot'
   id: string
 }
 
@@ -135,7 +138,9 @@ export interface EditorState {
   /** The plan's id in the library, or undefined if it hasn't joined it yet. */
   planId: string | undefined
   /** An edit in progress, such as a drag: previews apply to `base`. */
-  gesture: { base: Plan; recipe: Recipe | undefined } | undefined
+  gesture:
+    | { base: Plan; recipe: Recipe | undefined; keepOptimizer: boolean }
+    | undefined
   /**
    * A short note for the status bar, such as why a locked access point
    * didn't move (D43). Cleared by the next edit or selection change.
@@ -164,8 +169,11 @@ export interface EditorState {
     recipe: Recipe,
     options?: { keepOptimizer?: boolean },
   ) => void
-  /** Starts a gesture; the plan at this moment is what previews build on. */
-  beginGesture: () => void
+  /**
+   * Starts a gesture; the plan at this moment is what previews build on.
+   * `keepOptimizer` is as for `edit`.
+   */
+  beginGesture: (options?: { keepOptimizer?: boolean }) => void
   /** Shows the gesture's current result, replacing the previous preview. */
   updateGesture: (recipe: Recipe) => void
   /** Commits the gesture's last preview as one undoable edit. */
@@ -243,6 +251,8 @@ export interface EditorState {
   finishOutline: () => void
   /** Drops the outline being drawn without adding anything. */
   cancelOutline: () => void
+  /** Survey tool: adds a spot on the floor on show, and selects it (D71). */
+  addSurveySpot: (at: Point) => void
 }
 
 const samePoint = (a: Point, b: Point) =>
@@ -342,6 +352,8 @@ function validSelection(plan: Plan, floorId: string, selection: Selection) {
         return floor?.openings.some((o) => o.id === item.id) ?? false
       case 'floorOpening':
         return floor?.floorOpenings?.some((o) => o.id === item.id) ?? false
+      case 'surveySpot':
+        return floor?.surveySpots?.some((s) => s.id === item.id) ?? false
     }
   }
   const kept = selection.filter(exists)
@@ -399,8 +411,14 @@ export function createEditorStore(
       }))
     },
 
-    beginGesture: () => {
-      set((state) => ({ gesture: { base: state.plan, recipe: undefined } }))
+    beginGesture: (options) => {
+      set((state) => ({
+        gesture: {
+          base: state.plan,
+          recipe: undefined,
+          keepOptimizer: options?.keepOptimizer ?? false,
+        },
+      }))
     },
 
     updateGesture: (recipe) => {
@@ -409,8 +427,10 @@ export function createEditorStore(
       const [next] = produceWithPatches(gesture.base, recipe)
       set((state) => ({
         plan: next,
-        gesture: { base: gesture.base, recipe },
-        ...dropOptimizer(state.optimizer, 'the plan changed'),
+        gesture: { ...gesture, recipe },
+        ...(gesture.keepOptimizer
+          ? {}
+          : dropOptimizer(state.optimizer, 'the plan changed')),
         ...dropChannelPlan(state),
       }))
     },
@@ -419,7 +439,11 @@ export function createEditorStore(
       const { gesture } = get()
       if (!gesture) return
       set({ plan: gesture.base, gesture: undefined })
-      if (gesture.recipe) get().edit(label, gesture.recipe)
+      if (gesture.recipe) {
+        get().edit(label, gesture.recipe, {
+          keepOptimizer: gesture.keepOptimizer,
+        })
+      }
     },
 
     cancelGesture: () => {
@@ -731,6 +755,20 @@ export function createEditorStore(
     },
 
     cancelOutline: () => set({ outline: undefined }),
+
+    addSurveySpot: (at) => {
+      const { floorId } = get()
+      let created: string | undefined
+      // Survey spots don't change coverage, so a suggestion stays (D71).
+      get().edit(
+        'Add survey spot',
+        (draft) => {
+          created = addSurveySpot(draft, floorId, at)
+        },
+        { keepOptimizer: true },
+      )
+      if (created) get().select([{ kind: 'surveySpot', id: created }])
+    },
   }))
 }
 

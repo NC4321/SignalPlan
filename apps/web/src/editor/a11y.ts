@@ -1,5 +1,6 @@
 import {
   polygonArea,
+  surveySpotName,
   type AccessPoint,
   type Floor,
   type Point,
@@ -10,8 +11,9 @@ import { WALL_STYLES } from './wallStyles.ts'
 
 /**
  * Keyboard selection on the canvas (D23). Tab visits walls, then doors and
- * windows, then corners, then openings in the floor (D54), then access points; each group in reading order
- * (top to bottom, then left to right) so the order matches what's on screen.
+ * windows, then corners, then openings in the floor (D54), then access
+ * points, then survey spots (D71); each group in reading order (top to
+ * bottom, then left to right) so the order matches what's on screen.
  */
 export function keyboardOrder(
   floor: Floor,
@@ -67,6 +69,10 @@ export function keyboardOrder(
       accessPoints
         .filter((a) => a.floorId === floor.id)
         .map((a) => ({ id: a.id, at: a })),
+    ),
+    ...group(
+      'surveySpot',
+      (floor.surveySpots ?? []).map((s) => ({ id: s.id, at: s })),
     ),
   ]
 }
@@ -151,6 +157,13 @@ export function describeForScreenReader(
     if (!opening) return 'Nothing selected'
     const area = formatArea(polygonArea(opening.points), units)
     return `Floor opening, ${area}, ${at(opening.points[0]!)}${position}`
+  }
+  if (item.kind === 'surveySpot') {
+    const spot = floor.surveySpots?.find((s) => s.id === item.id)
+    if (!spot) return 'Nothing selected'
+    const n = spot.readings.length
+    const readings = `${n} reading${n === 1 ? '' : 's'}`
+    return `Survey ${surveySpotName(spot.id).toLowerCase()}, ${readings}, ${at(spot)}${position}`
   }
   const ap = accessPoints.find((a) => a.id === item.id)
   if (!ap) return 'Nothing selected'

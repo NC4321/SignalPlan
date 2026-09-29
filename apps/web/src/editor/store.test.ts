@@ -6,6 +6,11 @@ import {
 } from '@signalplan/floorplan'
 import sampleHome from '@signalplan/floorplan/fixtures/sample-home.json'
 import { describe, expect, it } from 'vitest'
+import {
+  deleteRecipe,
+  moveSurveySpotRecipe,
+  onlySurveySpots,
+} from './selectTool.ts'
 import { createEditorStore, ghostFloor, HISTORY_LIMIT } from './store.ts'
 
 function sample(): Plan {
@@ -611,5 +616,78 @@ describe('the 3D view (D57)', () => {
     store.getState().setView('2d')
     expect(store.getState().view).toBe('2d')
     expect(store.getState().view3d.spreadM).toBe(2)
+  })
+})
+
+describe('survey spots (D71)', () => {
+  it('adds a spot as one undo step and selects it; undo drops the selection', () => {
+    const store = createEditorStore(sample())
+    const steps = store.getState().past.length
+    store.getState().setTool('survey')
+    store.getState().addSurveySpot({ x: 2, y: 3 })
+    const state = store.getState()
+    expect(state.past).toHaveLength(steps + 1)
+    expect(state.past.at(-1)!.label).toBe('Add survey spot')
+    expect(state.plan.floors[0]!.surveySpots).toEqual([
+      { id: 'spot1', x: 2, y: 3, readings: [] },
+    ])
+    expect(state.selection).toEqual([{ kind: 'surveySpot', id: 'spot1' }])
+    store.getState().undo()
+    expect(store.getState().plan.floors[0]!.surveySpots).toBeUndefined()
+    expect(store.getState().selection).toEqual([])
+  })
+
+  it('keeps an optimizer search through survey edits, which don’t change coverage', () => {
+    const store = createEditorStore(sample())
+    const searching = {
+      status: 'searching' as const,
+      fraction: 0.5,
+      what: 'Searching',
+    }
+    store.getState().setOptimizer(searching)
+    store.getState().addSurveySpot({ x: 2, y: 3 })
+    const spot = [{ kind: 'surveySpot' as const, id: 'spot1' }]
+    store.getState().beginGesture({ keepOptimizer: true })
+    store
+      .getState()
+      .updateGesture(moveSurveySpotRecipe('spot1', { x: 4, y: 3 }))
+    store.getState().endGesture('Move survey spot')
+    expect(store.getState().plan.floors[0]!.surveySpots![0]).toMatchObject({
+      x: 4,
+    })
+    store.getState().edit('Delete survey spot', deleteRecipe('main', spot), {
+      keepOptimizer: onlySurveySpots(spot),
+    })
+    expect(store.getState().optimizer).toBe(searching)
+    // Anything else still stops it.
+    store.getState().edit('Move router', moveRouterTo(1))
+    expect(store.getState().optimizer).toBeUndefined()
+  })
+
+  it('deletes an access point with its readings, and undo brings both back', () => {
+    const store = createEditorStore(sample())
+    const router = store.getState().plan.accessPoints[0]!
+    store.getState().addSurveySpot({ x: 2, y: 3 })
+    store.getState().edit('Add a reading', (plan) => {
+      plan.floors[0]!.surveySpots![0]!.readings.push({
+        apId: router.id,
+        band: '5GHz',
+        dbm: -55,
+      })
+    })
+    const withReading = store.getState().plan
+    store
+      .getState()
+      .edit(
+        'Delete access point',
+        deleteRecipe(store.getState().floorId, [
+          { kind: 'accessPoint', id: router.id },
+        ]),
+      )
+    expect(store.getState().plan.floors[0]!.surveySpots![0]!.readings).toEqual(
+      [],
+    )
+    store.getState().undo()
+    expect(store.getState().plan).toEqual(withReading)
   })
 })

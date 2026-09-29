@@ -197,3 +197,41 @@ describe('floor openings (D54)', () => {
     ).toBe('Floor opening, 3 m², at 1.00 m, 1.00 m, 7 of 9')
   })
 })
+
+describe('survey spots (D71)', () => {
+  const surveyed: Floor = {
+    ...floor,
+    surveySpots: [
+      {
+        id: 'spot2',
+        x: 2,
+        y: 2,
+        readings: [{ apId: 'ap', band: '5GHz', dbm: -60 }],
+      },
+      { id: 'spot1', x: 1, y: 1, readings: [] },
+    ],
+  }
+
+  it('come last, in reading order', () => {
+    const order = keyboardOrder(surveyed, accessPoints)
+    expect(order.slice(-2)).toEqual([
+      { kind: 'surveySpot', id: 'spot1' },
+      { kind: 'surveySpot', id: 'spot2' },
+    ])
+  })
+
+  it('are described by name, readings and position', () => {
+    const order = keyboardOrder(surveyed, accessPoints)
+    expect(
+      describeForScreenReader(
+        [{ kind: 'surveySpot', id: 'spot2' }],
+        surveyed,
+        accessPoints,
+        'metric',
+        order,
+      ),
+    ).toBe(
+      `Survey spot 2, 1 reading, at 2.00 m, 2.00 m, ${order.length} of ${order.length}`,
+    )
+  })
+})

@@ -19,7 +19,11 @@ import {
   Toolbar,
 } from './editor/panels.tsx'
 import { useCoverageMessage } from './editor/useCoverageMessage.ts'
-import { deleteRecipe, describeSelection } from './editor/selectTool.ts'
+import {
+  deleteRecipe,
+  describeSelection,
+  onlySurveySpots,
+} from './editor/selectTool.ts'
 import { isTyping } from './editor/util.ts'
 import {
   createOptimizer,
@@ -132,7 +136,7 @@ function App({
       } else if (
         state.view === '3d' &&
         !mod &&
-        (/^[vwdnoa]$/.test(key) || key === 'delete' || key === 'backspace')
+        (/^[vwdnoas]$/.test(key) || key === 'delete' || key === 'backspace')
       ) {
         // The 3D view is for looking: tools and deleting are in 2D (D57).
         return
@@ -148,6 +152,8 @@ function App({
         state.setTool('floorOpening')
       } else if (!mod && !event.altKey && key === 'a') {
         state.setTool('accessPoint')
+      } else if (!mod && !event.altKey && key === 's') {
+        state.setTool('survey')
       } else if (
         (event.key === 'PageUp' || event.key === 'PageDown') &&
         !mod &&
@@ -171,6 +177,7 @@ function App({
         state.edit(
           `Delete ${describeSelection(state.selection)}`,
           deleteRecipe(state.floorId, state.selection),
+          { keepOptimizer: onlySurveySpots(state.selection) },
         )
       } else if (key === 'escape') {
         // Esc finishes the chain; pressed again, it returns to Select (D16).

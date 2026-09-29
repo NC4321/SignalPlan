@@ -17,6 +17,13 @@ import { drawWall, WALL_STYLES } from './wallStyles.ts'
 
 export const AP_RADIUS_PX = 9
 
+/**
+ * A survey pin (D71): its tip is the spot, and its round head sits this far
+ * above it, with this radius.
+ */
+export const PIN_HEAD_PX = 7
+export const PIN_HEAD_Y_PX = 17
+
 /** Grid line spacings in metres, finest first: 10 cm, 1 m, 5 m or 1″, 1′, 5′. */
 const GRID_LEVELS: Record<Units, number[]> = {
   metric: [0.1, 1, 5],
@@ -37,6 +44,13 @@ export interface Scene {
   heatmap: OffscreenCanvas | undefined
   segments: readonly MaterialSegment[]
   accessPoints: readonly AccessPoint[]
+  /**
+   * Survey spots (D71), each labelled with its strongest reading on the band
+   * on show, or "–" when it has none.
+   */
+  surveySpots?: readonly { id: string; x: number; y: number; label: string }[]
+  /** Survey tool: where a click would add a spot. */
+  surveyPreview?: Point | undefined
   /** Access point tool: where a click would add one. */
   accessPointPreview?: Point | undefined
   /**
@@ -274,6 +288,21 @@ export function draw(
 
   context.font = '600 12px system-ui, sans-serif'
   context.textBaseline = 'middle'
+  for (const spot of scene.surveySpots ?? []) {
+    drawPin(context, colour, toScreen(camera, spot), {
+      label: spot.label,
+      selected: isSelected('surveySpot', spot.id),
+    })
+  }
+  if (scene.surveyPreview) {
+    context.save()
+    context.globalAlpha = 0.5
+    drawPin(context, colour, toScreen(camera, scene.surveyPreview), {
+      label: undefined,
+      selected: false,
+    })
+    context.restore()
+  }
   for (const suggestion of scene.suggestions ?? []) {
     drawSuggestion(context, colour, camera, suggestion)
   }
@@ -312,6 +341,56 @@ export function draw(
     context.fillText(ap.name, x, at.y)
     context.restore()
   }
+}
+
+/** A map pin with its tip at `tip`, and its label to the right of its head. */
+function drawPin(
+  context: CanvasRenderingContext2D,
+  colour: (name: string) => string,
+  tip: Point,
+  { label, selected }: { label: string | undefined; selected: boolean },
+) {
+  const r = PIN_HEAD_PX
+  const cy = tip.y - PIN_HEAD_Y_PX
+  // The sides leave the head where tangents from the tip touch it.
+  const spread = Math.asin(r / PIN_HEAD_Y_PX)
+  const path = () => {
+    context.beginPath()
+    context.moveTo(tip.x, tip.y)
+    context.arc(
+      tip.x,
+      cy,
+      r,
+      Math.PI / 2 + spread,
+      Math.PI / 2 - spread + Math.PI * 2,
+    )
+    context.closePath()
+  }
+  if (selected) {
+    path()
+    context.lineWidth = 10
+    context.lineJoin = 'round'
+    context.strokeStyle = colour('--selection-halo')
+    context.stroke()
+  }
+  path()
+  context.fillStyle = colour(selected ? '--accent' : '--ap')
+  context.fill()
+  context.lineWidth = 2
+  context.lineJoin = 'round'
+  context.strokeStyle = colour(selected ? '--accent' : '--ap-ring')
+  context.stroke()
+  context.beginPath()
+  context.arc(tip.x, cy, r * 0.35, 0, Math.PI * 2)
+  context.fillStyle = colour(selected ? '--canvas' : '--ap-ring')
+  context.fill()
+  if (label === undefined) return
+  const x = tip.x + r + 5
+  context.lineWidth = 4
+  context.strokeStyle = colour('--canvas')
+  context.strokeText(label, x, cy)
+  context.fillStyle = colour('--text')
+  context.fillText(label, x, cy)
 }
 
 /**
