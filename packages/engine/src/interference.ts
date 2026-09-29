@@ -18,9 +18,10 @@ import { channelSpanMHz, channelWidths } from './regions.ts'
 export const THERMAL_NOISE_DBM_PER_HZ = -173.98
 
 /**
- * The receiver noise figure IEEE 802.11 assumes when it sets its minimum
- * receiver sensitivities (10 dB, with a 5 dB implementation margin), so the
- * SINR each data rate needs below comes out on the same footing.
+ * Receiver noise figure: the conservative 10 dB (with a 5 dB implementation
+ * margin) that IEEE 802.11 working-group doc. 11-03/845r1 uses to work out
+ * receiver sensitivities, citing 802.11a-1999. The SINR each data rate needs
+ * below uses the same figure, so both come out on the same footing.
  */
 export const RECEIVER_NOISE_FIGURE_DB = 10
 
