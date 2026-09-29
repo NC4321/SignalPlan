@@ -231,6 +231,22 @@ describe('Interference (D66)', () => {
     )
   })
 
+  it("doesn't count floor no access point reaches as too noisy", () => {
+    // Cells 1–3 are below 9 dB with the same channel; with cell 3 out of
+    // reach instead, 2 of the 4 floor cells are too noisy.
+    const coverage = row()
+    coverage.dbm[3] = Number.NEGATIVE_INFINITY
+    coverage.strongest[3] = -1
+    // A's signal in cell 3, then B's (B's cells start at 5).
+    coverage.sourceDbm[3] = Number.NEGATIVE_INFINITY
+    coverage.sourceDbm[8] = Number.NEGATIVE_INFINITY
+    const data = mapData(coverage, 'interference', settings, tuned(36))
+    expect(cellColour(data, 3)).toBe('none')
+    expect(mapMessage(data, 'fair', 'metric')).toBe(
+      '50% of 4 m² is too noisy for any rate (below 9 dB) on 5 GHz.',
+    )
+  })
+
   it('names the bands in dB and says how many radios are on Auto', () => {
     const data = interference(tuned(36, true))
     expect(data.autoChannels).toBe(1)

@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { evaluateCoverage, type Coverage } from './coverage.ts'
 import {
   autoChannelCount,
+  narrowestFit,
   noiseFloorDbm,
   overlapShare,
   radioTuning,
@@ -98,6 +99,14 @@ describe('radioTuning', () => {
     expect(radioTuning({ band: '2.4GHz' }, undefined)).toEqual(
       on(undefined, 20),
     )
+  })
+
+  it('narrows the Auto width to what a region allows', () => {
+    // No region yet allows less than 80 MHz on 5 GHz, so check the rule.
+    expect(narrowestFit([20, 40, 80, 160], 80)).toBe(80)
+    expect(narrowestFit([20, 40], 80)).toBe(40)
+    expect(narrowestFit([160], 80)).toBe(160)
+    expect(narrowestFit([], 80)).toBe(20)
   })
 })
 

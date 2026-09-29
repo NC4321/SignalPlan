@@ -38,7 +38,7 @@ The editor reports the share of the **floor area** at or above a target level (D
 
 ### Overlap and roaming
 
-The heatmap can show four maps ([D64](DECISIONS.md#d64-overlap-and-roaming-views--2026-09-28)). **Signal** is the strongest access point's signal, as above. The other two work from each access point's own signal in every cell (`views.ts`), which the engine keeps alongside the strongest.
+The heatmap can show four maps ([D64](DECISIONS.md#d64-overlap-and-roaming-views--2026-09-28), [D66](DECISIONS.md#d66-sinr-and-the-interference-view--2026-09-28)). **Signal** is the strongest access point's signal, as above. **Overlap** and **Roaming** work from each access point's own signal in every cell (`views.ts`), which the engine keeps alongside the strongest.
 
 - **Overlap** counts the access points that compete for a device in a cell: those within the **overlap margin** of the strongest there (8 dB by default) and at or above the **roaming threshold** (−70 dBm by default). Cells where no access point reaches the threshold count 0 and are left uncoloured. The summary gives the share of the floor with two or more, rounded up, so 0% only ever means none.
 - **Roaming** colours each cell by its strongest access point, if that one reaches the roaming threshold, and draws a line where the strongest changes. A gap, where none reaches the threshold, is hatched grey. The summary gives the share of the floor in gaps, rounded up.
@@ -70,7 +70,7 @@ Wider channels show their cost both ways: each doubling adds 3.01 dB of noise, a
 | Slow      | MCS 0, BPSK 1/2 (the slowest)             | −82 dBm             | 9.0 dB      |
 | Unusable  | below MCS 0                               |                     | < 9.0 dB    |
 
-Unusable cells are hatched grey; cells no access point reaches are left clear. The summary gives the share of the floor below 9 dB, rounded up so 0% only means none. Neighbours' networks join the interference in #114.
+Unusable cells are hatched grey; cells no access point reaches are left clear. The summary gives the share of the floor below 9 dB, rounded up so 0% only means none; cells no access point reaches aren't counted as below 9 dB, since there's no signal to drown. Neighbours' networks join the interference in #114.
 
 Working SINR out on the page adds about 2 ms to the big house's grid (12.7 → 14.5 ms median on the desktop, with every access point on one channel), inside its 50 ms budget; `coverage.speed.ts` checks it.
 

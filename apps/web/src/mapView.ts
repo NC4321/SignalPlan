@@ -183,14 +183,19 @@ export function sinrBand(db: number) {
   return SINR_STEPS.find((band) => db >= band.minDb)
 }
 
-/** The share of a floor too noisy for any rate, 0 to 1; undefined without floor. */
+/**
+ * The share of a floor too noisy for any rate, 0 to 1; undefined without
+ * floor. Cells no access point reaches are left out: they have no signal to
+ * drown, and the map leaves them clear.
+ */
 export function unusableShare(coverage: Coverage, sinr: Float32Array) {
   let area = 0
   let unusable = 0
   coverage.floorArea.forEach((inside, i) => {
     if (!inside) return
     area++
-    if (!(sinr[i]! >= MIN_USABLE_SINR_DB)) unusable++
+    const db = sinr[i]!
+    if (db !== Number.NEGATIVE_INFINITY && db < MIN_USABLE_SINR_DB) unusable++
   })
   return area === 0 ? undefined : unusable / area
 }

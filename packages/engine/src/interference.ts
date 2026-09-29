@@ -88,14 +88,21 @@ export interface Tuning {
  * the widest the region allows.
  */
 export function radioTuning(radio: Radio, region: Plan['region']): Tuning {
-  const allowed = channelWidths(region, radio.band)
-  const auto = AUTO_WIDTH_MHZ[radio.band]
   const widthMHz =
     radio.channelWidthMHz ??
-    allowed.filter((w) => w <= auto).at(-1) ??
-    allowed[0] ??
-    20
+    narrowestFit(channelWidths(region, radio.band), AUTO_WIDTH_MHZ[radio.band])
   return { channel: radio.channel, widthMHz }
+}
+
+/**
+ * The widest of `allowed` (narrowest first) that's no wider than `wanted`;
+ * the narrowest allowed if all are wider, and 20 MHz if none is allowed.
+ */
+export function narrowestFit(
+  allowed: readonly ChannelWidth[],
+  wanted: ChannelWidth,
+): ChannelWidth {
+  return allowed.filter((w) => w <= wanted).at(-1) ?? allowed[0] ?? 20
 }
 
 /**
