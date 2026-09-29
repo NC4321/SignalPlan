@@ -123,6 +123,15 @@ export {
   type RegionRules,
 } from './regions.ts'
 export {
+  predictReadings,
+  spotErrors,
+  summariseErrors,
+  worstSpots,
+  type BandErrorSummary,
+  type ReadingError,
+  type SpotError,
+} from './survey.ts'
+export {
   REFINE_COUNT,
   REFINE_STEPS_M,
   SEARCH_BUDGET_MS,

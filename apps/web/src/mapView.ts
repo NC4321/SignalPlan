@@ -38,7 +38,7 @@ export const MAP_LABELS: Record<MapKind, string> = {
   interference: 'Interference',
 }
 
-type Rgb = readonly [number, number, number]
+export type Rgb = readonly [number, number, number]
 
 /**
  * The Interference view's bands (D66), each the SINR an 802.11 receiver

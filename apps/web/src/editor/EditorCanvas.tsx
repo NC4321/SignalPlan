@@ -6,7 +6,7 @@ import {
   fitOpeningAt,
   materialSegments,
   openingSpans,
-  strongestReading,
+  surveySpotName,
   type Floor,
   type Point,
 } from '@signalplan/floorplan'
@@ -27,6 +27,7 @@ import {
 import { useEditor, useEditorStore } from './context.ts'
 import { useBackgroundImage } from './images.ts'
 import { LengthInput } from './LengthInput.tsx'
+import { BAND_LABELS } from './coverageText.ts'
 import { BLANK_BOUNDS } from './persistence.ts'
 import { draw, heatmapBitmap } from './render.ts'
 import {
@@ -61,6 +62,7 @@ import {
   type SelectionItem,
 } from './store.ts'
 import { useServices } from './services.ts'
+import { pinError, spotCardLines, useSurveyErrors } from './surveyErrors.ts'
 import { onImage } from './tracing.ts'
 import { snapStep } from './units.ts'
 import { isTyping } from './util.ts'
@@ -157,20 +159,30 @@ export function EditorCanvas({
 
   const floor = plan.floors.find((f) => f.id === floorId)!
   const band = useEditor((s) => s.band)
-  // Each pin shows its strongest reading on the band on show (D71).
+  // Each pin shows its mean error on the band on show (D73).
+  const errors = useSurveyErrors()
   const surveySpots = useMemo(
     () =>
-      (floor.surveySpots ?? []).map((spot) => {
-        const dbm = strongestReading(spot, band)
-        return {
-          id: spot.id,
-          x: spot.x,
-          y: spot.y,
-          label: dbm === undefined ? '–' : `${dbm}`.replace('-', '−'),
-        }
-      }),
-    [floor.surveySpots, band],
+      (floor.surveySpots ?? []).map((spot) => ({
+        id: spot.id,
+        x: spot.x,
+        y: spot.y,
+        ...pinError(errors.spots, spot.id, band),
+      })),
+    [floor.surveySpots, errors, band],
   )
+  // The pin under a mouse or pen, for its card of readings (D73).
+  const [hoverSpotId, setHoverSpotId] = useState<string>()
+  const surveyCard = useMemo(() => {
+    const spot = floor.surveySpots?.find((s) => s.id === hoverSpotId)
+    if (!spot) return undefined
+    return {
+      at: spot,
+      label: pinError(errors.spots, spot.id, band).label,
+      title: `${surveySpotName(spot.id)}, ${BAND_LABELS[band]}`,
+      lines: spotCardLines(spot, band, errors.readings, plan.accessPoints),
+    }
+  }, [floor.surveySpots, hoverSpotId, band, errors, plan.accessPoints])
   const ghost = useEditor(ghostFloor)
   const ghostScene = useMemo(
     () =>
@@ -346,6 +358,7 @@ export function EditorCanvas({
       accessPointPreview:
         tool === 'accessPoint' && cursor === 'default' ? pointer : undefined,
       surveySpots,
+      surveyCard,
       surveyPreview:
         tool === 'survey' && cursor === 'default' ? pointer : undefined,
       suggestions: suggestedHere?.map((move) => ({
@@ -390,6 +403,7 @@ export function EditorCanvas({
     suggestedHere,
     ghostScene,
     surveySpots,
+    surveyCard,
   ])
 
   const snapForWallTool = (screen: Point, altKey: boolean) => {
@@ -837,6 +851,11 @@ export function EditorCanvas({
           }
 
           store.getState().setPointer(toPlan(current, at))
+          setHoverSpotId(
+            event.pointerType !== 'touch' && !drag.current
+              ? surveySpotAt(current, floor.surveySpots ?? [], at)?.id
+              : undefined,
+          )
           // Over an access point that a press would grab, show no wall or
           // opening preview, only the grab cursor.
           const grabbing = grabsAccessPoint(at, event.altKey)
@@ -931,6 +950,7 @@ export function EditorCanvas({
         }}
         onPointerLeave={() => {
           store.getState().setPointer(undefined)
+          setHoverSpotId(undefined)
           // Mid-chain, keep the preview: it sets the direction of a typed length.
           if (!store.getState().chain && !store.getState().outline) {
             setPreview(undefined)
