@@ -5,6 +5,7 @@ import {
   type Opening,
   type Plan,
   type PlanNode,
+  type SurveySpot,
   type Wall,
   type WallMaterial,
 } from '@signalplan/floorplan'
@@ -14,7 +15,10 @@ import sampleHome from '@signalplan/floorplan/fixtures/sample-home.json' with { 
 import threeApJson from '@signalplan/floorplan/fixtures/three-ap-home.json' with { type: 'json' }
 import twoStoreyJson from '@signalplan/floorplan/fixtures/two-storey-home.json' with { type: 'json' }
 import { BAND_PROFILES } from './bands.ts'
+import type { Calibration } from './calibration.ts'
+import { mulberry32 } from './multiSearch.ts'
 import { candidatePositions, type Scorer } from './placement.ts'
+import { predictReadings } from './survey.ts'
 
 /**
  * Plans for the speed check and the engine's exactness tests.
@@ -292,4 +296,102 @@ export function freeSpaceDbm(d: number): number {
     p.referenceLossDb -
     10 * p.pathLossExponent * Math.log10(Math.max(d, 1))
   )
+}
+
+/**
+ * A spot in every room of a 5 × 5 grid of `roomW` × `roomH` rooms, a little
+ * off each room's middle so paths don't run along walls, with a reading
+ * from every radio of every access point (to be filled in by `simulate`).
+ */
+export function roomSpots(
+  plan: Plan,
+  roomW: number,
+  roomH: number,
+  prefix = 's',
+): SurveySpot[] {
+  const spots: SurveySpot[] = []
+  for (let row = 0; row < 5; row++) {
+    for (let col = 0; col < 5; col++) {
+      spots.push({
+        id: `${prefix}${row}-${col}`,
+        x: (col + 0.43) * roomW,
+        y: (row + 0.61) * roomH,
+        readings: plan.accessPoints.flatMap((ap) =>
+          ap.radios.map((radio) => ({
+            apId: ap.id,
+            band: radio.band,
+            dbm: -60,
+          })),
+        ),
+      })
+    }
+  }
+  return spots
+}
+
+/** Standard normal numbers from a seeded generator (Box–Muller). */
+function gaussian(seed: number) {
+  const random = mulberry32(seed)
+  return () =>
+    Math.sqrt(-2 * Math.log(1 - random())) * Math.cos(2 * Math.PI * random())
+}
+
+/**
+ * Replaces every survey reading with what the model predicts under `truth`,
+ * plus a device offset and Gaussian noise of `sigmaDb` (D75).
+ */
+export function simulate(
+  plan: Plan,
+  truth: Calibration,
+  offsetDb: number,
+  sigmaDb: number,
+  seed = 1,
+): Plan {
+  const noise = gaussian(seed)
+  const predicted = new Map(
+    predictReadings(plan, truth).map((r) => [
+      `${r.spotId} ${r.index}`,
+      r.predictedDbm,
+    ]),
+  )
+  return {
+    ...plan,
+    floors: plan.floors.map((floor) => ({
+      ...floor,
+      surveySpots: floor.surveySpots?.map((spot) => ({
+        ...spot,
+        readings: spot.readings.map((reading, index) => ({
+          ...reading,
+          dbm:
+            predicted.get(`${spot.id} ${index}`)! +
+            offsetDb +
+            sigmaDb * noise(),
+        })),
+      })),
+    })),
+  }
+}
+
+/** The big house with a spot in each of its 25 rooms. */
+export function surveyedBigHouse(): Plan {
+  const plan = bigHouse()
+  return {
+    ...plan,
+    floors: plan.floors.map((floor) => ({
+      ...floor,
+      surveySpots: roomSpots(plan, 4, 3),
+    })),
+  }
+}
+
+/** The two-storey house with a spot in each of its 50 rooms. */
+export function surveyedTwoStorey(): Plan {
+  const plan = twoStoreyHouse()
+  return {
+    ...plan,
+    floors: plan.floors.map((floor, i) => ({
+      ...floor,
+      surveySpots: roomSpots(plan, 3, 2, `f${i}-`),
+    })),
+  }
 }

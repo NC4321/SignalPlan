@@ -20,49 +20,13 @@ export function floorAreaMask(floor: Floor, grid: Grid): Uint8Array {
   const { cols, rows, cellM } = grid
   const inside = new Uint8Array(cols * rows)
   if (cols === 0 || rows === 0) return inside
-
-  // blockedRight[i]: the step from cell i to its right neighbour touches a wall.
-  // blockedDown[i]: the step from cell i to the cell below touches a wall.
-  const blockedRight = new Uint8Array(cols * rows)
-  const blockedDown = new Uint8Array(cols * rows)
-  const nodes = new Map(floor.nodes.map((node) => [node.id, node]))
+  const { blockedRight, blockedDown } = wallSteps(floor, grid)
   const clampCol = (col: number) => Math.min(Math.max(col, 0), cols - 1)
   const clampRow = (row: number) => Math.min(Math.max(row, 0), rows - 1)
   const centre = (col: number, row: number): Point => ({
     x: grid.originX + (col + 0.5) * cellM,
     y: grid.originY + (row + 0.5) * cellM,
   })
-
-  for (const wall of floor.walls) {
-    const a = nodes.get(wall.from)
-    const b = nodes.get(wall.to)
-    if (!a || !b) continue
-    // Cells whose centre or right/lower neighbour's centre could touch the wall.
-    const col0 = clampCol(
-      Math.floor((Math.min(a.x, b.x) - grid.originX) / cellM) - 1,
-    )
-    const col1 = clampCol(
-      Math.ceil((Math.max(a.x, b.x) - grid.originX) / cellM) + 1,
-    )
-    const row0 = clampRow(
-      Math.floor((Math.min(a.y, b.y) - grid.originY) / cellM) - 1,
-    )
-    const row1 = clampRow(
-      Math.ceil((Math.max(a.y, b.y) - grid.originY) / cellM) + 1,
-    )
-    for (let row = row0; row <= row1; row++) {
-      for (let col = col0; col <= col1; col++) {
-        const i = row * cols + col
-        const here = centre(col, row)
-        if (col + 1 < cols && segmentsTouch(a, b, here, centre(col + 1, row))) {
-          blockedRight[i] = 1
-        }
-        if (row + 1 < rows && segmentsTouch(a, b, here, centre(col, row + 1))) {
-          blockedDown[i] = 1
-        }
-      }
-    }
-  }
 
   const reached = new Uint8Array(cols * rows)
   const queue = new Int32Array(cols * rows)
@@ -112,6 +76,137 @@ export function floorAreaMask(floor: Floor, grid: Grid): Uint8Array {
     }
   }
   return inside
+}
+
+/** One room of a floor: an enclosed part of its area (see `floorRooms`). */
+export interface Room {
+  areaM2: number
+  /** A point inside the room: its cell nearest the room's centroid. */
+  x: number
+  y: number
+}
+
+export interface FloorRooms {
+  rooms: Room[]
+  /** Index into `rooms` of each grid cell's room, or −1 for none. */
+  roomOf: Int32Array
+}
+
+/**
+ * The floor's area (`floorAreaMask`) split into rooms: cells joined by steps
+ * that touch no wall. Doors and windows count as closed, so each room is
+ * what they'd close off. Rooms are in the order of their first cell, row by
+ * row.
+ */
+export function floorRooms(floor: Floor, grid: Grid): FloorRooms {
+  const { cols, rows, cellM } = grid
+  const size = cols * rows
+  const roomOf = new Int32Array(size).fill(-1)
+  const rooms: Room[] = []
+  if (size === 0) return { rooms, roomOf }
+  const inside = floorAreaMask(floor, grid)
+  const { blockedRight, blockedDown } = wallSteps(floor, grid)
+  const queue = new Int32Array(size)
+  for (let start = 0; start < size; start++) {
+    if (!inside[start] || roomOf[start]! >= 0) continue
+    const room = rooms.length
+    let head = 0
+    let tail = 0
+    const visit = (i: number) => {
+      if (!inside[i] || roomOf[i]! >= 0) return
+      roomOf[i] = room
+      queue[tail++] = i
+    }
+    visit(start)
+    let sumCol = 0
+    let sumRow = 0
+    while (head < tail) {
+      const i = queue[head++]!
+      const col = i % cols
+      sumCol += col
+      sumRow += (i - col) / cols
+      if (col + 1 < cols && !blockedRight[i]) visit(i + 1)
+      if (col > 0 && !blockedRight[i - 1]) visit(i - 1)
+      if (i + cols < size && !blockedDown[i]) visit(i + cols)
+      if (i >= cols && !blockedDown[i - cols]) visit(i - cols)
+    }
+    // The room's cell nearest its centroid, so the point is inside even
+    // for an L-shaped room.
+    const midCol = sumCol / tail
+    const midRow = sumRow / tail
+    let best = start
+    let bestDistance = Number.POSITIVE_INFINITY
+    for (let k = 0; k < tail; k++) {
+      const i = queue[k]!
+      const col = i % cols
+      const distance = (col - midCol) ** 2 + ((i - col) / cols - midRow) ** 2
+      if (distance < bestDistance) {
+        bestDistance = distance
+        best = i
+      }
+    }
+    const col = best % cols
+    rooms.push({
+      areaM2: tail * cellM * cellM,
+      x: grid.originX + (col + 0.5) * cellM,
+      y: grid.originY + ((best - col) / cols + 0.5) * cellM,
+    })
+  }
+  return { rooms, roomOf }
+}
+
+/** Which steps between neighbouring cell centres touch one of the floor's walls. */
+interface WallSteps {
+  /** The step from cell i to its right neighbour touches a wall. */
+  blockedRight: Uint8Array
+  /** The step from cell i to the cell below touches a wall. */
+  blockedDown: Uint8Array
+}
+
+function wallSteps(floor: Floor, grid: Grid): WallSteps {
+  const { cols, rows, cellM } = grid
+  const blockedRight = new Uint8Array(cols * rows)
+  const blockedDown = new Uint8Array(cols * rows)
+  const nodes = new Map(floor.nodes.map((node) => [node.id, node]))
+  const clampCol = (col: number) => Math.min(Math.max(col, 0), cols - 1)
+  const clampRow = (row: number) => Math.min(Math.max(row, 0), rows - 1)
+  const centre = (col: number, row: number): Point => ({
+    x: grid.originX + (col + 0.5) * cellM,
+    y: grid.originY + (row + 0.5) * cellM,
+  })
+
+  for (const wall of floor.walls) {
+    const a = nodes.get(wall.from)
+    const b = nodes.get(wall.to)
+    if (!a || !b) continue
+    // Cells whose centre or right/lower neighbour's centre could touch the wall.
+    const col0 = clampCol(
+      Math.floor((Math.min(a.x, b.x) - grid.originX) / cellM) - 1,
+    )
+    const col1 = clampCol(
+      Math.ceil((Math.max(a.x, b.x) - grid.originX) / cellM) + 1,
+    )
+    const row0 = clampRow(
+      Math.floor((Math.min(a.y, b.y) - grid.originY) / cellM) - 1,
+    )
+    const row1 = clampRow(
+      Math.ceil((Math.max(a.y, b.y) - grid.originY) / cellM) + 1,
+    )
+    for (let row = row0; row <= row1; row++) {
+      for (let col = col0; col <= col1; col++) {
+        const i = row * cols + col
+        const here = centre(col, row)
+        if (col + 1 < cols && segmentsTouch(a, b, here, centre(col + 1, row))) {
+          blockedRight[i] = 1
+        }
+        if (row + 1 < rows && segmentsTouch(a, b, here, centre(col, row + 1))) {
+          blockedDown[i] = 1
+        }
+      }
+    }
+  }
+
+  return { blockedRight, blockedDown }
 }
 
 const EPSILON = 1e-9

@@ -5,6 +5,7 @@ import {
   stackedFloors,
   type Band,
   type Floor,
+  type FloorMaterial,
   type Plan,
   type Point,
 } from '@signalplan/floorplan'
@@ -16,6 +17,7 @@ import {
   type PreparedWalls,
   type WallIndex,
 } from './crossings.ts'
+import type { BandCalibration } from './calibration.ts'
 import {
   floorLossAtDb,
   floorLossTable,
@@ -75,11 +77,32 @@ export function inHole(holes: SlabHoles, x: number, y: number): boolean {
 }
 
 /**
- * The plan's floors in one band, from the lowest up. Floors at the same
- * elevation keep the plan's order.
+ * A floor's loss table in one band, scaled so its head-on loss is the
+ * calibrated one if there is one (D75).
  */
-export function prepareStack(plan: Plan, band: Band): Storey[] {
-  const wallLosses = MATERIAL_LOSS_DB[band]
+export function slabLossTable(
+  band: Band,
+  material: FloorMaterial,
+  calibration?: BandCalibration,
+): FloorLossTable {
+  const table = floorLossTable(band, material)
+  const headOn = calibration?.floorLossDb?.[material]
+  if (headOn === undefined) return table
+  const scale = headOn / table[0]!
+  return table.map((loss) => loss * scale)
+}
+
+/**
+ * The plan's floors in one band, from the lowest up. Floors at the same
+ * elevation keep the plan's order. Calibrated losses replace the defaults
+ * where given (D75).
+ */
+export function prepareStack(
+  plan: Plan,
+  band: Band,
+  calibration?: BandCalibration,
+): Storey[] {
+  const wallLosses = { ...MATERIAL_LOSS_DB[band], ...calibration?.wallLossDb }
   const floors = stackedFloors(plan.floors)
   return floors.map((floor, i) => {
     const next = floors[i + 1]
@@ -88,7 +111,11 @@ export function prepareStack(plan: Plan, band: Band): Storey[] {
       floor,
       bottomM: floor.elevationM,
       topM: next ? Math.min(ceiling, next.elevationM) : ceiling,
-      slabLoss: floorLossTable(band, floor.material ?? DEFAULT_FLOOR_MATERIAL),
+      slabLoss: slabLossTable(
+        band,
+        floor.material ?? DEFAULT_FLOOR_MATERIAL,
+        calibration,
+      ),
       holes: prepareHoles(floor),
       walls: prepareWalls(materialSegments(floor), (m) => wallLosses[m]),
     }
@@ -130,6 +157,11 @@ export interface FloorCrossing {
   holedSlabs: { holes: SlabHoles; loss: FloorLossTable; t: number }[]
   /** One stretch per storey, from the start's storey to the end's. */
   stretches: StoreyStretch[]
+  /**
+   * Every slab crossed, as the index in the stack of the storey whose slab
+   * it is, with where along the path it passes the slab's middle height.
+   */
+  slabs: { storey: number; t: number }[]
 }
 
 const NO_SLAB: FloorLossTable = [0, 0]
@@ -157,6 +189,7 @@ export function floorCrossing(
 
   let slabLoss: number[] | undefined
   const holedSlabs: FloorCrossing['holedSlabs'] = []
+  const slabs: FloorCrossing['slabs'] = []
   const stretches: StoreyStretch[] = []
   let enter = 0
   for (let i = from; i !== to; i += step) {
@@ -173,12 +206,10 @@ export function floorCrossing(
     enter = Math.max(exit, at(step > 0 ? next.bottomM : next.topM))
     // Going up crosses the next storey's slab; going down, this one's.
     const slab = step > 0 ? next : here
+    const t = (exit + enter) / 2
+    slabs.push({ storey: step > 0 ? i + 1 : i, t })
     if (slab.holes) {
-      holedSlabs.push({
-        holes: slab.holes,
-        loss: slab.slabLoss,
-        t: (exit + enter) / 2,
-      })
+      holedSlabs.push({ holes: slab.holes, loss: slab.slabLoss, t })
     } else {
       slabLoss = slabLoss
         ? slabLoss.map((loss, i) => loss + slab.slabLoss[i]!)
@@ -196,6 +227,7 @@ export function floorCrossing(
     slabLoss: slabLoss ?? NO_SLAB,
     holedSlabs,
     stretches,
+    slabs,
   }
 }
 

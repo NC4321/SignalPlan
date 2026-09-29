@@ -1,4 +1,5 @@
 import { BANDS, type Band, type Plan } from '@signalplan/floorplan'
+import type { Calibration } from './calibration.ts'
 import { RECEIVER_HEIGHT_M, signalDbm } from './coverage.ts'
 import { preparedWallLoss } from './crossings.ts'
 import {
@@ -29,13 +30,17 @@ export interface ReadingError {
  * another floor the slabs and each storey's walls along the path. The value
  * is at the spot itself, not at the centre of the grid cell it falls in.
  * A reading from an access point with that band turned off is left out.
+ * Calibrated values replace the defaults where given (D75).
  */
-export function predictReadings(plan: Plan): ReadingError[] {
+export function predictReadings(
+  plan: Plan,
+  calibration?: Calibration,
+): ReadingError[] {
   const stacks = new Map<Band, Storey[]>()
   const stackFor = (band: Band) => {
     let stack = stacks.get(band)
     if (!stack) {
-      stack = prepareStack(plan, band)
+      stack = prepareStack(plan, band, calibration?.[band])
       stacks.set(band, stack)
     }
     return stack
@@ -70,7 +75,15 @@ export function predictReadings(plan: Plan): ReadingError[] {
           loss = crossingLossDb(crossing, ap.x, ap.y, spot.x, spot.y)
           dz = apZ - receiverZ
         }
-        const predictedDbm = signalDbm(ap, radio, spot.x, spot.y, loss, dz)
+        const predictedDbm = signalDbm(
+          ap,
+          radio,
+          spot.x,
+          spot.y,
+          loss,
+          dz,
+          calibration?.[reading.band]?.pathLossExponent,
+        )
         errors.push({
           spotId: spot.id,
           floorId: floor.id,
