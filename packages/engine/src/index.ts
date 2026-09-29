@@ -49,6 +49,24 @@ export {
   type Rate,
   type Tuning,
 } from './interference.ts'
+export {
+  accessPointLinks,
+  candidateChoices,
+  CCA_DBM,
+  colourChannels,
+  compareCost,
+  overlapMHz,
+  PLANNED_2G4_CHANNELS,
+  planBandChannels,
+  planChannels,
+  type BandChannelPlan,
+  type Choice,
+  type ColouringProblem,
+  type ColouringResult,
+  type PlanCost,
+  type PlannedRadio,
+  type PlannerNetwork,
+} from './channelPlan.ts'
 export { freeSpacePathLoss, SPEED_OF_LIGHT } from './pathLoss.ts'
 export {
   betterScore,
