@@ -216,7 +216,8 @@ export function strongestReading(
 
 /**
  * Reads BSSIDs typed or pasted in: separated by commas, spaces or new lines,
- * with colons, dashes or dots, in any case (D71). Returns them lower case
+ * with colons, dashes or dots, in any case (D71), with or without leading
+ * zeros in each pair (D72). Returns them lower case
  * with colons, without repeats, and the pieces that aren't BSSIDs.
  */
 export function parseBssids(text: string): {
@@ -227,7 +228,13 @@ export function parseBssids(text: string): {
   const invalid: string[] = []
   for (const piece of text.split(/[\s,;]+/)) {
     if (piece === '') continue
-    const hex = piece.toLowerCase().replace(/[:.-]/g, '')
+    // macOS tools drop leading zeros: 0:1a:2b:3c:4d:5e (D72).
+    const octets = piece.split(/[:-]/)
+    const hex = (
+      octets.length === 6 && octets.every((o) => /^[0-9a-f]{1,2}$/i.test(o))
+        ? octets.map((o) => o.padStart(2, '0')).join('')
+        : piece.replace(/[:.-]/g, '')
+    ).toLowerCase()
     if (!/^[0-9a-f]{12}$/.test(hex)) {
       invalid.push(piece)
       continue
@@ -288,5 +295,18 @@ export function setRadioBssids(
   }
   if (bssids.length === 0) delete radio.bssids
   else radio.bssids = [...bssids]
+  // A BSSID typed onto a radio is yours after all (D72).
+  if (plan.ignoredBssids?.some((b) => bssids.includes(b))) {
+    const kept = plan.ignoredBssids.filter((b) => !bssids.includes(b))
+    if (kept.length === 0) delete plan.ignoredBssids
+    else plan.ignoredBssids = kept
+  }
+  return true
+}
+
+/** Forgets every BSSID marked not mine, so imports ask about them again. */
+export function forgetIgnoredBssids(plan: Plan): boolean {
+  if (!plan.ignoredBssids) return false
+  delete plan.ignoredBssids
   return true
 }

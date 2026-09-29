@@ -198,6 +198,13 @@ function checkSurvey(
   })
 
   const bssids = new Set<string>()
+  const ignored = new Set<string>()
+  plan.ignoredBssids?.forEach((bssid, i) => {
+    if (ignored.has(bssid)) {
+      report(`ignoredBssids[${i}]`, `BSSID ${bssid} is listed twice.`)
+    }
+    ignored.add(bssid)
+  })
   plan.accessPoints.forEach((ap, a) => {
     ap.radios.forEach((radio, r) => {
       radio.bssids?.forEach((bssid, b) => {
@@ -205,6 +212,12 @@ function checkSurvey(
           report(
             `accessPoints[${a}].radios[${r}].bssids[${b}]`,
             `BSSID ${bssid} is on more than one radio.`,
+          )
+        }
+        if (ignored.has(bssid)) {
+          report(
+            `accessPoints[${a}].radios[${r}].bssids[${b}]`,
+            `BSSID ${bssid} is on a radio and also marked not mine.`,
           )
         }
         bssids.add(bssid)

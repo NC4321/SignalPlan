@@ -485,6 +485,12 @@ Path loss in dB (lower is stronger), comparing that median with this model's fre
 
 With the one or two interior walls a path typically crosses at these distances, the model sits within about 3 dB of the P.1238-13 median, well inside that model's 5 dB spread. The model therefore uses the free-space exponent n = 2 without an extra clutter term.
 
+## Survey readings
+
+Readings measured in the home (Phase 7) are compared with the model's prediction for the same spot. A phone's reading at one spot jumps from scan to scan: signals arriving by many paths add up with random phases, so the amplitude follows a Rayleigh distribution, which ITU-R P.1057-7 §5 gives for "scattering from multiple, independent, randomly-located scatterers for which no single scattering component dominates". The model predicts the local mean power around that fading.
+
+When an import has several readings of one radio at one spot (repeated scans, or a radio's main and guest BSSIDs), they're combined as the **mean of their power in mW**, converted back to dBm and rounded to 0.1 dB ([D72](DECISIONS.md#d72-importing-survey-readings--2026-09-29)). For a Rayleigh amplitude with parameter b, P.1057-7 gives a root mean square value of b, so the mean power is b², and a median value of 0.833b, a median power 1.6 dB below the mean. Averaging dBm values instead gives the mean of the logarithm of the power, which for Rayleigh fading is 10·log₁₀(e)·γ = 2.5 dB below the mean power (γ = 0.5772, Euler's constant; this follows from the distribution and isn't a figure in P.1057). Averaging in mW avoids that bias. The mean of −60 and −70 dBm, for example, is −62.6 dBm, not −65.
+
 ## Known limits
 
 - **The channel planner trusts the model's signal between access points.** Reflections that carry signal around a wall, which the model ignores (D24), can let two access points hear each other when the planner thinks they don't. Neighbours' networks count as heard everywhere at the one strength typed in ([D68](DECISIONS.md#d68-channel-planner--2026-09-29)).
@@ -501,6 +507,7 @@ With the one or two interior walls a path typically crosses at these distances, 
 - IEEE Std 802.11a-1999, _High-speed Physical Layer in the 5 GHz Band_ (supplement to IEEE Std 802.11-1999). 17.3.10.1 and 17.3.10.5 (read from the copy filed as a USPTO PTAB exhibit, petition 1557847).
 - IEEE Std 802.11ac-2013, _Enhancements for Very High Throughput for Operation in Bands below 6 GHz_ (Amendment 4 to IEEE Std 802.11-2012). 22.3.19.5.3, Table 22-27 (read from the copy filed as a USPTO PTAB exhibit, petition 1557814).
 - Recommendation ITU-R P.1238-13 (09/2025), _Propagation data and prediction methods for the planning of indoor radiocommunication systems and radio local area networks in the frequency range from 300 MHz to 450 GHz_. International Telecommunication Union. Eqs. 1–2, Tables 2 and 5, and the floor loss text after Table 5.
+- Recommendation ITU-R P.1057-7 (08/2022), _Probability distributions relevant to radiowave propagation modelling_. International Telecommunication Union. §5.
 - Recommendation ITU-R P.2040-4 (09/2025), _Effects of building materials and structures on radiowave propagation above about 100 MHz_. International Telecommunication Union. Table 3; eqs. 27a, 39–44, 57–59.
 - D. Shakya, M. Ying, T. S. Rappaport, H. Poddar, P. Ma, Y. Wang and I. Al-Wazani, "Wideband Penetration Loss through Building Materials and Partitions at 6.75 GHz in FR1(C) and 16.95 GHz in the FR3 Upper Mid-band spectrum", IEEE GLOBECOM 2024. [arXiv:2405.01362](https://arxiv.org/abs/2405.01362). Table II.
 - W. C. Stone, _Electromagnetic Signal Attenuation in Construction Materials_, NIST Construction Automation Program Report No. 3, NISTIR 6055, National Institute of Standards and Technology, 1997. [doi:10.6028/NIST.IR.6055](https://doi.org/10.6028/NIST.IR.6055). Tables 3.5.3, 3.6.2, 3.8.2, 4.1b, 4.1d, 4.4b–4.11b, 4.4d–4.11d, 4.13b–4.15b and 4.13d–4.15d.

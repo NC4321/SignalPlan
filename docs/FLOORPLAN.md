@@ -35,8 +35,9 @@ Plan
 ├─ allowDfs?           boolean
 ├─ overlapMarginDb?    1 to 20
 ├─ roamThresholdDbm?   −90 to −50
-└─ neighbourNetworks[]?
-   └─ { id, name?, band, channel?, channelWidthMHz, strengthDbm: −100 to −20 }
+├─ neighbourNetworks[]?
+│  └─ { id, name?, band, channel?, channelWidthMHz, strengthDbm: −100 to −20 }
+└─ ignoredBssids[]?    BSSIDs marked not mine when importing readings
 ```
 
 Wall materials are `drywall`, `brick`, `concrete`, `glass`, `low-e-glass`, `wood` and `metal`; each stands for a typical North American construction described in [MODEL.md](MODEL.md#wall-materials). Openings can use any of these, or `open` for a doorway with no door. Bands are `2.4GHz`, `5GHz` and `6GHz`. `txPowerDbm` is the radio's EIRP (antenna gain included); a radio without it uses the engine's default for its band.
@@ -63,6 +64,38 @@ A floor's optional `surveySpots` are places where signal was measured, in plan m
 
 A floor may have a **background** image to trace over. `x` and `y` place its top-left corner and `metresPerPixel` sets its scale. In the browser the image lives in its own store and is referenced by `imageId`; saved files embed it as a `dataUrl` instead. At least one of the two is needed. `widthPx` and `heightPx` are the image's size in pixels, `opacity` runs from 0 to 1, and `locked` stops the image being dragged by accident. See [D22](DECISIONS.md#d22-tracing-over-a-floor-plan-image--2026-09-27).
 
+`ignoredBssids` lists BSSIDs marked "not mine" when importing readings, such as neighbours' networks, so later imports skip them without asking. A BSSID can't be both on a radio and in this list; typing one onto a radio takes it off the list. `forgetIgnoredBssids` in `survey.ts` clears it. See [D72](DECISIONS.md#d72-importing-survey-readings--2026-09-29).
+
+## Importing survey readings
+
+Readings can be imported from a CSV or JSON file (File › Import readings…, or the Survey section). A file whose text starts with `[` or `{` is read as JSON; anything else is CSV with a header line, separated by commas, semicolons or tabs, with quoted cells as in RFC 4180. Each row or object is one reading:
+
+| Column             | Also accepted                                              | Meaning                                                                                                                       |
+| ------------------ | ---------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| `bssid` (required) | `mac`, `mac address`                                       | The radio's BSSID, with colons, dashes or dots, in any case, leading zeros optional                                           |
+| `dbm` (required)   | `rssi`, `rssi (dBm)`, `signal`, `signal strength`, `level` | The signal in dBm, −120 to 0; a unit or a minus sign (−) is fine                                                              |
+| `spot`             | `spot id`, `spot name`                                     | An existing spot: `Spot 3`, `spot3` or `3`                                                                                    |
+| `x`, `y`           | `x (m)`, `y (m)`                                           | A spot's position in plan metres: an existing spot within 1 cm, or else a new one; rows with the same position share one spot |
+| `floor`            |                                                            | The floor a position is on, by id, or by name if no other floor has it; without it, the floor on show                         |
+| `ssid`             | `network`, `network name`                                  | The network name, shown when mapping a BSSID                                                                                  |
+| `band`             |                                                            | `2.4`, `5` or `6` (GHz), a hint when mapping a BSSID                                                                          |
+| `frequency`        | `frequency (MHz)`, `freq`                                  | The channel's centre in MHz (or GHz), a hint for the band                                                                     |
+| `channel`          | `ch`                                                       | The channel number, a weaker hint (1–14 → 2.4 GHz, 32–177 → 5 GHz)                                                            |
+
+Column names ignore case, spaces and marks, and other columns (such as a time) are ignored. A row gives a `spot` or an `x` and `y`, not both; a row with neither goes to the spot selected when importing. Any bad row, unknown spot or unknown floor stops the whole import, with a list of where the problems are.
+
+Readings are matched to radios by BSSID (`bssids` on each radio). The first time a file has BSSIDs that no radio has and that aren't in `ignoredBssids`, a dialog asks which radio each is, or "not mine"; the answers are saved, so later imports match on their own. A reading's band is its radio's, whatever the file says. Several readings of one radio at one spot become one: the mean of their power in mW ([MODEL.md](MODEL.md#survey-readings)). That replaces a reading the spot already has for the same access point and band. The whole import is one undo step.
+
+```csv
+ssid,bssid,rssi,frequency,x,y,floor
+Home,a4:2b:b0:12:34:56,-52,5180,3.5,4,Main floor
+Home-guest,a6:2b:b0:12:34:56,-53,5180,3.5,4,Main floor
+```
+
+```json
+{ "readings": [{ "bssid": "a4:2b:b0:12:34:56", "dbm": -52, "spot": "Spot 1" }] }
+```
+
 ## Validation
 
 `parsePlan` and `loadPlan` return either the plan or a list of issues, each with a path such as `floors[0].walls[3].to` and a readable message. They check:
@@ -70,7 +103,7 @@ A floor may have a **background** image to trace over. `x` and `y` place its top
 - **Shape:** required fields, types, known materials and bands, finite numbers.
 - **References:** walls point at nodes on the same floor, openings at walls on the same floor, access points at existing floors, survey readings at existing access points.
 - **Geometry:** walls are at least 1 cm long, openings fit inside their wall and don't overlap.
-- **Uniqueness:** ids are unique within each list (survey spot ids across all floors), each access point has at most one radio per band, each survey spot has at most one reading per access point and band, and each BSSID is on one radio.
+- **Uniqueness:** ids are unique within each list (survey spot ids across all floors), each access point has at most one radio per band, each survey spot has at most one reading per access point and band, and each BSSID is on one radio and not also in `ignoredBssids`.
 - **Channels:** a radio with a `channel` also has a `channelWidthMHz`.
 
 ## Versions and migrations
