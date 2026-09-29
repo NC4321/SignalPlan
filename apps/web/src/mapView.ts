@@ -1,5 +1,6 @@
 import {
   autoChannelCount,
+  neighbourBackground,
   overlapCounts,
   requiredSinrDb,
   roamingEdges,
@@ -138,6 +139,8 @@ export interface MapData {
   sinr: Float32Array | undefined
   /** How many access points leave their channel on Auto; 0 outside Interference. */
   autoChannels: number
+  /** Neighbours' networks counted on the band; 0 outside Interference (D67). */
+  neighbours: number
   /** Names in the order of `accessPointIds`, for the Roaming legend. */
   accessPointNames: string[]
 }
@@ -145,13 +148,14 @@ export interface MapData {
 /**
  * `plan` is the plan the coverage was worked out for, suggestion included,
  * so the Roaming legend names every access point on the map in its colour
- * and the Interference view uses every access point's channel.
+ * and the Interference view uses every access point's channel and the
+ * neighbours' networks.
  */
 export function mapData(
   coverage: Coverage,
   kind: MapKind,
   settings: ViewSettings,
-  plan: Pick<Plan, 'accessPoints' | 'region'>,
+  plan: Pick<Plan, 'accessPoints' | 'region' | 'neighbourNetworks'>,
 ): MapData {
   const accessPointNames = coverage.accessPointIds.map(
     (id) => plan.accessPoints.find((ap) => ap.id === id)?.name ?? id,
@@ -165,6 +169,8 @@ export function mapData(
   const edges = owners ? roamingEdges(owners, coverage.grid.cols) : undefined
   const tunings =
     kind === 'interference' ? sourceTunings(coverage, plan) : undefined
+  const background =
+    kind === 'interference' ? neighbourBackground(plan, coverage.band) : []
   return {
     kind,
     coverage,
@@ -172,8 +178,9 @@ export function mapData(
     counts,
     owners,
     edges,
-    sinr: tunings ? sinrDb(coverage, tunings) : undefined,
+    sinr: tunings ? sinrDb(coverage, tunings, background) : undefined,
     autoChannels: tunings ? autoChannelCount(tunings) : 0,
+    neighbours: background.length,
     accessPointNames,
   }
 }
@@ -263,6 +270,7 @@ export function mapLegend(
   settings: ViewSettings,
   accessPointNames: readonly string[],
   autoChannels = 0,
+  neighbours = 0,
 ): Legend {
   const threshold = `${settings.roamThresholdDbm} dBm`
   switch (kind) {
@@ -345,6 +353,11 @@ export function mapLegend(
             : autoChannels === 1
               ? '1 access point has its channel on Auto, taken as a channel no one else uses: the best case.'
               : `${autoChannels} access points have their channels on Auto, each taken as a channel no one else uses: the best case.`,
+          neighbours === 0
+            ? undefined
+            : neighbours === 1
+              ? '1 neighbour’s network counts everywhere at the strength typed in for it.'
+              : `${neighbours} neighbours’ networks count everywhere at the strengths typed in for them.`,
         ]
           .filter((s) => s !== undefined)
           .join(' '),

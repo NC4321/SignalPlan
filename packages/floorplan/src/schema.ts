@@ -60,6 +60,9 @@ export const CHANNEL_WIDTHS = [20, 40, 80, 160] as const
 export const OVERLAP_MARGIN_RANGE_DB = { min: 1, max: 20 } as const
 export const ROAM_THRESHOLD_RANGE_DBM = { min: -90, max: -50 } as const
 
+/** Limits for a neighbour network's typed-in strength (D67). */
+export const NEIGHBOUR_STRENGTH_RANGE_DBM = { min: -100, max: -20 } as const
+
 /** Signal levels a plan can aim for, named after the heatmap bands (D12). */
 export const COVERAGE_TARGETS = ['excellent', 'good', 'fair', 'weak'] as const
 
@@ -191,6 +194,28 @@ export const accessPointSchema = z.object({
   locked: z.boolean().optional(),
 })
 
+/**
+ * A network next door, typed in by hand (D61, D67). It has no position: its
+ * strength counts everywhere in the home as background interference.
+ */
+export const neighbourNetworkSchema = z.object({
+  id,
+  /** A label such as the network's name, to tell rows apart. */
+  name: z.string().max(100).optional(),
+  band: bandSchema,
+  /**
+   * IEEE 802.11 channel number at `channelWidthMHz`. Omitted until it's
+   * picked, and a network without one isn't counted.
+   */
+  channel: z.number().int().min(1).max(233).optional(),
+  channelWidthMHz: z.union(CHANNEL_WIDTHS.map((w) => z.literal(w))),
+  /** Its rough signal in the home, in dBm, as a phone or analyser shows it. */
+  strengthDbm: z
+    .number()
+    .min(NEIGHBOUR_STRENGTH_RANGE_DBM.min)
+    .max(NEIGHBOUR_STRENGTH_RANGE_DBM.max),
+})
+
 export const planSchema = z.object({
   schemaVersion: z.literal(SCHEMA_VERSION),
   name: z.string().max(200),
@@ -221,6 +246,8 @@ export const planSchema = z.object({
     .min(ROAM_THRESHOLD_RANGE_DBM.min)
     .max(ROAM_THRESHOLD_RANGE_DBM.max)
     .optional(),
+  /** Neighbours' networks, as background interference (D67). Omitted means none. */
+  neighbourNetworks: z.array(neighbourNetworkSchema).optional(),
 })
 
 export type WallMaterial = z.infer<typeof wallMaterialSchema>
@@ -237,5 +264,6 @@ export type Background = z.infer<typeof backgroundSchema>
 export type Floor = z.infer<typeof floorSchema>
 export type Radio = z.infer<typeof radioSchema>
 export type AccessPoint = z.infer<typeof accessPointSchema>
+export type NeighbourNetwork = z.infer<typeof neighbourNetworkSchema>
 export type CoverageTarget = (typeof COVERAGE_TARGETS)[number]
 export type Plan = z.infer<typeof planSchema>

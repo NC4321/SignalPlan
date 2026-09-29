@@ -81,6 +81,8 @@ export function checkStructure(plan: Plan): PlanIssue[] {
     })
   })
 
+  checkUniqueIds(plan.neighbourNetworks ?? [], 'neighbourNetworks', report)
+
   return issues
 }
 

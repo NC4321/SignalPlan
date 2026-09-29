@@ -33,7 +33,9 @@ Plan
 ├─ region?             US | EU
 ├─ allowDfs?           boolean
 ├─ overlapMarginDb?    1 to 20
-└─ roamThresholdDbm?   −90 to −50
+├─ roamThresholdDbm?   −90 to −50
+└─ neighbourNetworks[]?
+   └─ { id, name?, band, channel?, channelWidthMHz, strengthDbm: −100 to −20 }
 ```
 
 Wall materials are `drywall`, `brick`, `concrete`, `glass`, `low-e-glass`, `wood` and `metal`; each stands for a typical North American construction described in [MODEL.md](MODEL.md#wall-materials). Openings can use any of these, or `open` for a doorway with no door. Bands are `2.4GHz`, `5GHz` and `6GHz`. `txPowerDbm` is the radio's EIRP (antenna gain included); a radio without it uses the engine's default for its band.
@@ -53,6 +55,8 @@ A radio's optional `channelWidthMHz` (20, 40, 80 or 160) and `channel` (its IEEE
 `region` says whose channel and power rules the plan follows; without it the plan is `US`. `allowDfs: true` lets 5 GHz DFS channels be used; without it they aren't. The rules themselves live in the engine, not the plan ([MODEL.md](MODEL.md#channels-and-regions), [D62](DECISIONS.md#d62-channels-by-region--2026-09-28)).
 
 `overlapMarginDb` and `roamThresholdDbm` set the Overlap view's margin and the Roaming view's threshold; without them the engine's defaults apply (8 dB and −70 dBm, sourced in [MODEL.md](MODEL.md#overlap-and-roaming)). They're saved so a shared plan shows the same views. See [D64](DECISIONS.md#d64-overlap-and-roaming-views--2026-09-28).
+
+`neighbourNetworks` are networks next door, typed in by hand as background interference for the Interference view: band, width, a rough `strengthDbm`, an optional `name` to tell them apart, and the `channel` once it's picked; one without a channel isn't counted. They have no position. `addNeighbourNetwork`, `setNeighbourBand`, `setNeighbourWidth` (both clear the channel), `setNeighbourChannel`, `setNeighbourStrength`, `renameNeighbourNetwork` and `deleteNeighbourNetwork` in `neighbours.ts` edit them, and validation checks their ids are unique. Without the list there are none. See [D67](DECISIONS.md#d67-neighbours-networks--2026-09-29).
 
 A floor may have a **background** image to trace over. `x` and `y` place its top-left corner and `metresPerPixel` sets its scale. In the browser the image lives in its own store and is referenced by `imageId`; saved files embed it as a `dataUrl` instead. At least one of the two is needed. `widthPx` and `heightPx` are the image's size in pixels, `opacity` runs from 0 to 1, and `locked` stops the image being dragged by accident. See [D22](DECISIONS.md#d22-tracing-over-a-floor-plan-image--2026-09-27).
 

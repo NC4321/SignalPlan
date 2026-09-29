@@ -35,6 +35,7 @@ export {
 export {
   AUTO_WIDTH_MHZ,
   autoChannelCount,
+  neighbourBackground,
   noiseFloorDbm,
   overlapShare,
   radioTuning,
@@ -44,6 +45,7 @@ export {
   sinrDb,
   sourceTunings,
   THERMAL_NOISE_DBM_PER_HZ,
+  type NeighbourSource,
   type Rate,
   type Tuning,
 } from './interference.ts'

@@ -51,7 +51,7 @@ The fourth map, **Interference** ([D66](DECISIONS.md#d66-sinr-and-the-interferen
 
 SINR = S − 10·log10( Σ share_i · 10^(I_i / 10) + 10^(N / 10) )
 
-- **S** is the strongest access point's signal in dBm, and **I_i** each other access point's signal in the same cell, on this floor or another.
+- **S** is the strongest access point's signal in dBm, and **I_i** each other access point's signal in the same cell, on this floor or another, or a neighbour's network's typed-in strength (see below).
 - **share_i** is how much of access point _i_'s power lands in the receiving channel. Power is taken as spread evenly across a channel, so the share is the overlap of the two channels' spans in MHz over _i_'s width (spans as in [Channels and regions](#channels-and-regions)). Channels 1 and 3 on 2.4 GHz, 2402–2422 and 2412–2432 MHz, share 10 of 20 MHz, so half; 1 and 6 don't overlap. A 40 MHz channel inside an 80 MHz one gets half of the 80 MHz radio's power, and the 80 MHz radio all of the 40 MHz one's. Real transmitters don't spread power evenly: 802.11's spectral mask lets some power leak beyond the channel's edge and puts less in its outer MHz. That's a simplification, not a sourced shape.
 - **N** is the noise floor for the receiving channel's width B: N = kT₀ + 10·log10(B) + NF = −173.98 dBm/Hz + 10·log10(B in Hz) + 10 dB, so −90.97 dBm in 20 MHz and −84.95 dBm in 80 MHz. kT₀ is the Boltzmann constant (1.380649 × 10⁻²³ J/K, exact in the SI Brochure, 9th edition) times the reference temperature T₀ "fixed, by convention, around 290 K" (ITU-R V.573-5, term F03). NF is a receiver noise figure of 10 dB. It comes from IEEE 802.11 working-group document 11-03/845r1, "Receiver Sensitivity Tables for MIMO-OFDM 802.11n" (Mahadevappa and ten Brink, Realtek, November 2003), which works out receiver sensitivities with a "10dB noise figure (conservative [4])" and a "5dB implementation margin (conservative [4])", where [4] is IEEE Std 802.11a-1999, as "(-174+73+10+5)dBm+Es/N0" in 20 MHz. The standard's own text wasn't available to check, so SignalPlan cites the working-group document, not the standard.
 
@@ -70,7 +70,9 @@ Wider channels show their cost both ways: each doubling adds 3.01 dB of noise, a
 | Slow      | MCS 0, BPSK 1/2 (the slowest)             | −82 dBm             | 9.0 dB      |
 | Unusable  | below MCS 0                               |                     | < 9.0 dB    |
 
-Unusable cells are hatched grey; cells no access point reaches are left clear. The summary gives the share of the floor below 9 dB, rounded up so 0% only means none; cells no access point reaches aren't counted as below 9 dB, since there's no signal to drown. Neighbours' networks join the interference in #114.
+Unusable cells are hatched grey; cells no access point reaches are left clear. The summary gives the share of the floor below 9 dB, rounded up so 0% only means none; cells no access point reaches aren't counted as below 9 dB, since there's no signal to drown.
+
+**Neighbours' networks** ([D67](DECISIONS.md#d67-neighbours-networks--2026-09-29)) are typed in by hand: band, channel, width and a rough signal in dBm, as a Wi-Fi analyser app shows it where you stand. They have no position, so each counts at that one strength in every cell of every floor, with the same channel share as an access point. Like interference from the plan's own access points, they only reach radios with a channel set: a radio on Auto is still taken to be on a channel no one else uses. A network whose channel hasn't been picked yet isn't counted. That makes them background interference, not a map of the neighbour: a network 3 dB stronger by the party wall than in the far room counts the same in both.
 
 Working SINR out on the page adds about 2 ms to the big house's grid (12.7 → 14.5 ms median on the desktop, with every access point on one channel), inside its 50 ms budget; `coverage.speed.ts` checks it.
 
@@ -461,7 +463,7 @@ With the one or two interior walls a path typically crosses at these distances, 
 - **Normal incidence.** Wall loss is computed for a wave meeting the wall head on. The slab code supports angles, but using them moved 90% of cells by at most about 3 dB in the test plans, and not always downwards, so it was left out ([D30](DECISIONS.md#d30-wall-loss-stays-at-normal-incidence--2026-09-27)).
 - **Omnidirectional access points.** Antenna patterns are ignored ([D24](DECISIONS.md#d24-propagation-scope-for-m1-omnidirectional-direct-path-only--2026-09-27)).
 - **Typical constructions.** A real wall may differ from its construction above: metal studs, foil-backed insulation, tile or plaster lath all add loss.
-- **No furniture, people or neighbouring networks.**
+- **No furniture or people.** Neighbours' networks are only a typed-in strength that counts everywhere in the home ([D67](DECISIONS.md#d67-neighbours-networks--2026-09-29)).
 - **Receiver losses aren't modelled.** A phone's antenna is less efficient than the 0 dBi assumed, and a hand or body near it absorbs signal, so a phone may read several dB below the prediction.
 - **Uncalibrated.** Until Phase 7, predictions have not been checked against measurements in a real home.
 
