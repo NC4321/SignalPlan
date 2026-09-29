@@ -129,10 +129,12 @@ describe('heatmapPixels', () => {
   })
   // Coloured as the Signal map, which these tests are about.
   const signal = (dbm: number[], floorArea: number[]) =>
-    mapData(coverage(dbm, floorArea), 'signal', {
-      overlapMarginDb: 8,
-      roamThresholdDbm: -70,
-    })
+    mapData(
+      coverage(dbm, floorArea),
+      'signal',
+      { overlapMarginDb: 8, roamThresholdDbm: -70 },
+      { accessPoints: [] },
+    )
 
   it('colours the floor, greys it where there is no signal, clears the rest', () => {
     const pixels = heatmapPixels(signal([-40, -95, -40], [1, 1, 0]))

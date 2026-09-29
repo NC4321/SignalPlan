@@ -207,6 +207,25 @@ describe('setShow', () => {
   })
 })
 
+describe('edit with keepOptimizer', () => {
+  it('keeps a suggestion for edits that can’t affect it (D64)', () => {
+    const store = createEditorStore(sample())
+    store.setState({ optimizer: { status: 'message', text: 'x' } })
+    store
+      .getState()
+      .edit(
+        'Change roaming threshold',
+        (d) => void (d.roamThresholdDbm = -75),
+        {
+          keepOptimizer: true,
+        },
+      )
+    expect(store.getState().optimizer).toBeDefined()
+    store.getState().edit('Rename', (d) => void (d.name = 'Other'))
+    expect(store.getState().optimizer).toBeUndefined()
+  })
+})
+
 describe('channels', () => {
   it('sets a width and channel, each as one undoable edit', () => {
     const store = createEditorStore(sample())

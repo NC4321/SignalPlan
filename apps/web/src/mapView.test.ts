@@ -1,4 +1,5 @@
 import type { Coverage } from '@signalplan/engine'
+import type { Plan } from '@signalplan/floorplan'
 import { describe, expect, it } from 'vitest'
 import { cellColour, mapData, mapLegend, mapMessage } from './mapView.ts'
 
@@ -25,8 +26,15 @@ function row(inside = [1, 1, 1, 1, 0]): Coverage {
 }
 
 const settings = { overlapMarginDb: 8, roamThresholdDbm: -70 }
+/** The plan's access points, in a different order from the coverage's. */
+const plan = {
+  accessPoints: [
+    { id: 'b', name: 'Upstairs' },
+    { id: 'a', name: 'Router' },
+  ] as Plan['accessPoints'],
+}
 const colours = (kind: 'signal' | 'overlap' | 'roaming') => {
-  const data = mapData(row(), kind, settings)
+  const data = mapData(row(), kind, settings, plan)
   return [0, 1, 2, 3, 4].map((i) => cellColour(data, i))
 }
 
@@ -59,6 +67,29 @@ describe('cellColour', () => {
   })
 })
 
+describe('mapData', () => {
+  it('names access points in the coverage’s order, which sets their colours', () => {
+    expect(mapData(row(), 'roaming', settings, plan).accessPointNames).toEqual([
+      'Router',
+      'Upstairs',
+    ])
+  })
+
+  it('names access points only a suggestion adds (D64)', () => {
+    // A suggested access point is in the shown plan, not the saved one.
+    const coverage = { ...row(), accessPointIds: ['a', 'suggested'] }
+    const shown = {
+      accessPoints: [
+        ...plan.accessPoints,
+        { id: 'suggested', name: 'Access point 1' },
+      ] as Plan['accessPoints'],
+    }
+    expect(
+      mapData(coverage, 'roaming', settings, shown).accessPointNames,
+    ).toEqual(['Router', 'Access point 1'])
+  })
+})
+
 describe('mapLegend', () => {
   it('names each access point for Roaming, then switches and gaps', () => {
     const legend = mapLegend('roaming', settings, ['Router', 'Upstairs'])
@@ -87,18 +118,23 @@ describe('mapMessage', () => {
   it('gives the share with competing access points, rounded up', () => {
     // Inside: counts 1, 2, 2, 0 → 2 of 4 m².
     expect(
-      mapMessage(mapData(row(), 'overlap', settings), 'fair', 'metric'),
+      mapMessage(mapData(row(), 'overlap', settings, plan), 'fair', 'metric'),
     ).toBe('50% of 4 m² has two or more access points competing on 5 GHz.')
   })
 
   it('gives the share in gaps, rounded up so 0% means none', () => {
     // Inside: one gap cell of 4 → 25%. With a −80 threshold, none.
     expect(
-      mapMessage(mapData(row(), 'roaming', settings), 'fair', 'metric'),
+      mapMessage(mapData(row(), 'roaming', settings, plan), 'fair', 'metric'),
     ).toBe('25% of 4 m² is a gap below -70 dBm on 5 GHz.')
     const low = { ...settings, roamThresholdDbm: -80 }
     expect(
-      mapMessage(mapData(row(), 'roaming', low), 'fair', 'metric', 'Upstairs'),
+      mapMessage(
+        mapData(row(), 'roaming', low, plan),
+        'fair',
+        'metric',
+        'Upstairs',
+      ),
     ).toBe('Upstairs: 0% of 4 m² is a gap below -80 dBm on 5 GHz.')
   })
 
@@ -117,14 +153,14 @@ describe('mapMessage', () => {
     big.dbm[0] = -90
     big.sourceDbm[0] = -90
     expect(
-      mapMessage(mapData(big, 'roaming', settings), 'fair', 'metric'),
+      mapMessage(mapData(big, 'roaming', settings, plan), 'fair', 'metric'),
     ).toBe('1% of 200 m² is a gap below -70 dBm on 5 GHz.')
   })
 
   it('asks for closed walls without floor area', () => {
     expect(
       mapMessage(
-        mapData(row([0, 0, 0, 0, 0]), 'overlap', settings),
+        mapData(row([0, 0, 0, 0, 0]), 'overlap', settings, plan),
         'fair',
         'metric',
       ),

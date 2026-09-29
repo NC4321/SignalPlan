@@ -54,10 +54,13 @@ import type { Draft } from 'immer'
 import { useEffect, useId, useRef, useState } from 'react'
 import { DEFAULT_TARGET, qualityOf, targetBand } from '../quality.ts'
 import {
+  EDGE_KEY_CSS,
+  HATCH_KEY_CSS,
   MAP_KINDS,
   MAP_LABELS,
   mapLegend,
   rgbCss,
+  type MapData,
   type MapKind,
   type Swatch,
 } from '../mapView.ts'
@@ -358,10 +361,13 @@ export function Toolbar() {
 export function PropertiesPanel({
   open,
   coverageText,
+  map,
 }: {
   open: boolean
   /** The coverage summary line, or '' when nothing broadcasts. */
   coverageText: string
+  /** The map on show, for its legend (D64). */
+  map: MapData | undefined
 }) {
   const plan = useEditor((s) => s.plan)
   const floorId = useEditor((s) => s.floorId)
@@ -449,7 +455,7 @@ export function PropertiesPanel({
       )}
 
       <section>
-        <MapLegend />
+        <MapLegend map={map} />
         <CoverageSummary message={coverageText} />
         <p className="hint">
           Predictions come from a simplified model.{' '}
@@ -460,15 +466,15 @@ export function PropertiesPanel({
   )
 }
 
-/** The legend for the map on show (D64), with how to read it. */
-function MapLegend() {
+/**
+ * The legend for the map on show (D64), with how to read it. The Roaming
+ * view's names come from the map itself, so they match its colours, even
+ * with a suggestion's access points added.
+ */
+function MapLegend({ map }: { map: MapData | undefined }) {
   const show = useEditor((s) => s.show)
-  const band = useEditor((s) => s.band)
   const plan = useEditor((s) => s.plan)
-  // In the order the engine lists them: every access point on the band.
-  const names = plan.accessPoints
-    .filter((ap) => ap.radios.some((r) => r.band === band))
-    .map((ap) => ap.name)
+  const names = map ? map.accessPointNames : []
   const legend = mapLegend(show, viewSettings(plan), names)
   return (
     <>
@@ -496,9 +502,9 @@ function LegendSwatch({ swatch }: { swatch: Swatch }) {
     case 'none':
       return <span className="swatch swatch-none" />
     case 'hatch':
-      return <span className="swatch swatch-hatch" />
+      return <span className="swatch" style={{ background: HATCH_KEY_CSS }} />
     case 'edge':
-      return <span className="swatch swatch-edge" />
+      return <span className="swatch" style={{ background: EDGE_KEY_CSS }} />
   }
 }
 
@@ -1516,8 +1522,9 @@ function ViewSettingsFields() {
   const store = useEditorStore()
   const margin = useEditor((s) => s.plan.overlapMarginDb)
   const threshold = useEditor((s) => s.plan.roamThresholdDbm)
+  // Neither setting changes a search or suggestion, so they keep it.
   const edit = (label: string, change: (plan: Draft<Plan>) => void) =>
-    store.getState().edit(label, change)
+    store.getState().edit(label, change, { keepOptimizer: true })
   return (
     <details className="advanced">
       <summary>Overlap and roaming</summary>

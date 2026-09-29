@@ -147,8 +147,16 @@ export interface EditorState {
    */
   coverageGoal: CoverageGoal
 
-  /** Applies one undoable edit. */
-  edit: (label: string, recipe: Recipe) => void
+  /**
+   * Applies one undoable edit. It drops a search or suggestion unless
+   * `keepOptimizer` says the edit can't affect it, like the Overlap and
+   * Roaming settings (D64).
+   */
+  edit: (
+    label: string,
+    recipe: Recipe,
+    options?: { keepOptimizer?: boolean },
+  ) => void
   /** Starts a gesture; the plan at this moment is what previews build on. */
   beginGesture: () => void
   /** Shows the gesture's current result, replacing the previous preview. */
@@ -350,7 +358,7 @@ export function createEditorStore(
     optimizer: undefined,
     coverageGoal: DEFAULT_COVERAGE_GOAL,
 
-    edit: (label, recipe) => {
+    edit: (label, recipe, options) => {
       const [next, patches, inverse] = produceWithPatches(get().plan, recipe)
       if (patches.length === 0) return
       set((state) => ({
@@ -361,7 +369,9 @@ export function createEditorStore(
         future: [],
         pristine: false,
         notice: undefined,
-        ...dropOptimizer(state.optimizer, 'the plan changed'),
+        ...(options?.keepOptimizer
+          ? {}
+          : dropOptimizer(state.optimizer, 'the plan changed')),
       }))
     },
 

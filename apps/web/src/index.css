@@ -410,16 +410,6 @@ dd {
   border: 1px dashed var(--muted);
 }
 
-.swatch-hatch {
-  background: repeating-linear-gradient(-45deg, #737373 0 2px, #bdbdbd 2px 6px);
-}
-
-.swatch-edge {
-  height: 0.25rem;
-  background: #1a1a1a;
-  border-radius: 0;
-}
-
 .legend-note {
   margin-top: 0.5rem;
 }

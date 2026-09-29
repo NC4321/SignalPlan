@@ -95,15 +95,18 @@ function App({
     [overlapMarginDb, roamThresholdDbm],
   )
   const map = useMemo(
-    () => (shown ? mapData(shown, show, settings) : undefined),
-    [shown, show, settings],
+    () => (shown ? mapData(shown, show, settings, shownPlan) : undefined),
+    [shown, show, settings, shownPlan],
   )
   const floorMaps = useMemo(
     () =>
       new Map(
-        [...floorsCoverage].map(([id, c]) => [id, mapData(c, show, settings)]),
+        [...floorsCoverage].map(([id, c]) => [
+          id,
+          mapData(c, show, settings, shownPlan),
+        ]),
       ),
-    [floorsCoverage, show, settings],
+    [floorsCoverage, show, settings, shownPlan],
   )
   const summary = useCoverageMessage(map)
   const coverageText =
@@ -232,7 +235,11 @@ function App({
               <p className="notice">Couldn’t compute coverage: {error}</p>
             )}
           </main>
-          <PropertiesPanel open={panelOpen} coverageText={coverageText} />
+          <PropertiesPanel
+            open={panelOpen}
+            coverageText={coverageText}
+            map={map}
+          />
           <StatusBar
             coverage={shown}
             coverageText={coverageText}

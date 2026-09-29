@@ -7,7 +7,7 @@ import {
   type Coverage,
   type ViewSettings,
 } from '@signalplan/engine'
-import type { CoverageTarget } from '@signalplan/floorplan'
+import type { CoverageTarget, Plan } from '@signalplan/floorplan'
 import { BAND_LABELS, coverageMessage } from './editor/coverageText.ts'
 import { formatArea, type Units } from './editor/units.ts'
 import { QUALITY_BANDS, qualityOf, targetBand } from './quality.ts'
@@ -53,11 +53,14 @@ const ACCESS_POINT_RGB: readonly Rgb[] = [
 ]
 
 /** Where a device would switch access points. */
-const EDGE_RGB: Rgb = [0x1a, 0x1a, 0x1a]
+export const EDGE_RGB: Rgb = [0x1a, 0x1a, 0x1a]
+
+/** The switch line's legend key sits on this light grey, so it shows in both themes. */
+export const EDGE_KEY_RGB: Rgb = [0xe0, 0xe0, 0xe0]
 
 /** Gaps are hatched: a darker grey every fourth diagonal. */
-const GAP_RGB: Rgb = [0xbd, 0xbd, 0xbd]
-const GAP_HATCH_RGB: Rgb = [0x73, 0x73, 0x73]
+export const GAP_RGB: Rgb = [0xbd, 0xbd, 0xbd]
+export const GAP_HATCH_RGB: Rgb = [0x73, 0x73, 0x73]
 
 export const accessPointRgb = (index: number): Rgb =>
   ACCESS_POINT_RGB[index % ACCESS_POINT_RGB.length]!
@@ -72,19 +75,29 @@ export interface MapData {
   counts: Uint8Array | undefined
   owners: Int16Array | undefined
   edges: Uint8Array | undefined
+  /** Names in the order of `accessPointIds`, for the Roaming legend. */
+  accessPointNames: string[]
 }
 
+/**
+ * `plan` is the plan the coverage was worked out for, suggestion included,
+ * so the Roaming legend names every access point on the map in its colour.
+ */
 export function mapData(
   coverage: Coverage,
   kind: MapKind,
   settings: ViewSettings,
+  plan: Pick<Plan, 'accessPoints'>,
 ): MapData {
+  const accessPointNames = coverage.accessPointIds.map(
+    (id) => plan.accessPoints.find((ap) => ap.id === id)?.name ?? id,
+  )
   const counts =
     kind === 'signal' ? undefined : overlapCounts(coverage, settings)
   const owners =
     kind === 'roaming' ? roamingOwners(coverage, settings) : undefined
   const edges = owners ? roamingEdges(owners, coverage.grid.cols) : undefined
-  return { kind, coverage, settings, counts, owners, edges }
+  return { kind, coverage, settings, counts, owners, edges, accessPointNames }
 }
 
 /**
@@ -226,3 +239,7 @@ export function mapMessage(
         : `${percent(shares.gaps)} of ${area} is a gap below ${data.settings.roamThresholdDbm} dBm on ${band}.`
   return floorName === undefined ? message : `${floorName}: ${message}`
 }
+
+/** CSS backgrounds for the hatch and switch legend keys, from the map's own colours. */
+export const HATCH_KEY_CSS = `repeating-linear-gradient(-45deg, ${rgbCss(GAP_HATCH_RGB)} 0 2px, ${rgbCss(GAP_RGB)} 2px 6px)`
+export const EDGE_KEY_CSS = `linear-gradient(${rgbCss(EDGE_KEY_RGB)} 0 40%, ${rgbCss(EDGE_RGB)} 40% 60%, ${rgbCss(EDGE_KEY_RGB)} 60%)`

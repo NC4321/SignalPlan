@@ -38,7 +38,7 @@ The editor reports the share of the **floor area** at or above a target level (D
 
 ### Overlap and roaming
 
-The heatmap can show three maps ([D64](DECISIONS.md#d64-overlap-and-roaming-views--2026-09-28)). **Signal** is the strongest access point's signal, as above. The other two work from each access point's own signal in every cell (`views.ts`), which the engine keeps alongside the strongest; changing their settings doesn't run the engine again.
+The heatmap can show three maps ([D64](DECISIONS.md#d64-overlap-and-roaming-views--2026-09-28)). **Signal** is the strongest access point's signal, as above. The other two work from each access point's own signal in every cell (`views.ts`), which the engine keeps alongside the strongest.
 
 - **Overlap** counts the access points that compete for a device in a cell: those within the **overlap margin** of the strongest there (8 dB by default) and at or above the **roaming threshold** (−70 dBm by default). Cells where no access point reaches the threshold count 0 and are left uncoloured. The summary gives the share of the floor with two or more, rounded up, so 0% only ever means none.
 - **Roaming** colours each cell by its strongest access point, if that one reaches the roaming threshold, and draws a line where the strongest changes. A gap, where none reaches the threshold, is hatched grey. The summary gives the share of the floor in gaps, rounded up.

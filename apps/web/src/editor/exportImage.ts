@@ -10,6 +10,10 @@ import {
   type Plan,
 } from '@signalplan/floorplan'
 import {
+  EDGE_KEY_RGB,
+  EDGE_RGB,
+  GAP_HATCH_RGB,
+  GAP_RGB,
   MAP_LABELS,
   mapData,
   mapLegend,
@@ -194,7 +198,7 @@ export function renderExport(
   const coverage = evaluateCoverage(plan, floorId, band)
   const broadcasting = coverage.accessPointIds.length > 0
   const settings = viewSettings(plan)
-  const map = mapData(coverage, show, settings)
+  const map = mapData(coverage, show, settings, plan)
   const area = PLAN_AREA
   const bounds = planBounds(plan, floorId, coverage)
   const camera = fitCamera(bounds, area.width, area.height, 8)
@@ -246,10 +250,7 @@ export function renderExport(
   context.textBaseline = 'middle'
   context.fillStyle = colour('--text')
   context.font = `600 15px ${FONT}`
-  const names = coverage.accessPointIds.map(
-    (id) => plan.accessPoints.find((ap) => ap.id === id)?.name ?? id,
-  )
-  const legend = mapLegend(show, settings, names)
+  const legend = mapLegend(show, settings, map.accessPointNames)
   context.fillText(legend.title, x, y)
   y += 30
   for (const row of legend.rows) {
@@ -258,9 +259,9 @@ export function renderExport(
       context.fillStyle = rgbCss(swatch.rgb)
       context.fillRect(x, y - 8, 16, 16)
     } else if (swatch.kind === 'hatch') {
-      context.fillStyle = '#bdbdbd'
+      context.fillStyle = rgbCss(GAP_RGB)
       context.fillRect(x, y - 8, 16, 16)
-      context.strokeStyle = '#737373'
+      context.strokeStyle = rgbCss(GAP_HATCH_RGB)
       context.lineWidth = 1.5
       context.save()
       context.beginPath()
@@ -274,7 +275,9 @@ export function renderExport(
       context.stroke()
       context.restore()
     } else if (swatch.kind === 'edge') {
-      context.fillStyle = '#1a1a1a'
+      context.fillStyle = rgbCss(EDGE_KEY_RGB)
+      context.fillRect(x, y - 8, 16, 16)
+      context.fillStyle = rgbCss(EDGE_RGB)
       context.fillRect(x, y - 2, 16, 4)
     } else {
       context.setLineDash([3, 2])
