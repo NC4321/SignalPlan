@@ -111,7 +111,8 @@ export function predictDbm(
 /**
  * EIRP − [PL(1 m) + 10·n·log10(d) + walls], given the walls' total loss.
  * `dz` is the access point's height above the receiver, which on its own
- * floor follows from its mounting height.
+ * floor follows from its mounting height. `exponent` is n, the band's
+ * unless calibrated (D75).
  */
 export function signalDbm(
   ap: Pick<AccessPoint, 'x' | 'y' | 'heightM'>,
@@ -120,6 +121,7 @@ export function signalDbm(
   y: number,
   walls: number,
   dz = ap.heightM - RECEIVER_HEIGHT_M,
+  exponent?: number,
 ): number {
   const profile = BAND_PROFILES[radio.band]
   const eirp = radio.txPowerDbm ?? profile.defaultTxPowerDbm
@@ -127,7 +129,7 @@ export function signalDbm(
   return (
     eirp -
     profile.referenceLossDb -
-    10 * profile.pathLossExponent * Math.log10(distance) -
+    10 * (exponent ?? profile.pathLossExponent) * Math.log10(distance) -
     walls
   )
 }

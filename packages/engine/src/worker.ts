@@ -1,4 +1,5 @@
 import type { Band, Plan } from '@signalplan/floorplan'
+import { calibrateBand, type BandCalibrationResult } from './calibration.ts'
 import { evaluateCoverage, type Coverage } from './coverage.ts'
 import {
   searchHowMany,
@@ -113,5 +114,35 @@ export function handlePlacementRequest(
       kind: 'error',
       message: error instanceof Error ? error.message : String(error),
     })
+  }
+}
+
+/**
+ * A calibration fit on one band (D75), for a worker of its own or the
+ * optimizer's, so the heatmap keeps updating meanwhile.
+ */
+export type CalibrationRequest = {
+  id: number
+  kind: 'calibrate'
+  plan: Plan
+  band: Band
+}
+
+export type CalibrationMessage =
+  | { id: number; kind: 'calibrated'; result: BandCalibrationResult }
+  | { id: number; kind: 'error'; message: string }
+
+export function handleCalibrationRequest(
+  request: CalibrationRequest,
+): CalibrationMessage {
+  try {
+    const result = calibrateBand(request.plan, request.band)
+    return { id: request.id, kind: 'calibrated', result }
+  } catch (error) {
+    return {
+      id: request.id,
+      kind: 'error',
+      message: error instanceof Error ? error.message : String(error),
+    }
   }
 }

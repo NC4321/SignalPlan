@@ -1,4 +1,41 @@
 export { BAND_PROFILES, bandSamples, type BandProfile } from './bands.ts'
+export { boundedLeastSquares } from './boundedLeastSquares.ts'
+export {
+  calibrateBand,
+  defaultValues,
+  MIN_CROSSING_READINGS,
+  MIN_CROSSING_SPOTS,
+  MIN_ROOM_AREA_M2,
+  MIN_ROOM_SHARE,
+  MIN_SPOTS,
+  predictPath,
+  surveyPaths,
+  surveyReadiness,
+  type BandCalibration,
+  type BandCalibrationResult,
+  type BandFit,
+  type Calibration,
+  type ErrorStats,
+  type FittedValue,
+  type FloorReadiness,
+  type HeldOutReading,
+  type KeptReason,
+  type MaterialFit,
+  type ModelValues,
+  type SurveyPath,
+  type SurveyReadiness,
+} from './calibration.ts'
+export {
+  DEVICE_OFFSET_LIMITS_DB,
+  EXPONENT_LIMITS,
+  FLOOR_MEASUREMENTS,
+  floorLimitsDb,
+  MIN_FLOOR_MEASUREMENTS,
+  MIN_WALL_MEASUREMENTS,
+  WALL_MEASUREMENTS,
+  wallLimitsDb,
+  type Measurement,
+} from './calibrationLimits.ts'
 export {
   cellCentre,
   DEFAULT_CELL_M,
@@ -11,9 +48,12 @@ export {
 } from './coverage.ts'
 export {
   floorAreaMask,
+  floorRooms,
   segmentsTouch,
   summariseCoverage,
   type CoverageSummary,
+  type FloorRooms,
+  type Room,
 } from './floorArea.ts'
 export { crossings, wallLoss, type Crossing } from './crossings.ts'
 export {
@@ -143,9 +183,12 @@ export {
   type SinglePlacementProblem,
 } from './search.ts'
 export {
+  handleCalibrationRequest,
   handlePlacementRequest,
   handleRequest,
   transferables,
+  type CalibrationMessage,
+  type CalibrationRequest,
   type EngineRequest,
   type EngineResponse,
   type PlacementMessage,

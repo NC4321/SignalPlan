@@ -14,7 +14,13 @@ import {
   RECEIVER_HEIGHT_M,
   type Coverage,
 } from './coverage.ts'
-import { floorAreaMask, segmentsTouch, summariseCoverage } from './floorArea.ts'
+import {
+  floorAreaMask,
+  floorRooms,
+  segmentsTouch,
+  summariseCoverage,
+} from './floorArea.ts'
+import { room } from './testPlans.ts'
 
 /** A floor whose walls join the given corners in order; closed when asked. */
 function outline(
@@ -64,6 +70,46 @@ describe('segmentsTouch', () => {
   it('treats overlapping collinear segments as touching', () => {
     expect(segmentsTouch(p(0, 0), p(2, 0), p(1, 0), p(3, 0))).toBe(true)
     expect(segmentsTouch(p(0, 0), p(2, 0), p(2.5, 0), p(3, 0))).toBe(false)
+  })
+})
+
+describe('floorRooms', () => {
+  it('splits a floor at an inside wall, doors counting as closed', () => {
+    // 10 × 6 m, split at x = 4 by a wall with a door in it.
+    const floor: Floor = {
+      ...room(10, 6, { x: 4, material: 'drywall' }),
+      openings: [
+        {
+          id: 'door',
+          wallId: 'split',
+          kind: 'door',
+          offsetM: 2,
+          widthM: 0.9,
+          material: 'wood',
+        },
+      ],
+    }
+    const grid = gridForFloor(floor)
+    const { rooms, roomOf } = floorRooms(floor, grid)
+    expect(rooms).toHaveLength(2)
+    // 24 and 36 m², give or take the cells on the walls (half a cell over).
+    expect(rooms[0]!.areaM2).toBeCloseTo(24, -1)
+    expect(rooms[1]!.areaM2).toBeCloseTo(36, -1)
+    expect(rooms[0]!.areaM2 + rooms[1]!.areaM2).toBeCloseTo(areaOf(floor), 6)
+    // Each room's point is inside it, near its middle.
+    const cellOf = (x: number, y: number) =>
+      Math.floor((y - grid.originY) / grid.cellM) * grid.cols +
+      Math.floor((x - grid.originX) / grid.cellM)
+    rooms.forEach((r, i) => expect(roomOf[cellOf(r.x, r.y)]).toBe(i))
+    expect(rooms[0]!.x).toBeCloseTo(2, 0)
+    expect(rooms[1]!.x).toBeCloseTo(7, 0)
+    expect(roomOf[cellOf(20, 20)]).toBeUndefined()
+    expect(roomOf[cellOf(-0.5, -0.5)]).toBe(-1)
+  })
+
+  it('finds no rooms without a closed outline', () => {
+    const floor = outline(SQUARE, { closed: false })
+    expect(floorRooms(floor, gridForFloor(floor)).rooms).toEqual([])
   })
 })
 

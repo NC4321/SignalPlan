@@ -179,7 +179,7 @@ CI runs about 1.8× slower than the desktop and runner hardware varies, so the C
 
 **While dragging.** In the browser, CPU throttling of 4× and 6× keeps the editor at 56–60 frames a second: drawing the heatmap bitmap on the page is cheap. The grid runs in a Web Worker, and only the newest request waits behind the one running. Chromium's throttling doesn't reach workers, so worker time on a slow phone is estimated as the desktop time × 4–6. For the big house that's about 110–170 ms per update.
 
-This is a **multi-wall model**, as in the COST 231 final report. Because walls are counted one by one, the distance term uses the free-space exponent n = 2 rather than a larger empirical exponent that would already include walls. Calibration (Phase 7) may adjust n and the wall losses to fit real measurements.
+This is a **multi-wall model**, as in the COST 231 final report. Because walls are counted one by one, the distance term uses the free-space exponent n = 2 rather than a larger empirical exponent that would already include walls. [Calibration](#calibration) (D75) can fit n and the wall and floor losses to readings in one home, within sourced limits.
 
 ## Bands
 
@@ -493,6 +493,53 @@ When an import has several readings of one radio at one spot (repeated scans, or
 
 Each reading is then compared with the model at the spot itself ([D73](DECISIONS.md#d73-the-error-report-predicted-versus-measured--2026-09-29)), worked out exactly as the heatmap works out a cell: a receiver 1 m above the spot's floor, 3D distance, the walls crossed, and from another floor the slabs and each storey's walls along the path. The **error** is predicted minus measured, so a positive error means the model expects more signal than was measured. For each band the report gives the **mean error** (the model's bias) and the **RMS error** (how far off a reading typically is, either way), over every reading on that band. The pins' colour steps (±3, 6 and 10 dB) are for reading the map and aren't part of the model.
 
+## Calibration
+
+Survey readings can fit the model to one home, a band at a time ([D75](DECISIONS.md#d75-the-calibration-fit--2026-09-29)). This is the engine's fit (`calibration.ts`); applying its values to the heatmap comes with Calibrate (#131).
+
+**What's fitted.** For each reading, the prediction is
+
+```math
+P = \mathrm{EIRP} - PL(1\,\mathrm{m}) - 10\,n\,\log_{10} d - \sum_m c_m L_m - \sum_f s_f S_f + o
+```
+
+where c_m is how many of the path's wall crossings count as material m, L_m that material's loss per crossing, S_f the default loss of the slabs of floor material f that the path crosses (at its angle, outside openings), s_f a scale on that floor's loss at every angle, and o the **device offset**: one constant per band for the whole survey, since a phone's antenna, a hand around it and how it reports RSSI all shift every reading alike. The offset belongs to the phone, not the home, so it's used to judge the fit but isn't saved with it. Everything else is exactly the prediction of the [error report](#survey-readings), which a test checks reading by reading, across floors and through a stairwell. Where a crossing touches several materials, the lossiest counts, as in the heatmap; if the fit changes which one that is, it fits again, up to five times.
+
+The prediction is linear in n, o, each L_m and each s_f, so the fit is a **bounded least squares** problem: the values that minimise the sum of squared errors (in dB), each kept within its limits. A small active-set solver on the normal equations finds the exact minimum (`boundedLeastSquares.ts`, tested against a fine grid search). The errors are in dB, as in the error report.
+
+**Which materials.** A material is fitted only if at least **5 readings** cross it, from at least **3 spots**, so one room behind one wall can't set it; crossings are counted by the lossiest material at the default values, so this doesn't depend on the fit. Anything crossed less keeps its default, and the result says "too few paths". A material also needs limits (below); without them it keeps its default and says so.
+
+**Limits.** Every limit comes from a primary source:
+
+- **Walls:** for each material and band, the lowest and highest of its default and the measured losses in [Validation](#validation) (NIST, Muqaibel, Shakya et al., Anderson and Rappaport; for the 200 mm concrete wall, NIST's 203 mm panels and Rhim's four moisture states at 203 mm), never below 0 dB. A material needs at least two measurements in a band: low-E glass and metal have one each (Shakya et al. at 6.75 GHz), so they're never fitted.
+- **Floors:** ITU-R P.1238-13 gives no slab measurement for a timber floor, and for concrete only 20 dB (σ 1.5 dB) at 5.2 GHz head-on. Its Table 5 floor factors are used as the other end: the house factor (5 dB at 2.4 GHz, 7 dB at 5.2 GHz) for the timber joist floor, the apartment factor (10 and 13 dB, "per concrete wall") for the concrete slab, and 20 + 2σ = 23 dB at 5 GHz for concrete. A floor needs one such value beside its default. Table 5 stops at 5.8 GHz, so 6 GHz floors aren't fitted. These factors describe a whole floor between two storeys, paths around it included, not a slab ([Floor materials](#floor-materials)); the same passage gives 30 dB (σ 3) and 36 dB (σ 5) for that concrete floor with light fixtures or air ducts, which the limits leave out. The fit scales the floor's whole angle table, so these are limits on its head-on loss.
+- **Exponent n:** 1.47 to 2.39, the office coefficients α of P.1238-13 Table 2 for line of sight and no line of sight (the environment compared with homes [above](#against-the-itu-r-p1238-13-indoor-model)). The walls are counted separately here, so the NLoS value, which folds walls into the distance term, is an upper end; below 2 allows for rooms that guide signal like a corridor.
+- **Device offset:** ±30 dB. Lui et al. (2011) measured Wi-Fi devices at the same points from one access point and saw their averaged RSSI differ by as much as 30 dB. That paper compares devices with each other, not with an ideal receiver, and its devices are from 2007–2011, some of which it calls unusable, so ±30 dB is an inference: a phone is taken to read no further from the ideal receiver than devices read from each other. Every reading shares the offset, so the data pins it down well and a wide limit costs little.
+
+Loss per crossing: default (limits), dB:
+
+| Material        | 2.4 GHz          | 5 GHz            | 6 GHz            |
+| --------------- | ---------------- | ---------------- | ---------------- |
+| `drywall`       | 2.9 (0.6–5.4)    | 2.4 (0.0–2.4)    | 1.4 (0.0–2.1)    |
+| `brick`         | 6.6 (3.6–7.6)    | 9.0 (6.9–15.4)   | 9.9 (7.9–15.6)   |
+| `concrete`      | 14.7 (1.4–34.9)  | 26.5 (3.6–57.2)  | 29.9 (4.4–62.4)  |
+| `glass`         | 0.5 (0.5–6.4)    | 6.1 (0.3–6.1)    | 8.3 (0.5–8.3)    |
+| `low-e-glass`   | 23.5, not fitted | 29.9, not fitted | 29.8, not fitted |
+| `wood`          | 0.7 (0.7–4.8)    | 1.8 (1.8–7.7)    | 2.1 (2.1–8.2)    |
+| `metal`         | 40, not fitted   | 40, not fitted   | 40, not fitted   |
+| `timber-joist`  | 2.5 (2.5–5.0)    | 2.7 (2.7–7.0)    | 3.1, not fitted  |
+| `concrete-slab` | 11.5 (10.0–11.5) | 20.2 (13.0–23.0) | 22.8, not fitted |
+
+`calibrationLimits.test.ts` pins this table. Some defaults sit at an end of their range: drywall at 5 and 6 GHz, and glass at 5 and 6 GHz, can only come down, because no measurement of them in those bands is lossier than the model's construction; wood and the floors can only go up. Concrete's range is wide because moisture alone spans most of it (Rhim).
+
+**When a fit is offered.** At least **10 spots** with readings on the band, and on every floor with rooms, spots in at least **half the rooms**. Rooms are the floor's enclosed areas with doors and windows counted as closed, the way the floor area is found ([Coverage summary](#coverage-summary)), leaving out any under 2 m² such as cupboards (`floorRooms`). Until then the result lists, per floor, how many rooms have spots and a point inside each room without one, for the panel to point at.
+
+**Held out.** The before and after errors are **leave-one-spot-out**: each spot's readings are predicted by a fit to all the other spots (with the 5-readings, 3-spots rule applied to those), so a lower error after means the model got better, not that it learned the readings. A spot's readings are held out together because they share its position. Before is the defaults with no offset, which is exactly the error report.
+
+**How well it recovers a known home.** Unit tests fit synthetic surveys of the big house (25 spots, 2 access points, 50 readings a band) and the two-storey house (50 spots, 100 readings), whose readings come from known values plus a device offset and Gaussian noise. Without noise every value comes back to within 10⁻⁵. With 3 dB of noise, the exponent varies from survey to survey (1.7 to 2.39 across eight seeds, truth 2.2), because it trades off against the offset: both follow distance. The predictions don't suffer: each fit is 0.5–1.8 dB RMS from the noise-free truth, and held out it comes to about the noise (2.7–3.4 dB, from about 8 dB before). Averaged over the eight surveys the values are within 0.1 of the true n, 1 dB of the offset and 0.3 dB of drywall. So a single survey's n and offset are best read together, not one by one.
+
+**Speed.** One band, leave-one-out included, takes about 10 ms on the desktop for the two-storey house's 50 spots and 4 ms for the big house's 25 (`calibration.speed.ts`, budget 100 ms, CI at 1.5×).
+
 ## Known limits
 
 - **The channel planner trusts the model's signal between access points.** Reflections that carry signal around a wall, which the model ignores (D24), can let two access points hear each other when the planner thinks they don't. Neighbours' networks count as heard everywhere at the one strength typed in ([D68](DECISIONS.md#d68-channel-planner--2026-09-29)).
@@ -502,13 +549,14 @@ Each reading is then compared with the model at the spot itself ([D73](DECISIONS
 - **Typical constructions.** A real wall may differ from its construction above: metal studs, foil-backed insulation, tile or plaster lath all add loss.
 - **No furniture or people.** Neighbours' networks are only a typed-in strength that counts everywhere in the home ([D67](DECISIONS.md#d67-neighbours-networks--2026-09-29)).
 - **Receiver losses aren't modelled.** A phone's antenna is less efficient than the 0 dBi assumed, and a hand or body near it absorbs signal, so a phone may read several dB below the prediction.
-- **Uncalibrated.** Until Phase 7, predictions have not been checked against measurements in a real home.
+- **Uncalibrated.** The engine can fit a home's survey (D75), but nothing applies the fit to the heatmap until Calibrate (#131), and no real home has been surveyed yet (#132).
 
 ## Sources
 
 - IEEE Std 802.11a-1999, _High-speed Physical Layer in the 5 GHz Band_ (supplement to IEEE Std 802.11-1999). 17.3.10.1 and 17.3.10.5 (read from the copy filed as a USPTO PTAB exhibit, petition 1557847).
 - IEEE Std 802.11ac-2013, _Enhancements for Very High Throughput for Operation in Bands below 6 GHz_ (Amendment 4 to IEEE Std 802.11-2012). 22.3.19.5.3, Table 22-27 (read from the copy filed as a USPTO PTAB exhibit, petition 1557814).
 - Recommendation ITU-R P.1238-13 (09/2025), _Propagation data and prediction methods for the planning of indoor radiocommunication systems and radio local area networks in the frequency range from 300 MHz to 450 GHz_. International Telecommunication Union. Eqs. 1–2, Tables 2 and 5, and the floor loss text after Table 5.
+- G. Lui, T. Gallagher, B. Li, A. G. Dempster and C. Rizos, "Differences in RSSI readings made by different Wi-Fi chipsets: A limitation of WLAN localization", _2011 International Conference on Localization and GNSS (ICL-GNSS)_, pp. 53–57. [doi:10.1109/ICL-GNSS.2011.5955283](https://doi.org/10.1109/ICL-GNSS.2011.5955283). Section III.A.
 - Recommendation ITU-R P.1057-7 (08/2022), _Probability distributions relevant to radiowave propagation modelling_. International Telecommunication Union. §5.
 - Recommendation ITU-R P.2040-4 (09/2025), _Effects of building materials and structures on radiowave propagation above about 100 MHz_. International Telecommunication Union. Table 3; eqs. 27a, 39–44, 57–59.
 - D. Shakya, M. Ying, T. S. Rappaport, H. Poddar, P. Ma, Y. Wang and I. Al-Wazani, "Wideband Penetration Loss through Building Materials and Partitions at 6.75 GHz in FR1(C) and 16.95 GHz in the FR3 Upper Mid-band spectrum", IEEE GLOBECOM 2024. [arXiv:2405.01362](https://arxiv.org/abs/2405.01362). Table II.
