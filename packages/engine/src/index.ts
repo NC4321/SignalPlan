@@ -45,7 +45,7 @@ export {
   sinrDb,
   sourceTunings,
   THERMAL_NOISE_DBM_PER_HZ,
-  type Background,
+  type NeighbourSource,
   type Rate,
   type Tuning,
 } from './interference.ts'

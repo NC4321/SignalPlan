@@ -115,7 +115,7 @@ test('a neighbour’s network adds interference (D67)', async ({ page }) => {
   const alone = await noisy()
 
   await panel(page).getByRole('button', { name: 'Add a network' }).click()
-  const row = panel(page).getByRole('group', { name: 'Network 1' })
+  const row = panel(page).getByRole('group', { name: 'Network 1, 5 GHz' })
   await expect(
     row.getByText('Pick a channel to count this network.'),
   ).toBeVisible()
@@ -124,7 +124,7 @@ test('a neighbour’s network adds interference (D67)', async ({ page }) => {
   await expect(row.getByLabel('Channel')).toHaveValue('')
   await row.getByLabel('Name').fill('Next door')
   await row.getByLabel('Name').press('Enter')
-  const named = panel(page).getByRole('group', { name: 'Next door' })
+  const named = panel(page).getByRole('group', { name: 'Next door, 5 GHz' })
   await named.getByLabel('Channel').selectOption('42')
   const strength = named.getByLabel('Signal (dBm)')
   await strength.fill('-50')
@@ -139,7 +139,7 @@ test('a neighbour’s network adds interference (D67)', async ({ page }) => {
   await strength.press('Enter')
   await expect(named.getByRole('alert')).toContainText('from -100 to -20.')
   await strength.press('Escape')
-  await named.getByRole('button', { name: 'Remove Next door' }).click()
+  await named.getByRole('button', { name: 'Remove Next door, 5 GHz' }).click()
   await expect(named).toBeHidden()
   await expect.poll(noisy).toBe(alone)
   await page.getByRole('button', { name: 'Undo' }).click()

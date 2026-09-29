@@ -1601,10 +1601,16 @@ function NeighbourRow({
   const channels = availableChannels(region, band, width, true)
   const channelListed =
     channel === undefined || channels.some((c) => c.channel === channel)
-  const hidden = <span className="visually-hidden">{name} </span>
+  // The band tells apart rows with one name, like a neighbour's 2.4 and
+  // 5 GHz networks.
+  const label = `${name}, ${BAND_LABELS[band]}`
+  const hidden = <span className="visually-hidden">{label} </span>
   return (
     <fieldset className="neighbour">
-      <legend>{name}</legend>
+      <legend>
+        <span aria-hidden="true">{name}</span>
+        <span className="visually-hidden">{label}</span>
+      </legend>
       <TextField
         label={<>{hidden}Name</>}
         value={network.name ?? ''}
@@ -1711,7 +1717,7 @@ function NeighbourRow({
           })
         }
       >
-        Remove<span className="visually-hidden"> {name}</span>
+        Remove<span className="visually-hidden"> {label}</span>
       </button>
     </fieldset>
   )

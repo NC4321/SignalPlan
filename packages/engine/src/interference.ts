@@ -141,7 +141,7 @@ export function sourceTunings(
  * A network next door with a channel, as background interference (D67): its
  * typed-in strength counts in every cell, since it has no position.
  */
-export interface Background {
+export interface NeighbourSource {
   tuning: Tuning
   dbm: number
 }
@@ -153,7 +153,7 @@ export interface Background {
 export function neighbourBackground(
   plan: Pick<Plan, 'neighbourNetworks'>,
   band: Band,
-): Background[] {
+): NeighbourSource[] {
   return (plan.neighbourNetworks ?? []).flatMap((n) =>
     n.band === band && n.channel !== undefined
       ? [
@@ -175,7 +175,7 @@ export function neighbourBackground(
 export function sinrDb(
   coverage: Coverage,
   tunings: readonly Tuning[],
-  background: readonly Background[] = [],
+  background: readonly NeighbourSource[] = [],
 ) {
   const size = coverage.dbm.length
   const sources = tunings.length
