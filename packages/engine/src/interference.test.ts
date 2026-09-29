@@ -4,6 +4,7 @@ import { evaluateCoverage, type Coverage } from './coverage.ts'
 import {
   autoChannelCount,
   narrowestFit,
+  neighbourBackground,
   noiseFloorDbm,
   overlapShare,
   radioTuning,
@@ -189,5 +190,74 @@ describe('sinrDb', () => {
       if (v < alone[i]! - 1) lower++
     })
     expect(lower).toBeGreaterThan(0)
+  })
+})
+
+describe('neighbours’ networks (D67)', () => {
+  const nextDoor = (
+    channel: number | undefined,
+    widthMHz: Tuning['widthMHz'],
+    dbm: number,
+  ) => ({ tuning: on(channel, widthMHz), dbm })
+
+  it('adds a same-channel neighbour everywhere', () => {
+    // A on 36, B on 44; next door on 36 at −70 dBm.
+    const sinr = sinrDb(
+      row(),
+      [on(36, 20), on(44, 20)],
+      [nextDoor(36, 20, -70)],
+    )
+    // −50 − 10·log10(10^−7.0 + 10^−9.097) = −50 − (−69.9654)
+    expect(sinr[0]).toBeCloseTo(19.97, 2)
+    // B's channel 44 doesn't overlap 36: noise alone, −50 − (−90.97).
+    expect(sinr[1]).toBeCloseTo(40.97, 2)
+  })
+
+  it('counts a partly overlapping neighbour by its share', () => {
+    // Next door on 38 at 40 MHz, 5170–5210 MHz: channel 36 (5170–5190)
+    // gets 20 of its 40 MHz, so half of −67 dBm; 44 (5210–5230) only
+    // touches it.
+    const sinr = sinrDb(
+      row(),
+      [on(36, 20), on(44, 20)],
+      [nextDoor(38, 40, -67)],
+    )
+    // −50 − 10·log10(0.5 × 10^−6.7 + 10^−9.097) = −50 − (−69.9757)
+    expect(sinr[0]).toBeCloseTo(19.98, 2)
+    expect(sinr[1]).toBeCloseTo(40.97, 2)
+  })
+
+  it('leaves Auto radios on a channel of their own', () => {
+    const sinr = sinrDb(
+      row(),
+      [on(undefined, 20), on(44, 20)],
+      [nextDoor(36, 20, -40)],
+    )
+    expect(sinr[0]).toBeCloseTo(40.97, 2)
+  })
+
+  it('counts only networks on the band with a channel', () => {
+    const plan = {
+      neighbourNetworks: [
+        {
+          id: 'n1',
+          band: '5GHz',
+          channel: 36,
+          channelWidthMHz: 20,
+          strengthDbm: -70,
+        },
+        { id: 'n2', band: '5GHz', channelWidthMHz: 80, strengthDbm: -60 },
+        {
+          id: 'n3',
+          band: '2.4GHz',
+          channel: 1,
+          channelWidthMHz: 20,
+          strengthDbm: -50,
+        },
+      ],
+    } satisfies Pick<Plan, 'neighbourNetworks'>
+    expect(neighbourBackground(plan, '5GHz')).toEqual([nextDoor(36, 20, -70)])
+    expect(neighbourBackground(plan, '6GHz')).toEqual([])
+    expect(neighbourBackground({}, '5GHz')).toEqual([])
   })
 })

@@ -138,11 +138,45 @@ export function sourceTunings(
 }
 
 /**
- * SINR in dB per cell, from the strongest access point in the cell (D61):
- * its signal over the other sources' power in its channel plus the noise
- * floor for its width. −Infinity where no access point reaches the cell.
+ * A network next door with a channel, as background interference (D67): its
+ * typed-in strength counts in every cell, since it has no position.
  */
-export function sinrDb(coverage: Coverage, tunings: readonly Tuning[]) {
+export interface Background {
+  tuning: Tuning
+  dbm: number
+}
+
+/**
+ * The plan's neighbours' networks on a band that count: those with a channel.
+ * One without a channel yet is left out.
+ */
+export function neighbourBackground(
+  plan: Pick<Plan, 'neighbourNetworks'>,
+  band: Band,
+): Background[] {
+  return (plan.neighbourNetworks ?? []).flatMap((n) =>
+    n.band === band && n.channel !== undefined
+      ? [
+          {
+            tuning: { channel: n.channel, widthMHz: n.channelWidthMHz },
+            dbm: n.strengthDbm,
+          },
+        ]
+      : [],
+  )
+}
+
+/**
+ * SINR in dB per cell, from the strongest access point in the cell (D61):
+ * its signal over the other sources' power in its channel, the background's
+ * (D67) and the noise floor for its width. −Infinity where no access point
+ * reaches the cell.
+ */
+export function sinrDb(
+  coverage: Coverage,
+  tunings: readonly Tuning[],
+  background: readonly Background[] = [],
+) {
   const size = coverage.dbm.length
   const sources = tunings.length
   // For each source as the one a device is on: who interferes, and how much.
@@ -152,7 +186,18 @@ export function sinrDb(coverage: Coverage, tunings: readonly Tuning[]) {
       return share > 0 ? [{ t, share }] : []
     }),
   )
-  const noiseMw = tunings.map((t) => 10 ** (noiseFloorDbm(t.widthMHz) / 10))
+  // Noise plus the background's power in each source's channel: the same in
+  // every cell.
+  const noiseMw = tunings.map(
+    (receiver) =>
+      10 ** (noiseFloorDbm(receiver.widthMHz) / 10) +
+      background.reduce(
+        (sum, b) =>
+          sum +
+          overlapShare(coverage.band, receiver, b.tuning) * 10 ** (b.dbm / 10),
+        0,
+      ),
+  )
   const sinr = new Float32Array(size).fill(Number.NEGATIVE_INFINITY)
   for (let i = 0; i < size; i++) {
     const s = coverage.strongest[i]!

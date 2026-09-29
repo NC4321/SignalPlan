@@ -247,6 +247,35 @@ describe('Interference (D66)', () => {
     )
   })
 
+  it('counts neighbours’ networks with a channel everywhere (D67)', () => {
+    const p = {
+      ...tuned(44),
+      neighbourNetworks: [
+        {
+          id: 'n1',
+          band: '5GHz',
+          channel: 36,
+          channelWidthMHz: 20,
+          strengthDbm: -70,
+        },
+        { id: 'n2', band: '5GHz', channelWidthMHz: 20, strengthDbm: -40 },
+      ] as Plan['neighbourNetworks'],
+    }
+    const data = interference(p)
+    // Cell 0 is on A (channel 36): −50 − 10·log10(10^−7 + 10^−9.097) is
+    // 19.97 dB, down from 41.0 dB, so Slow. B's channel 44 misses it.
+    expect(data.sinr![0]).toBeCloseTo(19.97, 2)
+    expect(cellColour(data, 0)).toEqual([0x44, 0x01, 0x54])
+    // n2 has no channel yet, so only n1 counts.
+    expect(data.neighbours).toBe(1)
+    expect(
+      mapLegend('interference', settings, [], 0, data.neighbours).note,
+    ).toContain(
+      '1 neighbour’s network counts everywhere at the strength typed in for it.',
+    )
+    expect(mapData(row(), 'signal', settings, p).neighbours).toBe(0)
+  })
+
   it('names the bands in dB and says how many radios are on Auto', () => {
     const data = interference(tuned(36, true))
     expect(data.autoChannels).toBe(1)

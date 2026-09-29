@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ### Added
 
+- Neighbours' networks: with nothing selected, the panel has a Neighbours' networks section below Channels. Each network next door gets a band, width, channel, a rough signal in dBm and an optional name, with a hint on reading them from a Wi-Fi analyser app. The Interference view counts each at that strength everywhere in the home, on radios with a channel set, and its legend says how many count. A new network starts at the band's usual width with no channel, and isn't counted until one is picked. Each add, change and removal can be undone. Plans get the optional `neighbourNetworks` field (D67).
+
 - A more polished README: a feature gallery with three new demo GIFs (placement optimizer, 3D view, overlap and roaming), features grouped by task, a summary of the sources and validation behind the model, and the shipped releases. It only names features that exist. `scripts/record-demo.mjs` now records any of the four clips by name (D65).
 
 - Interference view: Show → Interference maps signal to interference and noise (SINR) in dB. Each cell is on its strongest access point, and other access points on overlapping channels, on any floor, count as interference in proportion to how much their channels overlap. Noise follows the channel width, so wider channels pay more noise and reach more neighbours. The bands are named after the 802.11 rate each SINR allows, from Wi-Fi 6's fastest (39 dB) to the slowest (9 dB); below that is hatched as unusable, and the summary gives that share. Radios with the channel on Auto count as on a channel of their own until the channel planner arrives, and the legend says how many there are (D66).

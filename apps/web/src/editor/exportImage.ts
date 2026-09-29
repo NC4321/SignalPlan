@@ -255,6 +255,7 @@ export function renderExport(
     settings,
     map.accessPointNames,
     map.autoChannels,
+    map.neighbours,
   )
   context.fillText(legend.title, x, y)
   y += 30

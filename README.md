@@ -57,7 +57,7 @@ Free · Runs in your browser · No account · Plans stay on your device
 - **Access points** with their own mounting height, bands, transmit power, and channel and width per radio.
 - **Channels by region** (United States or European Union), with an option for 5 GHz DFS channels.
 - **Overlap and Roaming views**, with defaults taken from Apple's roaming rules for iPhone and iPad.
-- **Interference view**: signal to interference and noise (SINR) in each spot, banded by the Wi-Fi rate it allows, so you can see where access points on the same or overlapping channels get in each other's way.
+- **Interference view**: signal to interference and noise (SINR) in each spot, banded by the Wi-Fi rate it allows, so you can see where access points on the same or overlapping channels get in each other's way, with your neighbours' networks typed in as background interference.
 
 ### Plan the whole home
 

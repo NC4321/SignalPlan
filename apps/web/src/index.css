@@ -1154,3 +1154,37 @@ button.danger-fill {
   font-size: 0.8125rem;
   cursor: pointer;
 }
+
+.neighbour {
+  margin: 0 0 0.6rem;
+  padding: 0.5rem 0.6rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  min-width: 0;
+}
+
+.neighbour legend {
+  padding: 0 0.3rem;
+  font-weight: 600;
+}
+
+.neighbour-fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0 0.5rem;
+}
+
+.neighbour-fields .field {
+  min-width: 0;
+}
+
+.neighbour-fields select,
+.neighbour-fields input {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+}
+
+.neighbour .field-note {
+  margin-bottom: 0.3rem;
+}

@@ -99,3 +99,49 @@ test('shows signal to interference and noise (D66)', async ({ page }) => {
     'is too noisy for any rate (below 9 dB) on 5 GHz.',
   )
 })
+
+test('a neighbour’s network adds interference (D67)', async ({ page }) => {
+  const noisy = async () =>
+    Number(/^(\d+)%/.exec(await summary(page).innerText())![1])
+  // Put the sample's router on channel 42 at 80 MHz.
+  await panel(page)
+    .getByRole('button', { name: 'Wi-Fi 6E router', exact: true })
+    .click()
+  await panel(page).getByLabel('5 GHz width').selectOption({ label: '80 MHz' })
+  await panel(page).getByLabel('5 GHz channel').selectOption('42')
+  await page.keyboard.press('Escape')
+  await show(page).selectOption({ label: 'Interference' })
+  await expect(summary(page)).toContainText('too noisy for any rate')
+  const alone = await noisy()
+
+  await panel(page).getByRole('button', { name: 'Add a network' }).click()
+  const row = panel(page).getByRole('group', { name: 'Network 1' })
+  await expect(
+    row.getByText('Pick a channel to count this network.'),
+  ).toBeVisible()
+  // The usual 5 GHz width, and a channel still to pick.
+  await expect(row.getByLabel('Width')).toHaveValue('80')
+  await expect(row.getByLabel('Channel')).toHaveValue('')
+  await row.getByLabel('Name').fill('Next door')
+  await row.getByLabel('Name').press('Enter')
+  const named = panel(page).getByRole('group', { name: 'Next door' })
+  await named.getByLabel('Channel').selectOption('42')
+  const strength = named.getByLabel('Signal (dBm)')
+  await strength.fill('-50')
+  await strength.press('Enter')
+  await expect(panel(page).locator('.legend-note')).toContainText(
+    '1 neighbour’s network counts everywhere',
+  )
+  await expect.poll(noisy).toBeGreaterThan(alone)
+
+  // Out of range is refused; removing it is one undo step.
+  await strength.fill('-5')
+  await strength.press('Enter')
+  await expect(named.getByRole('alert')).toContainText('from -100 to -20.')
+  await strength.press('Escape')
+  await named.getByRole('button', { name: 'Remove Next door' }).click()
+  await expect(named).toBeHidden()
+  await expect.poll(noisy).toBe(alone)
+  await page.getByRole('button', { name: 'Undo' }).click()
+  await expect(named.getByLabel('Signal (dBm)')).toHaveValue('-50')
+})

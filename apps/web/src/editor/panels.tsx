@@ -7,14 +7,24 @@ import {
   channelWidths,
   MAX_ADDED,
   radioChannelIssue,
+  radioTuning,
   REGION_RULES,
   regionBand,
   type ChannelIssue,
   type Coverage,
 } from '@signalplan/engine'
 import {
+  addNeighbourNetwork,
   BANDS,
   COVERAGE_TARGETS,
+  deleteNeighbourNetwork,
+  NEIGHBOUR_STRENGTH_RANGE_DBM,
+  renameNeighbourNetwork,
+  setNeighbourBand,
+  setNeighbourChannel,
+  setNeighbourStrength,
+  setNeighbourWidth,
+  type NeighbourNetwork,
   DEFAULT_REGION,
   REGIONS,
   type Region,
@@ -51,7 +61,7 @@ import {
   type Wall,
 } from '@signalplan/floorplan'
 import type { Draft } from 'immer'
-import { useEffect, useId, useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import { DEFAULT_TARGET, qualityOf, targetBand } from '../quality.ts'
 import {
   EDGE_KEY_CSS,
@@ -480,6 +490,7 @@ function MapLegend({ map }: { map: MapData | undefined }) {
     viewSettings(plan),
     names,
     map ? map.autoChannels : 0,
+    map ? map.neighbours : 0,
   )
   return (
     <>
@@ -1441,6 +1452,7 @@ function PlanSection() {
         <dd>{floor?.openings.length ?? 0}</dd>
       </dl>
       <RegionFields />
+      <NeighbourFields />
       <ViewSettingsFields />
       {floor?.walls.length === 0 && (
         <p className="hint start-hint">
@@ -1520,6 +1532,192 @@ function RegionFields() {
 }
 
 /**
+ * Neighbours' networks, typed in by hand as background interference (D61,
+ * D67). None of them changes coverage, so edits keep a search or suggestion.
+ */
+function NeighbourFields() {
+  const store = useEditorStore()
+  const networks = useEditor((s) => s.plan.neighbourNetworks)
+  const region = useEditor((s) => s.plan.region)
+  const hintId = useId()
+  const edit = (label: string, change: (plan: Draft<Plan>) => void) =>
+    store.getState().edit(label, change, { keepOptimizer: true })
+  const usualWidth = (band: Band) => radioTuning({ band }, region).widthMHz
+  return (
+    <>
+      <h3>Neighbours’ networks</h3>
+      <p id={hintId} className="hint">
+        Networks next door slow yours down when they share its channels. A free
+        Wi-Fi analyser app shows each one’s channel, width and signal in dBm; on
+        an iPhone, AirPort Utility’s Wi-Fi Scanner does once it’s turned on in
+        Settings. Its signal counts everywhere in the home.
+      </p>
+      {networks?.map((network, i) => (
+        <NeighbourRow
+          key={network.id}
+          network={network}
+          fallbackName={`Network ${i + 1}`}
+          usualWidth={usualWidth}
+          edit={edit}
+        />
+      ))}
+      <button
+        type="button"
+        className="add-neighbour"
+        aria-describedby={hintId}
+        onClick={() =>
+          edit('Add neighbour’s network', (plan) => {
+            addNeighbourNetwork(plan, '5GHz', usualWidth('5GHz'))
+          })
+        }
+      >
+        Add a network
+      </button>
+    </>
+  )
+}
+
+function NeighbourRow({
+  network,
+  fallbackName,
+  usualWidth,
+  edit,
+}: {
+  network: NeighbourNetwork
+  fallbackName: string
+  usualWidth: (band: Band) => ChannelWidth
+  edit: (label: string, change: (plan: Draft<Plan>) => void) => void
+}) {
+  const region = useEditor((s) => s.plan.region)
+  const bandId = useId()
+  const widthId = useId()
+  const channelId = useId()
+  const noteId = useId()
+  const { id, band, channel } = network
+  const width = network.channelWidthMHz
+  const name = network.name ?? fallbackName
+  const widths = channelWidths(region, band)
+  // Next door isn't bound by this plan's DFS setting.
+  const channels = availableChannels(region, band, width, true)
+  const channelListed =
+    channel === undefined || channels.some((c) => c.channel === channel)
+  const hidden = <span className="visually-hidden">{name} </span>
+  return (
+    <fieldset className="neighbour">
+      <legend>{name}</legend>
+      <TextField
+        label={<>{hidden}Name</>}
+        value={network.name ?? ''}
+        maxLength={100}
+        placeholder={fallbackName}
+        onCommit={(value) =>
+          edit('Rename neighbour’s network', (plan) => {
+            renameNeighbourNetwork(plan, id, value)
+          })
+        }
+      />
+      <div className="neighbour-fields">
+        <div className="field">
+          <label htmlFor={bandId}>{hidden}Band</label>
+          <select
+            id={bandId}
+            value={band}
+            onChange={(event) => {
+              const next = event.target.value as Band
+              edit('Change neighbour’s band', (plan) => {
+                setNeighbourBand(plan, id, next, usualWidth(next))
+              })
+            }}
+          >
+            {BANDS.map((b) => (
+              <option key={b} value={b}>
+                {BAND_LABELS[b]}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="field">
+          <label htmlFor={widthId}>{hidden}Width</label>
+          <select
+            id={widthId}
+            value={width}
+            onChange={(event) => {
+              const next = Number(event.target.value) as ChannelWidth
+              edit('Change neighbour’s width', (plan) => {
+                setNeighbourWidth(plan, id, next)
+              })
+            }}
+          >
+            {widths.map((w) => (
+              <option key={w} value={w}>
+                {w} MHz
+              </option>
+            ))}
+            {!widths.includes(width) && (
+              <option value={width}>{width} MHz</option>
+            )}
+          </select>
+        </div>
+        <div className="field">
+          <label htmlFor={channelId}>{hidden}Channel</label>
+          <select
+            id={channelId}
+            value={channel ?? ''}
+            aria-invalid={channel === undefined}
+            aria-describedby={channel === undefined ? noteId : undefined}
+            onChange={(event) => {
+              const value = event.target.value
+              edit('Change neighbour’s channel', (plan) => {
+                setNeighbourChannel(
+                  plan,
+                  id,
+                  value === '' ? undefined : Number(value),
+                )
+              })
+            }}
+          >
+            <option value="">Pick one</option>
+            {channels.map((c) => (
+              <option key={c.channel} value={c.channel}>
+                {c.channel} ({c.centreMHz} MHz{c.dfs ? ', DFS' : ''})
+              </option>
+            ))}
+            {!channelListed && <option value={channel}>{channel}</option>}
+          </select>
+        </div>
+        <SettingField
+          label={<>{hidden}Signal (dBm)</>}
+          value={network.strengthDbm}
+          range={NEIGHBOUR_STRENGTH_RANGE_DBM}
+          onCommit={(value) => {
+            if (value === undefined) return
+            edit('Change neighbour’s signal', (plan) => {
+              setNeighbourStrength(plan, id, value)
+            })
+          }}
+        />
+      </div>
+      {channel === undefined && (
+        <p id={noteId} className="field-note field-warning">
+          Pick a channel to count this network.
+        </p>
+      )}
+      <button
+        type="button"
+        className="remove-neighbour"
+        onClick={() =>
+          edit('Remove neighbour’s network', (plan) => {
+            deleteNeighbourNetwork(plan, id)
+          })
+        }
+      >
+        Remove<span className="visually-hidden"> {name}</span>
+      </button>
+    </fieldset>
+  )
+}
+
+/**
  * The Overlap view's margin and the Roaming view's threshold, saved with the
  * plan so a shared plan shows the same views (D61, D64).
  */
@@ -1568,7 +1766,8 @@ function ViewSettingsFields() {
 
 /**
  * A number saved with the plan, or empty for its default. Out-of-range
- * values are refused with a message, like the power field (D25).
+ * values are refused with a message, like the power field (D25). Without a
+ * `fallback` a value is required, and emptying the field puts it back.
  */
 function SettingField({
   label,
@@ -1577,9 +1776,9 @@ function SettingField({
   range,
   onCommit,
 }: {
-  label: string
+  label: ReactNode
   value: number | undefined
-  fallback: number
+  fallback?: number
   range: { min: number; max: number }
   onCommit: (value: number | undefined) => void
 }) {
@@ -1595,7 +1794,7 @@ function SettingField({
     if (draft === undefined || draft.trim() === current) return reset()
     if (draft.trim() === '') {
       reset()
-      onCommit(undefined)
+      if (fallback !== undefined) onCommit(undefined)
       return
     }
     const next = Number(draft.trim().replace(',', '.').replace('−', '-'))
@@ -1612,7 +1811,9 @@ function SettingField({
       <input
         id={id}
         value={draft ?? current}
-        placeholder={`${fallback} (default)`}
+        placeholder={
+          fallback === undefined ? undefined : `${fallback} (default)`
+        }
         aria-invalid={invalid}
         onChange={(event) => {
           setDraft(event.target.value)
@@ -1628,8 +1829,10 @@ function SettingField({
       />
       {invalid && (
         <p className="field-error" role="alert">
-          Use a number from {range.min} to {range.max}, or leave it empty for
-          the default {fallback}.
+          Use a number from {range.min} to {range.max}
+          {fallback === undefined
+            ? '.'
+            : `, or leave it empty for the default ${fallback}.`}
         </p>
       )}
     </div>
@@ -2146,11 +2349,13 @@ function TextField({
   label,
   value,
   maxLength = 200,
+  placeholder,
   onCommit,
 }: {
-  label: string
+  label: ReactNode
   value: string
   maxLength?: number
+  placeholder?: string
   onCommit: (value: string) => void
 }) {
   const [draft, setDraft] = useState<string>()
@@ -2166,6 +2371,7 @@ function TextField({
         id={id}
         value={draft ?? value}
         maxLength={maxLength}
+        placeholder={placeholder}
         onChange={(event) => setDraft(event.target.value)}
         onBlur={commit}
         onKeyDown={(event) => {

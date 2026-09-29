@@ -16,6 +16,16 @@ export {
 } from './floorOpenings.ts'
 export { migrate, MigrationError } from './migrate.ts'
 export {
+  addNeighbourNetwork,
+  deleteNeighbourNetwork,
+  NEW_NEIGHBOUR_STRENGTH_DBM,
+  renameNeighbourNetwork,
+  setNeighbourBand,
+  setNeighbourChannel,
+  setNeighbourStrength,
+  setNeighbourWidth,
+} from './neighbours.ts'
+export {
   checkStructure,
   loadPlan,
   MIN_WALL_LENGTH_M,
