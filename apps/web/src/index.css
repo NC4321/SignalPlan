@@ -1188,3 +1188,30 @@ button.danger-fill {
 .neighbour .field-note {
   margin-bottom: 0.3rem;
 }
+
+.channel-plan {
+  margin-top: 0.6rem;
+}
+
+.channel-plan-band h4 {
+  margin: 0.6rem 0 0.2rem;
+  font-size: 0.85rem;
+}
+
+.channel-plan-band .hint {
+  margin: 0 0 0.2rem;
+}
+
+.channel-plan-radios {
+  margin: 0.2rem 0 0.4rem;
+  padding-left: 1rem;
+  font-size: 0.85rem;
+}
+
+.channel-plan-radios li {
+  margin-bottom: 0.25rem;
+}
+
+.channel-plan-radios .field-note {
+  display: block;
+}

@@ -1,4 +1,5 @@
 import type { MapKind } from '../mapView.ts'
+import { planChannels, type BandChannelPlan } from '@signalplan/engine'
 import {
   addFloor,
   addFloorOpening,
@@ -28,6 +29,7 @@ import {
 import { createStore, type StoreApi } from 'zustand/vanilla'
 import { DEFAULT_TARGET } from '../quality.ts'
 import type { Camera } from './camera.ts'
+import { channelPlanRecipe } from './channelPlan.ts'
 import {
   DEFAULT_COVERAGE_GOAL,
   suggestionRecipe,
@@ -142,6 +144,11 @@ export interface EditorState {
   /** The optimizer's search, its suggestion, or why it has none (D44). */
   optimizer: OptimizerState | undefined
   /**
+   * The channel planner's suggestion for every band with radios (D68),
+   * waiting for Apply or Dismiss. Any change to the plan drops it.
+   */
+  channelPlan: BandChannelPlan[] | undefined
+  /**
    * Share of the floor, from 0 to 1, that "How many access points do I
    * need?" aims for (D46). Not saved: it resets when the page reloads.
    */
@@ -209,6 +216,11 @@ export interface EditorState {
   setCoverageGoal: (goal: CoverageGoal) => void
   /** Moves or adds the suggested access point as one edit, and selects it. */
   applySuggestion: () => void
+  /** Plans every band's channels as a suggestion (D68). */
+  planChannels: () => void
+  /** Sets the suggested channels and widths as one edit. */
+  applyChannelPlan: () => void
+  dismissChannelPlan: () => void
   setWallMaterial: (material: WallMaterial) => void
   addCalibrationPoint: (point: Point) => void
   setOpeningMaterial: (
@@ -264,6 +276,16 @@ function dropOptimizer(
     case undefined:
       return {}
   }
+}
+
+/** A channel plan is for the plan as it was, so a change drops it (D68). */
+function dropChannelPlan(state: EditorState): Partial<EditorState> {
+  return state.channelPlan
+    ? {
+        channelPlan: undefined,
+        notice: 'Channel plan dismissed: the plan changed.',
+      }
+    : {}
 }
 
 const sameSelection = (a: Selection, b: Selection) =>
@@ -356,6 +378,7 @@ export function createEditorStore(
     gesture: undefined,
     notice: undefined,
     optimizer: undefined,
+    channelPlan: undefined,
     coverageGoal: DEFAULT_COVERAGE_GOAL,
 
     edit: (label, recipe, options) => {
@@ -372,6 +395,7 @@ export function createEditorStore(
         ...(options?.keepOptimizer
           ? {}
           : dropOptimizer(state.optimizer, 'the plan changed')),
+        ...dropChannelPlan(state),
       }))
     },
 
@@ -387,6 +411,7 @@ export function createEditorStore(
         plan: next,
         gesture: { base: gesture.base, recipe },
         ...dropOptimizer(state.optimizer, 'the plan changed'),
+        ...dropChannelPlan(state),
       }))
     },
 
@@ -428,6 +453,7 @@ export function createEditorStore(
         past: state.past.slice(0, -1),
         future: [...state.future, entry],
         ...dropOptimizer(state.optimizer, 'the plan changed'),
+        ...dropChannelPlan(state),
       }))
     },
 
@@ -442,6 +468,7 @@ export function createEditorStore(
         past: [...state.past, entry],
         future: state.future.slice(0, -1),
         ...dropOptimizer(state.optimizer, 'the plan changed'),
+        ...dropChannelPlan(state),
       }))
     },
 
@@ -459,6 +486,7 @@ export function createEditorStore(
         chain: undefined,
         outline: undefined,
         optimizer: undefined,
+        channelPlan: undefined,
       })
     },
 
@@ -636,6 +664,16 @@ export function createEditorStore(
       ]
       get().select(ids.map((id) => ({ kind: 'accessPoint', id })))
     },
+    planChannels: () => {
+      set({ channelPlan: planChannels(get().plan), notice: undefined })
+    },
+    applyChannelPlan: () => {
+      const { channelPlan } = get()
+      if (!channelPlan) return
+      set({ channelPlan: undefined })
+      get().edit('Apply the channel plan', channelPlanRecipe(channelPlan))
+    },
+    dismissChannelPlan: () => set({ channelPlan: undefined }),
     setWallMaterial: (wallMaterial) => set({ wallMaterial }),
     setOpeningMaterial: (kind, material) =>
       set((state) => ({

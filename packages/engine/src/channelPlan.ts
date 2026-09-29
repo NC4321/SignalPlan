@@ -133,7 +133,7 @@ export function compareCost(a: PlanCost, b: PlanCost): number {
  */
 export function colourChannels(
   problem: ColouringProblem,
-  nodeLimit = 200_000,
+  nodeLimit = 20_000,
 ): ColouringResult {
   const { band, radios, heard, linkMw, networks } = problem
   const n = radios.length
@@ -190,6 +190,38 @@ export function colourChannels(
       return { choice: c, cost }
     }).sort((a, b) => compareCost(a.cost, b.cost))
 
+  // Channels no radio in the search is on yet, that meet everything else in
+  // the problem the same way, are interchangeable: swapping them in any plan
+  // gives a plan that costs the same. So only the first of each such group is
+  // tried, which keeps the search exact (symmetry breaking).
+  const key = (c: Choice) => `${c.channel}/${c.widthMHz}`
+  const distinct = new Map<string, Choice>()
+  for (const r of radios) {
+    for (const c of r.candidates) distinct.set(key(c), c)
+  }
+  const fixedChoices = radios.flatMap((r) => (r.fixed ? [r.fixed] : []))
+  const signature = new Map<string, string>()
+  for (const [k, c] of distinct) {
+    signature.set(
+      k,
+      JSON.stringify([
+        c.widthMHz,
+        c.dfs,
+        fixedChoices.map((f) => overlapMHz(band, c, f)),
+        networks.map((net) => overlapMHz(band, c, net)),
+        [...distinct.values()]
+          .filter((o) => o.widthMHz !== c.widthMHz)
+          .map((o) => overlapMHz(band, c, o)),
+        radios.map((r) => r.candidates.some((o) => key(o) === k)),
+      ]),
+    )
+  }
+  const unused = (c: Choice) =>
+    order.every((j) => {
+      const other = choices[j]
+      return !other || overlapMHz(band, c, other) === 0
+    })
+
   let best: { choices: Choice[]; cost: PlanCost } | undefined
   let nodes = 0
   let exact = true
@@ -202,7 +234,14 @@ export function colourChannels(
       return
     }
     const i = order[k]!
-    const mine = options(i)
+    const tried = new Set<string>()
+    const mine = options(i).filter(({ choice }) => {
+      if (!unused(choice)) return true
+      const group = signature.get(key(choice))!
+      if (tried.has(group)) return false
+      tried.add(group)
+      return true
+    })
     // The cheapest each later radio could add, given only what's chosen now:
     // choices still to come only add cost, so this can't overestimate.
     let bound = cost

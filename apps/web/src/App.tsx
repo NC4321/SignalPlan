@@ -1,3 +1,4 @@
+import { withChannelPlan } from './editor/channelPlan.ts'
 import { viewSettings } from '@signalplan/engine'
 import { mapData } from './mapView.ts'
 import { adjacentFloorId, type PlanIssue } from '@signalplan/floorplan'
@@ -66,11 +67,13 @@ function App({
   )
   useEffect(() => optimizer.dispose, [optimizer])
 
-  // While a suggestion waits, the heatmap shows the plan with it applied.
-  const shownPlan = useMemo(
-    () => (suggestion ? withSuggestion(plan, suggestion) : plan),
-    [plan, suggestion],
-  )
+  // While a suggestion waits, the heatmap shows the plan with it applied;
+  // the same goes for a channel plan (D68).
+  const channelPlan = useEditor((s) => s.channelPlan)
+  const shownPlan = useMemo(() => {
+    const placed = suggestion ? withSuggestion(plan, suggestion) : plan
+    return channelPlan ? withChannelPlan(placed, channelPlan) : placed
+  }, [plan, suggestion, channelPlan])
   const hasAccessPoint = shownPlan.accessPoints.some(
     (ap) => ap.floorId === floorId,
   )
