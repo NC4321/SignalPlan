@@ -143,6 +143,25 @@ export function bandSummary(plan: Plan, band: BandChannelPlan): string[] {
         : `Allowing DFS channels would keep ${autoWidthMHz} MHz.`,
     )
   }
+  if (band.withoutDfs) {
+    const onDfs = band.radios
+      .filter((r) => r.dfs && !r.fixed)
+      .map((r) => accessPoint(r.accessPointId))
+    const { clashes, autoWidthMHz, worse } = band.withoutDfs
+    const clashCount = clashes === 1 ? '1 clash' : `${clashes} clashes`
+    const without = {
+      clashes:
+        band.clashes === 0
+          ? `${clashCount} would be left`
+          : `${clashCount} would be left instead of ${band.clashes}`,
+      width: `the plan would narrow to ${autoWidthMHz} MHz`,
+      sharedMHz: 'the access points that clash would share more spectrum',
+      interference: 'there’d be more interference',
+    }[worse]
+    lines.push(
+      `${listNames(onDfs)} ${onDfs.length === 1 ? 'is on a DFS channel' : 'are on DFS channels'}: without them, ${without}.`,
+    )
+  }
   if (!band.exact) {
     lines.push(
       'That’s the best plan found in the time allowed; a better one may exist.',

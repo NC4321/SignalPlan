@@ -1,6 +1,11 @@
-import type { BandChannelPlan, PlannedRadio } from '@signalplan/engine'
+import {
+  planChannels,
+  type BandChannelPlan,
+  type PlannedRadio,
+} from '@signalplan/engine'
 import { parsePlan, type Plan } from '@signalplan/floorplan'
 import sampleHome from '@signalplan/floorplan/fixtures/sample-home.json'
+import threeApHome from '@signalplan/floorplan/fixtures/three-ap-home.json'
 import { describe, expect, it } from 'vitest'
 import {
   bandSummary,
@@ -53,6 +58,7 @@ const band = (over: Partial<BandChannelPlan>): BandChannelPlan => ({
   usualWidthMHz: 80,
   choosesWidth: true,
   withDfs: undefined,
+  withoutDfs: undefined,
   exact: true,
   ...over,
 })
@@ -180,6 +186,120 @@ describe('channel plan text (D68)', () => {
         band({ autoWidthMHz: 40, withDfs: { clashes: 0, autoWidthMHz: 80 } }),
       )[2],
     ).toBe('Allowing DFS channels would keep 80 MHz.')
+  })
+
+  it('says why radios are on DFS channels (D69)', () => {
+    const onDfs = [
+      radio({ accessPointId: 'a' }),
+      radio({ accessPointId: 'b', channel: 58, dfs: true }),
+      radio({ accessPointId: 'c', channel: 106, dfs: true }),
+    ]
+    const why = (over: Partial<BandChannelPlan>) =>
+      bandSummary(named, band({ radios: onDfs, ...over })).at(-1)
+    expect(
+      why({
+        withoutDfs: { clashes: 1, autoWidthMHz: 80, worse: 'clashes' },
+      }),
+    ).toBe(
+      'Office and Loft are on DFS channels: without them, 1 clash would be left.',
+    )
+    expect(
+      why({
+        clashes: 1,
+        withoutDfs: { clashes: 3, autoWidthMHz: 80, worse: 'clashes' },
+      }),
+    ).toBe(
+      'Office and Loft are on DFS channels: without them, 3 clashes would be left instead of 1.',
+    )
+    expect(
+      why({ withoutDfs: { clashes: 0, autoWidthMHz: 40, worse: 'width' } }),
+    ).toBe(
+      'Office and Loft are on DFS channels: without them, the plan would narrow to 40 MHz.',
+    )
+    expect(
+      why({
+        withoutDfs: { clashes: 0, autoWidthMHz: 80, worse: 'interference' },
+      }),
+    ).toBe(
+      'Office and Loft are on DFS channels: without them, there’d be more interference.',
+    )
+    // A DFS channel set by hand isn't the planner's choice.
+    expect(
+      bandSummary(
+        named,
+        band({
+          radios: [onDfs[0]!, { ...onDfs[1]!, fixed: true }, onDfs[2]!],
+          clashes: 1,
+          withoutDfs: { clashes: 2, autoWidthMHz: 80, worse: 'clashes' },
+        }),
+      ).at(-1),
+    ).toBe(
+      'Loft is on a DFS channel: without them, 2 clashes would be left instead of 1.',
+    )
+  })
+})
+
+/**
+ * Phase 6 exit gate (D69): on the three-AP home, the explanation names each
+ * access point's channel and why: the ones it hears, the neighbour's network
+ * it avoids, and DFS.
+ */
+describe('Phase 6 exit gate: the channel plan’s explanation (D69)', () => {
+  function threeAp(width80: boolean, allowDfs: boolean): Plan {
+    const result = parsePlan(threeApHome)
+    if (!result.ok) throw new Error('fixture is invalid')
+    const plan = result.plan
+    return {
+      ...plan,
+      allowDfs,
+      accessPoints: plan.accessPoints.map((ap) => ({
+        ...ap,
+        radios: ap.radios.map((r) =>
+          width80 && r.band === '5GHz' ? { ...r, channelWidthMHz: 80 } : r,
+        ),
+      })),
+    }
+  }
+  /** The 5 GHz summary, then "name: channel — reason" per access point. */
+  function explain(plan: Plan) {
+    const five = planChannels(plan).find((b) => b.band === '5GHz')!
+    const name = (id: string) =>
+      plan.accessPoints.find((ap) => ap.id === id)!.name
+    return [
+      ...bandSummary(plan, five),
+      ...five.radios.map(
+        (r) =>
+          `${name(r.accessPointId)}: ${channelLabel('5GHz', r)} — ${radioReason(plan, five, r)}`,
+      ),
+    ]
+  }
+
+  it('explains a clash-free plan at 80 MHz with DFS', () => {
+    expect(explain(threeAp(true, true))).toEqual([
+      'No access points that hear each other share a channel on 5 GHz.',
+      'Bedroom 2 mesh point and Upstairs mesh point are on DFS channels: without them, 1 clash would be left.',
+      'Wi-Fi 6E router: 155 (5775 MHz) at 80 MHz — Apart from Bedroom 2 mesh point and Upstairs mesh point, which it hears; clear of Next door.',
+      'Bedroom 2 mesh point: 58 (5290 MHz, DFS) at 80 MHz — Apart from Wi-Fi 6E router and Upstairs mesh point, which it hears; clear of Next door.',
+      'Upstairs mesh point: 106 (5530 MHz, DFS) at 80 MHz — Apart from Wi-Fi 6E router and Bedroom 2 mesh point, which it hears; clear of Next door.',
+    ])
+  })
+
+  it('explains the least-bad plan at 80 MHz without DFS', () => {
+    expect(explain(threeAp(true, false))).toEqual([
+      'No plan keeps them all apart on 5 GHz: 1 clash is left, the fewest possible.',
+      'Allowing DFS channels would clear these clashes.',
+      'Wi-Fi 6E router: 42 (5210 MHz) at 80 MHz — Apart from Bedroom 2 mesh point and Upstairs mesh point, which it hears; overlaps the fainter Next door.',
+      'Bedroom 2 mesh point: 155 (5775 MHz) at 80 MHz — Shares spectrum with Upstairs mesh point, which it hears; apart from Wi-Fi 6E router; clear of Next door.',
+      'Upstairs mesh point: 155 (5775 MHz) at 80 MHz — Shares spectrum with Bedroom 2 mesh point, which it hears; apart from Wi-Fi 6E router; clear of Next door.',
+    ])
+  })
+
+  it('explains narrowing on Auto width without DFS', () => {
+    expect(explain(threeAp(false, false)).slice(0, 3)).toEqual([
+      'No access points that hear each other share a channel on 5 GHz.',
+      'Narrowed from 80 to 40 MHz, since there aren’t enough 80 MHz channels to keep them apart.',
+      'Allowing DFS channels would keep 80 MHz.',
+    ])
   })
 })
 

@@ -6,8 +6,9 @@
  *   optimizer  docs/demo-optimizer.gif: the sample home's router moved to a
  *              better spot, then one more access point suggested
  *   3d         docs/demo-3d.gif: the two-storey home in the 3D view
- *   views      docs/demo-views.gif: the sample home with two access points,
- *              shown as Roaming, Overlap, Signal and Roaming again
+ *   views      docs/demo-views.gif: the three-AP home upstairs at 80 MHz,
+ *              shown as Roaming, Overlap and Interference with the channel
+ *              plan without DFS, then with DFS allowed and planned again
  *
  * To rerun them:
  *
@@ -20,7 +21,7 @@
  * DEMO_OUT (default: the clip's file above). It isn't run in CI.
  */
 import { execFileSync } from 'node:child_process'
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -288,22 +289,51 @@ if (clip === 'editor') {
   await page.mouse.up()
   await page.waitForTimeout(1200)
 } else if (clip === 'views') {
-  // Set-up: a second access point at the far end of the house.
-  await page.keyboard.press('a')
-  const second = await at(12, 3)
-  await page.mouse.click(second.x, second.y)
-  await page.keyboard.press('Escape')
-  await page.keyboard.press('Escape')
+  // Set-up: the three-AP home (D69) with 80 MHz set on 5 GHz, and the
+  // channel planner's least-bad plan without DFS showing on the map.
+  const home = JSON.parse(
+    readFileSync(
+      join(root, 'packages/floorplan/fixtures/three-ap-home.json'),
+      'utf8',
+    ),
+  )
+  for (const ap of home.accessPoints) {
+    for (const radio of ap.radios) {
+      if (radio.band === '5GHz') radio.channelWidthMHz = 80
+    }
+  }
+  const file = join(frameDir, 'three-ap-home-80.json')
+  writeFileSync(file, JSON.stringify(home))
+  await page.getByLabel('Open a plan file').setInputFiles(file)
+  await page.locator('.editor-canvas[data-scale]').waitFor()
+  await page.getByRole('button', { name: 'Upstairs', exact: true }).click()
+  await panel.getByRole('button', { name: 'Plan channels' }).click()
   const show = page.getByLabel('Show', { exact: true })
   await show.selectOption({ label: 'Roaming' })
   await page.locator('.editor-canvas').focus()
+  await coverage.getByText(/^Upstairs:/).waitFor()
   await record()
 
   await page.waitForTimeout(1200)
-  for (const label of ['Overlap', 'Signal', 'Roaming']) {
+  for (const label of ['Overlap', 'Interference']) {
     await show.selectOption({ label })
-    await page.waitForTimeout(2000)
+    await page.waitForTimeout(2200)
   }
+  await coverage.getByText(/^Upstairs: 19% /).waitFor()
+  await page.waitForTimeout(600)
+  // Off the cropped clip, in the panel: allow DFS and plan again, which
+  // clears the clash between the two mesh points.
+  await panel.evaluate((el) => {
+    const box = [...el.querySelectorAll('label')]
+      .find((l) => l.textContent.includes('Allow DFS channels'))
+      .querySelector('input')
+    box.click()
+    ;[...el.querySelectorAll('button')]
+      .find((b) => b.textContent === 'Plan channels')
+      .click()
+  })
+  await coverage.getByText(/^Upstairs: 0% /).waitFor()
+  await page.waitForTimeout(2600)
 }
 const clipEnd = now()
 await screencast.send('Page.stopScreencast')

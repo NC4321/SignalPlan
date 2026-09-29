@@ -367,6 +367,32 @@ describe('planBandChannels (D68)', () => {
     expect(result.autoWidthMHz).toBe(80)
     expect(result.radios.filter((r) => r.dfs)).toHaveLength(1)
     expect(result.withDfs).toBeUndefined()
+    // Without DFS it would have had to narrow (D69).
+    expect(result.withoutDfs).toEqual({
+      clashes: 0,
+      autoWidthMHz: 40,
+      worse: 'width',
+    })
+  })
+
+  it('says nothing about DFS when the plan uses none (D69)', () => {
+    const two = home(three.slice(0, 2), { allowDfs: true })
+    const result = planBandChannels(two, '5GHz')!
+    expect(result.radios.some((r) => r.dfs)).toBe(false)
+    expect(result.withoutDfs).toBeUndefined()
+    expect(planBandChannels(home(three), '5GHz')!.withoutDfs).toBeUndefined()
+  })
+
+  it('says a hand-set width would clash without DFS (D69)', () => {
+    const plan = home(three, { allowDfs: true })
+    for (const ap of plan.accessPoints) ap.radios[1]!.channelWidthMHz = 80
+    const result = planBandChannels(plan, '5GHz')!
+    expect(result.clashes).toBe(0)
+    expect(result.withoutDfs).toEqual({
+      clashes: 1,
+      autoWidthMHz: 80,
+      worse: 'clashes',
+    })
   })
 
   it('leaves a clash on 2.4 GHz for four access points in the US, not in the EU', () => {

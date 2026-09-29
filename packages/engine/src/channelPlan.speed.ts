@@ -1,7 +1,7 @@
 import type { AccessPoint, Plan } from '@signalplan/floorplan'
 import { describe, expect, it } from 'vitest'
 import { planChannels } from './channelPlan.ts'
-import { ap, bigHouse, room } from './testPlans.ts'
+import { ap, bigHouse, room, threeApHome } from './testPlans.ts'
 
 /**
  * Speed of the channel planner against its 500 ms budget (D68), for every
@@ -9,7 +9,7 @@ import { ap, bigHouse, room } from './testPlans.ts'
  * is pressed, so it must not freeze the editor for long. The worst case is
  * many access points that all hear each other: 12 in one open room, where
  * 2.4 GHz can't keep them apart and the search has to prove the fewest
- * clashes. Run with `pnpm speed`; CI fails at 1.5× the budget (D26).
+ * clashes. The Phase 6 exit gate's three-AP home (D69) is timed too. Run with `pnpm speed`; CI fails at 1.5× the budget (D26).
  */
 declare const performance: { now(): number }
 declare const console: { log(...data: unknown[]): void }
@@ -45,6 +45,7 @@ describe('channel planner speed', () => {
         5,
       ),
     },
+    { name: 'Three-AP two-storey home (exit gate, D69)', plan: threeApHome() },
   ]
   for (const { name, plan } of homes) {
     for (const allowDfs of [false, true]) {
