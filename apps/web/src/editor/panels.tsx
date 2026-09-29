@@ -15,6 +15,17 @@ import {
 } from '@signalplan/engine'
 import {
   addNeighbourNetwork,
+  addSurveyReading,
+  bssidOwner,
+  deleteSurveyReading,
+  parseBssids,
+  setRadioBssids,
+  setReadingDbm,
+  setReadingSource,
+  setSurveyNote,
+  SURVEY_READING_RANGE_DBM,
+  surveySpotName,
+  type SurveySpot,
   BANDS,
   COVERAGE_TARGETS,
   deleteNeighbourNetwork,
@@ -293,6 +304,13 @@ const TOOLS = [
     key: 'A',
     title: 'Add access points',
   },
+  {
+    tool: 'survey',
+    name: 'Survey',
+    icon: '⌖',
+    key: 'S',
+    title: 'Record signal readings at spots',
+  },
 ] as const
 
 /**
@@ -409,6 +427,10 @@ export function PropertiesPanel({
     only?.kind === 'floorOpening'
       ? floor.floorOpenings?.find((o) => o.id === only.id)
       : undefined
+  const surveySpot =
+    only?.kind === 'surveySpot'
+      ? floor.surveySpots?.find((s) => s.id === only.id)
+      : undefined
 
   let details
   if (in3d) details = <View3DSection />
@@ -420,6 +442,10 @@ export function PropertiesPanel({
     details = <OpeningToolSection kind={tool} />
   } else if (tool === 'floorOpening' && selection.length === 0) {
     details = <FloorOpeningToolSection />
+  } else if (tool === 'survey' && selection.length === 0) {
+    details = <SurveyToolSection />
+  } else if (surveySpot) {
+    details = <SurveySpotSection key={surveySpot.id} spot={surveySpot} />
   } else if (floorOpening) {
     details = <FloorOpeningSection opening={floorOpening} floor={floor} />
   } else if (opening)
@@ -1086,13 +1112,26 @@ function AccessPointSection({ ap }: { ap: AccessPoint }) {
                   }
                 />
               )}
+              {radio && (
+                <BssidField
+                  ap={ap}
+                  radio={radio}
+                  onCommit={(bssids) =>
+                    edit(`Change ${BAND_LABELS[band]} BSSIDs`, (plan) => {
+                      setRadioBssids(plan, ap.id, band, bssids)
+                    })
+                  }
+                />
+              )}
             </div>
           )
         })}
       </fieldset>
       <p className="hint">
         Power is EIRP, antenna gain included. Pick a width, then a channel; a
-        channel you pick stays fixed, and Auto leaves it open.{' '}
+        channel you pick stays fixed, and Auto leaves it open. Each network name
+        a radio broadcasts has its own BSSID, which a Wi-Fi scanner shows;
+        separate them with commas.{' '}
         {ap.locked
           ? 'Locked, so it can’t be moved; untick Locked to move it.'
           : 'Drag the access point, or use the arrow keys (Shift for bigger steps).'}
@@ -1454,6 +1493,12 @@ function PlanSection() {
       </dl>
       <RegionFields />
       <NeighbourFields />
+      {plan.floors.some((f) => (f.surveySpots ?? []).length > 0) && (
+        <>
+          <SurveyList />
+          <p className="hint">Add more with the Survey tool (S).</p>
+        </>
+      )}
       <ViewSettingsFields />
       {floor?.walls.length === 0 && (
         <p className="hint start-hint">
@@ -2481,6 +2526,355 @@ function TextField({
         }}
         autoComplete="off"
       />
+    </div>
+  )
+}
+
+function SurveyToolSection() {
+  return (
+    <section>
+      <h2>Survey tool</h2>
+      <p className="kind">Click the plan where you measured signal</p>
+      <ul className="hint tips">
+        <li>
+          Then type in each reading: which access point and band it’s from, and
+          its signal in dBm.
+        </li>
+        <li>Drag a pin to move it. Esc returns to Select.</li>
+      </ul>
+      <ReadingHint />
+      <SurveyList />
+    </section>
+  )
+}
+
+/** Where to read signal in dBm on a phone (D70, D71). */
+function ReadingHint() {
+  return (
+    <p className="hint">
+      To read signal in dBm on an iPhone, install Apple’s free AirPort Utility,
+      turn on Wi-Fi Scanner in Settings › AirPort Utility, then open it and tap
+      Wi-Fi Scan, then Scan: it lists each network’s BSSID and RSSI in dBm.
+      Apple no longer documents these steps, so they may change. On Android, a
+      Wi-Fi analyser app shows the same.
+    </p>
+  )
+}
+
+/**
+ * The survey spots on every floor; picking one shows its floor and selects
+ * it (D71).
+ */
+function SurveyList() {
+  const store = useEditorStore()
+  const floors = useEditor((s) => s.plan.floors)
+  const stack = stackedFloors(floors).reverse()
+  const withSpots = stack.filter((f) => (f.surveySpots ?? []).length > 0)
+  return (
+    <>
+      <h3>Survey spots</h3>
+      {withSpots.length === 0 && (
+        <p className="hint">No spots yet on any floor.</p>
+      )}
+      {withSpots.map((floor) => (
+        <div key={floor.id} className="survey-floor">
+          {floors.length > 1 && <h4>{floor.name}</h4>}
+          <ul className="object-list">
+            {floor.surveySpots!.map((spot) => (
+              <li key={spot.id}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const state = store.getState()
+                    state.setFloor(floor.id)
+                    state.select([{ kind: 'surveySpot', id: spot.id }])
+                  }}
+                >
+                  {surveySpotName(spot.id)}: {readingCount(spot.readings)}
+                  {spot.note && ` (${spot.note})`}
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ))}
+    </>
+  )
+}
+
+const readingCount = (readings: readonly unknown[]) =>
+  readings.length === 0
+    ? 'no readings'
+    : `${readings.length} reading${readings.length === 1 ? '' : 's'}`
+
+/** A selected survey spot: its readings, one per access point and band. */
+function SurveySpotSection({ spot }: { spot: SurveySpot }) {
+  const store = useEditorStore()
+  const units = useEditor((s) => s.units)
+  const plan = useEditor((s) => s.plan)
+  const name = surveySpotName(spot.id)
+  const edit = (label: string, change: (plan: Draft<Plan>) => void) =>
+    store.getState().edit(label, change)
+  const used = new Set(spot.readings.map((r) => `${r.apId} ${r.band}`))
+  const free = plan.accessPoints.some((ap) =>
+    ap.radios.some((r) => !used.has(`${ap.id} ${r.band}`)),
+  )
+  return (
+    <section>
+      <h2>{name}</h2>
+      <p className="kind">Survey spot</p>
+      <dl>
+        <dt>Position</dt>
+        <dd>
+          {formatLength(spot.x, units)}, {formatLength(spot.y, units)}
+        </dd>
+      </dl>
+      <h3>Readings</h3>
+      {spot.readings.length === 0 && (
+        <p className="hint">
+          No readings yet. Add one for each access point and band you measured
+          here.
+        </p>
+      )}
+      {spot.readings.map((_, i) => (
+        <ReadingRow key={i} spot={spot} index={i} plan={plan} edit={edit} />
+      ))}
+      <button
+        type="button"
+        className="add-reading"
+        disabled={!free}
+        title={
+          plan.accessPoints.length === 0
+            ? 'Add an access point first'
+            : free
+              ? undefined
+              : 'This spot has a reading for every access point and band'
+        }
+        onClick={() =>
+          edit(`Add a reading at ${name}`, (draft) => {
+            addSurveyReading(draft, spot.id)
+          })
+        }
+      >
+        Add a reading
+      </button>
+      <TextField
+        label="Note"
+        value={spot.note ?? ''}
+        maxLength={500}
+        placeholder="Such as “kitchen, phone on the counter”"
+        onCommit={(value) =>
+          edit(`Change ${name} note`, (draft) => {
+            setSurveyNote(draft, spot.id, value)
+          })
+        }
+      />
+      <ReadingHint />
+      <p className="hint">
+        Drag the pin to move it, or use the arrow keys (Shift for bigger steps).
+      </p>
+      <div className="actions">
+        <DeleteButton />
+      </div>
+    </section>
+  )
+}
+
+function ReadingRow({
+  spot,
+  index,
+  plan,
+  edit,
+}: {
+  spot: SurveySpot
+  index: number
+  plan: Plan
+  edit: (label: string, change: (plan: Draft<Plan>) => void) => void
+}) {
+  const apId = useId()
+  const bandId = useId()
+  const noteId = useId()
+  const reading = spot.readings[index]!
+  const ap = plan.accessPoints.find((a) => a.id === reading.apId)
+  const name = surveySpotName(spot.id)
+  const takenByOther = (id: string, band: Band) =>
+    spot.readings.some(
+      (r, i) => i !== index && r.apId === id && r.band === band,
+    )
+  const floorName = (floorId: string) =>
+    plan.floors.length > 1
+      ? ` (${plan.floors.find((f) => f.id === floorId)?.name ?? ''})`
+      : ''
+  const bandOff = !ap?.radios.some((r) => r.band === reading.band)
+  const label = `${ap?.name ?? ''}, ${BAND_LABELS[reading.band]}`
+  const hidden = <span className="visually-hidden">{label} </span>
+  return (
+    <fieldset className="neighbour">
+      <legend>{label}</legend>
+      <div className="neighbour-fields">
+        <div className="field reading-ap">
+          <label htmlFor={apId}>{hidden}Access point</label>
+          <select
+            id={apId}
+            value={reading.apId}
+            onChange={(event) => {
+              const next = event.target.value
+              edit(`Change a reading at ${name}`, (draft) => {
+                setReadingSource(draft, spot.id, index, { apId: next })
+              })
+            }}
+          >
+            {plan.accessPoints.map((a) => (
+              <option
+                key={a.id}
+                value={a.id}
+                disabled={
+                  a.id !== reading.apId &&
+                  a.radios.every((r) => takenByOther(a.id, r.band))
+                }
+              >
+                {a.name}
+                {floorName(a.floorId)}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="field">
+          <label htmlFor={bandId}>{hidden}Band</label>
+          <select
+            id={bandId}
+            value={reading.band}
+            aria-invalid={bandOff}
+            aria-describedby={bandOff ? noteId : undefined}
+            onChange={(event) => {
+              const band = event.target.value as Band
+              edit(`Change a reading at ${name}`, (draft) => {
+                setReadingSource(draft, spot.id, index, {
+                  apId: reading.apId,
+                  band,
+                })
+              })
+            }}
+          >
+            {(ap?.radios ?? []).map(({ band }) => (
+              <option
+                key={band}
+                value={band}
+                disabled={takenByOther(reading.apId, band)}
+              >
+                {BAND_LABELS[band]}
+              </option>
+            ))}
+            {bandOff && (
+              <option value={reading.band}>
+                {BAND_LABELS[reading.band]} (off)
+              </option>
+            )}
+          </select>
+        </div>
+        <SettingField
+          label={<>{hidden}Signal (dBm)</>}
+          value={reading.dbm}
+          range={SURVEY_READING_RANGE_DBM}
+          onCommit={(value) => {
+            if (value === undefined) return
+            edit(`Change a reading at ${name}`, (draft) => {
+              setReadingDbm(draft, spot.id, index, value)
+            })
+          }}
+        />
+      </div>
+      {bandOff && (
+        <p id={noteId} className="field-note field-warning">
+          {ap?.name} has {BAND_LABELS[reading.band]} turned off, so this reading
+          isn’t compared with the model. Turn it back on, or pick another band.
+        </p>
+      )}
+      <button
+        type="button"
+        className="remove-neighbour"
+        onClick={() =>
+          edit(`Remove a reading at ${name}`, (draft) => {
+            deleteSurveyReading(draft, spot.id, index)
+          })
+        }
+      >
+        Remove<span className="visually-hidden"> {label}</span>
+      </button>
+    </fieldset>
+  )
+}
+
+/**
+ * A radio's BSSIDs, one per network name it broadcasts, typed or pasted in
+ * any common form (D71). A BSSID belongs to one radio, so one already on
+ * another is refused.
+ */
+function BssidField({
+  ap,
+  radio,
+  onCommit,
+}: {
+  ap: AccessPoint
+  radio: Radio
+  onCommit: (bssids: string[]) => void
+}) {
+  const plan = useEditor((s) => s.plan)
+  const [draft, setDraft] = useState<string>()
+  const [error, setError] = useState<string>()
+  const id = useId()
+  const current = (radio.bssids ?? []).join(', ')
+  const reset = () => {
+    setDraft(undefined)
+    setError(undefined)
+  }
+  const commit = () => {
+    if (draft === undefined || draft.trim() === current) return reset()
+    const { bssids, invalid } = parseBssids(draft)
+    if (invalid.length > 0) {
+      setError(
+        `${invalid.join(', ')} ${invalid.length === 1 ? 'isn’t a BSSID' : 'aren’t BSSIDs'}: use six pairs of 0–9 and a–f, like a4:2b:b0:12:34:56.`,
+      )
+      return
+    }
+    for (const bssid of bssids) {
+      const owner = bssidOwner(plan, bssid, { apId: ap.id, band: radio.band })
+      if (owner) {
+        const other = plan.accessPoints.find((a) => a.id === owner.apId)
+        setError(
+          `${bssid} is already on ${other?.name ?? 'another access point'}, ${BAND_LABELS[owner.band]}. Remove it there first.`,
+        )
+        return
+      }
+    }
+    reset()
+    onCommit(bssids)
+  }
+  return (
+    <div className="field bssid-field">
+      <label htmlFor={id}>{BAND_LABELS[radio.band]} BSSIDs</label>
+      <input
+        id={id}
+        value={draft ?? current}
+        placeholder="Such as a4:2b:b0:12:34:56"
+        aria-invalid={error !== undefined}
+        onChange={(event) => {
+          setDraft(event.target.value)
+          setError(undefined)
+        }}
+        onBlur={commit}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter') commit()
+          if (event.key === 'Escape') reset()
+        }}
+        autoComplete="off"
+        spellCheck={false}
+      />
+      {error && (
+        <p className="field-error" role="alert">
+          {error}
+        </p>
+      )}
     </div>
   )
 }

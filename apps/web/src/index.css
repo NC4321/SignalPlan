@@ -703,7 +703,8 @@ dd {
   gap: 0.4rem;
 }
 
-.radio-row .power-field {
+.radio-row .power-field,
+.radio-row .bssid-field {
   margin: 0.3rem 0 0 1.5rem;
 }
 
@@ -1214,4 +1215,17 @@ button.danger-fill {
 
 .channel-plan-radios .field-note {
   display: block;
+}
+
+.reading-ap {
+  grid-column: 1 / -1;
+}
+
+.add-reading {
+  margin-bottom: 0.75rem;
+}
+
+.survey-floor h4 {
+  margin: 0.5rem 0 0.2rem;
+  font-size: 0.85rem;
 }

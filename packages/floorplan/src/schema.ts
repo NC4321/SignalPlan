@@ -63,6 +63,12 @@ export const ROAM_THRESHOLD_RANGE_DBM = { min: -90, max: -50 } as const
 /** Limits for a neighbour network's typed-in strength (D67). */
 export const NEIGHBOUR_STRENGTH_RANGE_DBM = { min: -100, max: -20 } as const
 
+/**
+ * Limits for a typed-in survey reading (D71): wide enough for any phone's
+ * RSSI, from a spot next to the access point to the edge of reception.
+ */
+export const SURVEY_READING_RANGE_DBM = { min: -120, max: 0 } as const
+
 /** Signal levels a plan can aim for, named after the heatmap bands (D12). */
 export const COVERAGE_TARGETS = ['excellent', 'good', 'fair', 'weak'] as const
 
@@ -108,6 +114,36 @@ export const floorOpeningSchema = z.object({
 })
 
 /**
+ * A signal reading taken at a survey spot (D70, D71): one access point's
+ * radio on one band, in dBm, as a phone or analyser shows it.
+ */
+export const surveyReadingSchema = z.object({
+  apId: id,
+  band: bandSchema,
+  dbm: z
+    .number()
+    .min(SURVEY_READING_RANGE_DBM.min)
+    .max(SURVEY_READING_RANGE_DBM.max),
+})
+
+/**
+ * A spot where signal was measured (D70, D71), with at most one reading per
+ * access point and band. Ids are unique across the whole plan.
+ */
+export const surveySpotSchema = z.object({
+  id,
+  x: metres,
+  y: metres,
+  readings: z.array(surveyReadingSchema),
+  note: z.string().max(500).optional(),
+})
+
+/** A BSSID, stored lower case with colons, such as `a4:2b:b0:12:34:56`. */
+export const bssidSchema = z
+  .string()
+  .regex(/^[0-9a-f]{2}(:[0-9a-f]{2}){5}$/, 'Not a BSSID like a4:2b:b0:12:34:56')
+
+/**
  * A floor plan image to trace over (D22). In the browser the image is kept
  * in its own store and referenced by `imageId`; saved files embed it as a
  * `dataUrl` so one file restores everything.
@@ -151,6 +187,8 @@ export const floorSchema = z.object({
   /** Holes in this floor's slab (D54). Omitted means none. */
   floorOpenings: z.array(floorOpeningSchema).optional(),
   background: backgroundSchema.optional(),
+  /** Where signal was measured on this floor (D71). Omitted means none. */
+  surveySpots: z.array(surveySpotSchema).optional(),
 })
 
 export const radioSchema = z
@@ -172,6 +210,11 @@ export const radioSchema = z
     channelWidthMHz: z
       .union(CHANNEL_WIDTHS.map((w) => z.literal(w)))
       .optional(),
+    /**
+     * The BSSIDs this radio broadcasts, one per network name (D71), so
+     * imported readings can be matched to it. Omitted means none known.
+     */
+    bssids: z.array(bssidSchema).min(1).optional(),
   })
   .refine((r) => r.channel === undefined || r.channelWidthMHz !== undefined, {
     message: 'A radio with a channel needs a channel width',
@@ -260,6 +303,8 @@ export type PlanNode = z.infer<typeof nodeSchema>
 export type Wall = z.infer<typeof wallSchema>
 export type Opening = z.infer<typeof openingSchema>
 export type FloorOpening = z.infer<typeof floorOpeningSchema>
+export type SurveyReading = z.infer<typeof surveyReadingSchema>
+export type SurveySpot = z.infer<typeof surveySpotSchema>
 export type Background = z.infer<typeof backgroundSchema>
 export type Floor = z.infer<typeof floorSchema>
 export type Radio = z.infer<typeof radioSchema>

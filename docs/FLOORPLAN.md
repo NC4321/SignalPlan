@@ -24,11 +24,12 @@ Plan
 │  ├─ walls[]          { id, from, to, material }
 │  ├─ openings[]       { id, wallId, kind: door | window, offsetM, widthM, material }
 │  ├─ floorOpenings[]? { id, points[]: { x, y } }  holes in the slab: stairwells, atriums
+│  ├─ surveySpots[]?   { id, x, y, note?, readings[]: { apId, band, dbm: −120 to 0 } }
 │  └─ background?      { imageId | dataUrl, x, y, metresPerPixel, widthPx, heightPx,
 │                        opacity, visible, locked }
 ├─ accessPoints[]
 │  └─ { id, name, floorId, x, y, heightM,
-│       radios[]: { band, txPowerDbm?, channelWidthMHz?, channel? } }
+│       radios[]: { band, txPowerDbm?, channelWidthMHz?, channel?, bssids[]? } }
 ├─ coverageTarget?     excellent | good | fair | weak
 ├─ region?             US | EU
 ├─ allowDfs?           boolean
@@ -58,6 +59,8 @@ A radio's optional `channelWidthMHz` (20, 40, 80 or 160) and `channel` (its IEEE
 
 `neighbourNetworks` are networks next door, typed in by hand as background interference for the Interference view: band, width, a rough `strengthDbm`, an optional `name` to tell them apart, and the `channel` once it's picked; one without a channel isn't counted. They have no position. `addNeighbourNetwork`, `setNeighbourBand`, `setNeighbourWidth` (both clear the channel), `setNeighbourChannel`, `setNeighbourStrength`, `renameNeighbourNetwork` and `deleteNeighbourNetwork` in `neighbours.ts` edit them, and validation checks their ids are unique. Without the list there are none. See [D67](DECISIONS.md#d67-neighbours-networks--2026-09-29).
 
+A floor's optional `surveySpots` are places where signal was measured, in plan metres, each with an optional `note` and a list of `readings`: the access point (`apId`, on any floor) and `band` it's from, and its signal in dBm as a phone or analyser shows it (−120 to 0). A spot has at most one reading per access point and band. Spot ids (`spot1`, `spot2` …) are unique across the whole plan, so a spot can be found without its floor. A radio's optional `bssids` are the BSSIDs it broadcasts, one per network name, lower case with colons (`a4:2b:b0:12:34:56`); each BSSID belongs to one radio. `addSurveySpot`, `moveSurveySpot`, `deleteSurveySpot`, `setSurveyNote`, `addSurveyReading`, `setReadingSource`, `setReadingDbm`, `deleteSurveyReading`, `setRadioBssids` and `parseBssids` in `survey.ts` edit them. Deleting an access point, or the floor it's on, also deletes the readings taken from it; turning a band off keeps them, flagged in the editor. Both fields were added without a version bump. See [D71](DECISIONS.md#d71-the-survey-tool--2026-09-29).
+
 A floor may have a **background** image to trace over. `x` and `y` place its top-left corner and `metresPerPixel` sets its scale. In the browser the image lives in its own store and is referenced by `imageId`; saved files embed it as a `dataUrl` instead. At least one of the two is needed. `widthPx` and `heightPx` are the image's size in pixels, `opacity` runs from 0 to 1, and `locked` stops the image being dragged by accident. See [D22](DECISIONS.md#d22-tracing-over-a-floor-plan-image--2026-09-27).
 
 ## Validation
@@ -65,9 +68,9 @@ A floor may have a **background** image to trace over. `x` and `y` place its top
 `parsePlan` and `loadPlan` return either the plan or a list of issues, each with a path such as `floors[0].walls[3].to` and a readable message. They check:
 
 - **Shape:** required fields, types, known materials and bands, finite numbers.
-- **References:** walls point at nodes on the same floor, openings at walls on the same floor, access points at existing floors.
+- **References:** walls point at nodes on the same floor, openings at walls on the same floor, access points at existing floors, survey readings at existing access points.
 - **Geometry:** walls are at least 1 cm long, openings fit inside their wall and don't overlap.
-- **Uniqueness:** ids are unique within each list, and each access point has at most one radio per band.
+- **Uniqueness:** ids are unique within each list (survey spot ids across all floors), each access point has at most one radio per band, each survey spot has at most one reading per access point and band, and each BSSID is on one radio.
 - **Channels:** a radio with a `channel` also has a `channelWidthMHz`.
 
 ## Versions and migrations

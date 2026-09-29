@@ -9,10 +9,12 @@ import {
   hitTest,
   moveFloorOpeningCornerRecipe,
   moveFloorOpeningRecipe,
+  moveSurveySpotRecipe,
   nudgeRecipe,
   pressGrabsAccessPoint,
   selectionHasLocked,
   snapDraggedNode,
+  surveySpotAt,
   wallDragDelta,
 } from './selectTool.ts'
 
@@ -252,5 +254,52 @@ describe('floor openings (D54)', () => {
     const deleted = produce(plan, deleteRecipe('f', selection))
     expect(deleted.floors[0]!.floorOpenings).toBeUndefined()
     expect(describeSelection(selection)).toBe('floor opening')
+  })
+})
+
+describe('survey spots (D71)', () => {
+  // A pin by the top wall: its tip at (150, 10) px, its head 17 px above.
+  const spot = { id: 'spot1', x: 1.5, y: 0.1, readings: [] }
+  const surveyed: Floor = { ...floor, surveySpots: [spot] }
+  const plan: Plan = {
+    schemaVersion: 1,
+    name: 'p',
+    floors: [surveyed],
+    accessPoints: [],
+  }
+  const spotIn = (p: Plan) => p.floors[0]!.surveySpots?.[0]
+
+  it('grabs a pin by its tip or its head', () => {
+    expect(surveySpotAt(camera, [spot], { x: 150, y: 10 })).toBe(spot)
+    expect(surveySpotAt(camera, [spot], { x: 150, y: -7 })).toBe(spot)
+    // 7 + 4 px from the head's centre is the edge.
+    expect(surveySpotAt(camera, [spot], { x: 161, y: -7 })).toBe(spot)
+    expect(surveySpotAt(camera, [spot], { x: 163, y: -7 })).toBeUndefined()
+  })
+
+  it('hits a pin before walls, and access points before pins', () => {
+    expect(hitTest(camera, surveyed, [], [], { x: 150, y: 10 })).toEqual({
+      kind: 'surveySpot',
+      id: 'spot1',
+    })
+    const onPin = { ...ap, x: 1.5, y: 0.1 }
+    expect(hitTest(camera, surveyed, [onPin], [], { x: 150, y: 10 })).toEqual({
+      kind: 'accessPoint',
+      id: 'ap',
+    })
+  })
+
+  it('moves, nudges and deletes a spot', () => {
+    const moved = produce(plan, moveSurveySpotRecipe('spot1', { x: 3, y: 2 }))
+    expect(spotIn(moved)).toMatchObject({ x: 3, y: 2 })
+    const selection = [{ kind: 'surveySpot' as const, id: 'spot1' }]
+    const nudged = produce(
+      plan,
+      nudgeRecipe('f', selection, { x: 0.5, y: 0.5 }),
+    )
+    expect(spotIn(nudged)).toMatchObject({ x: 2, y: 0.6 })
+    const deleted = produce(plan, deleteRecipe('f', selection))
+    expect(spotIn(deleted)).toBeUndefined()
+    expect(describeSelection(selection)).toBe('survey spot')
   })
 })

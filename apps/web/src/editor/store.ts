@@ -3,6 +3,7 @@ import { planChannels, type BandChannelPlan } from '@signalplan/engine'
 import {
   addFloor,
   addFloorOpening,
+  addSurveySpot,
   adjacentFloorId,
   addWall,
   deleteFloor,
@@ -60,13 +61,15 @@ export type Tool =
   | 'window'
   | 'floorOpening'
   | 'accessPoint'
+  | 'survey'
   | 'calibrate'
 
 /** Sizes for new openings (D19): a 32″ door and a 48″ window. */
 export const DEFAULT_OPENING_WIDTH_M = { door: 0.8128, window: 1.2192 } as const
 
 export type SelectionItem = {
-  kind: 'accessPoint' | 'wall' | 'node' | 'opening' | 'floorOpening'
+  kind:
+    'accessPoint' | 'wall' | 'node' | 'opening' | 'floorOpening' | 'surveySpot'
   id: string
 }
 
@@ -243,6 +246,8 @@ export interface EditorState {
   finishOutline: () => void
   /** Drops the outline being drawn without adding anything. */
   cancelOutline: () => void
+  /** Survey tool: adds a spot on the floor on show, and selects it (D71). */
+  addSurveySpot: (at: Point) => void
 }
 
 const samePoint = (a: Point, b: Point) =>
@@ -342,6 +347,8 @@ function validSelection(plan: Plan, floorId: string, selection: Selection) {
         return floor?.openings.some((o) => o.id === item.id) ?? false
       case 'floorOpening':
         return floor?.floorOpenings?.some((o) => o.id === item.id) ?? false
+      case 'surveySpot':
+        return floor?.surveySpots?.some((s) => s.id === item.id) ?? false
     }
   }
   const kept = selection.filter(exists)
@@ -731,6 +738,15 @@ export function createEditorStore(
     },
 
     cancelOutline: () => set({ outline: undefined }),
+
+    addSurveySpot: (at) => {
+      const { floorId } = get()
+      let created: string | undefined
+      get().edit('Add survey spot', (draft) => {
+        created = addSurveySpot(draft, floorId, at)
+      })
+      if (created) get().select([{ kind: 'surveySpot', id: created }])
+    },
   }))
 }
 

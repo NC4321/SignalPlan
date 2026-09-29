@@ -82,6 +82,7 @@ export function checkStructure(plan: Plan): PlanIssue[] {
   })
 
   checkUniqueIds(plan.neighbourNetworks ?? [], 'neighbourNetworks', report)
+  checkSurvey(plan, report)
 
   return issues
 }
@@ -157,6 +158,59 @@ function checkFloor(
       }
     }
   }
+}
+
+/**
+ * Survey spots (D71): ids unique across floors, readings from access points
+ * in the plan, one per access point and band; and each BSSID on one radio.
+ */
+function checkSurvey(
+  plan: Plan,
+  report: (path: string, message: string) => void,
+) {
+  const apIds = new Set(plan.accessPoints.map((ap) => ap.id))
+  const spotIds = new Set<string>()
+  plan.floors.forEach((floor, f) => {
+    floor.surveySpots?.forEach((spot, s) => {
+      const path = `floors[${f}].surveySpots[${s}]`
+      if (spotIds.has(spot.id)) {
+        report(`${path}.id`, `Duplicate id "${spot.id}".`)
+      }
+      spotIds.add(spot.id)
+      const sources = new Set<string>()
+      spot.readings.forEach((reading, r) => {
+        if (!apIds.has(reading.apId)) {
+          report(
+            `${path}.readings[${r}].apId`,
+            `No access point with id "${reading.apId}".`,
+          )
+        }
+        const source = `${reading.apId} ${reading.band}`
+        if (sources.has(source)) {
+          report(
+            `${path}.readings[${r}]`,
+            `Second ${reading.band} reading from "${reading.apId}".`,
+          )
+        }
+        sources.add(source)
+      })
+    })
+  })
+
+  const bssids = new Set<string>()
+  plan.accessPoints.forEach((ap, a) => {
+    ap.radios.forEach((radio, r) => {
+      radio.bssids?.forEach((bssid, b) => {
+        if (bssids.has(bssid)) {
+          report(
+            `accessPoints[${a}].radios[${r}].bssids[${b}]`,
+            `BSSID ${bssid} is on more than one radio.`,
+          )
+        }
+        bssids.add(bssid)
+      })
+    })
+  })
 }
 
 function checkUniqueIds(

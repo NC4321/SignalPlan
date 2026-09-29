@@ -11,6 +11,8 @@ import {
   moveFloorOpeningCorner,
   moveNodes,
   moveOpening,
+  deleteSurveySpot,
+  moveSurveySpot,
   pointInPolygon,
   splitWall,
   type AccessPoint,
@@ -18,10 +20,16 @@ import {
   type OpeningSpan,
   type Plan,
   type Point,
+  type SurveySpot,
 } from '@signalplan/floorplan'
 import type { Draft } from 'immer'
 import { toPlan, toScreen, type Camera } from './camera.ts'
-import { AP_RADIUS_PX, baseWallWidth } from './render.ts'
+import {
+  AP_RADIUS_PX,
+  baseWallWidth,
+  PIN_HEAD_PX,
+  PIN_HEAD_Y_PX,
+} from './render.ts'
 import { nearestOnSegment, snapPoint } from './snap.ts'
 import type { Recipe, Selection, SelectionItem, Tool } from './store.ts'
 import { snapStep, type Units } from './units.ts'
@@ -47,6 +55,25 @@ export function accessPointAt(
 }
 
 /**
+ * The survey spot whose pin is under a screen point, if any (D71). The pin's
+ * tip is the spot; its head sits above it, and either one grabs it.
+ */
+export function surveySpotAt(
+  camera: Camera,
+  spots: readonly SurveySpot[],
+  screen: Point,
+): SurveySpot | undefined {
+  let best: { spot: SurveySpot; d: number } | undefined
+  for (const spot of spots) {
+    const tip = toScreen(camera, spot)
+    const head = { x: tip.x, y: tip.y - PIN_HEAD_Y_PX }
+    const d = Math.min(distance(tip, screen), distance(head, screen))
+    if (d <= PIN_HEAD_PX + 4 && (!best || d < best.d)) best = { spot, d }
+  }
+  return best?.spot
+}
+
+/**
  * Whether a press on an access point grabs it (select, and drag to move)
  * under this tool, instead of doing the tool's own action (D34, D38). The
  * wall tool grabs only between chains, and Alt still places a corner there,
@@ -65,8 +92,8 @@ export function pressGrabsAccessPoint(
 
 /**
  * What is under a screen point, in order of priority: an access point, a
- * corner, a door or window, a wall, then an opening in the floor, by its
- * edge or anywhere inside it.
+ * survey spot, a corner, a door or window, a wall, then an opening in the
+ * floor, by its edge or anywhere inside it.
  */
 export function hitTest(
   camera: Camera,
@@ -77,6 +104,8 @@ export function hitTest(
 ): SelectionItem | undefined {
   const ap = accessPointAt(camera, accessPoints, screen)
   if (ap) return { kind: 'accessPoint', id: ap.id }
+  const spot = surveySpotAt(camera, floor.surveySpots ?? [], screen)
+  if (spot) return { kind: 'surveySpot', id: spot.id }
 
   let best: { item: SelectionItem; d: number } | undefined
   for (const node of floor.nodes) {
@@ -156,6 +185,16 @@ export function floorOpeningCornerAt(
     })
   }
   return best && { id: best.id, index: best.index, point: best.point }
+}
+
+/** Moves a survey spot to a point (D71). */
+export function moveSurveySpotRecipe(id: string, to: Point): Recipe {
+  return (plan) => {
+    const spot = plan.floors
+      .flatMap((f) => f.surveySpots ?? [])
+      .find((s) => s.id === id)
+    if (spot) moveSurveySpot(plan, id, to.x - spot.x, to.y - spot.y)
+  }
 }
 
 /** Moves a whole floor opening by a vector from where it started. */
@@ -329,6 +368,9 @@ export function nudgeRecipe(
       if (item.kind === 'floorOpening') {
         moveFloorOpening(floor, item.id, delta.x, delta.y)
       }
+      if (item.kind === 'surveySpot') {
+        moveSurveySpot(plan, item.id, delta.x, delta.y)
+      }
       if (item.kind === 'wall') {
         const wall = floor.walls.find((w) => w.id === item.id)
         if (wall) {
@@ -363,7 +405,8 @@ export function selectionHasLocked(plan: Plan, selection: Selection): boolean {
 export const LOCKED_NOTICE = 'Locked: unlock it in the panel to move it'
 
 /**
- * Deletes the selected access points, openings, walls and corners (D18, D25).
+ * Deletes the selected access points, openings, walls, corners and survey
+ * spots (D18, D25, D71).
  */
 export function deleteRecipe(floorId: string, selection: Selection): Recipe {
   return (plan) => {
@@ -372,6 +415,7 @@ export function deleteRecipe(floorId: string, selection: Selection): Recipe {
       if (item.kind === 'accessPoint') deleteAccessPoint(plan, item.id)
       if (item.kind === 'opening') deleteOpening(floor, item.id)
       if (item.kind === 'floorOpening') deleteFloorOpening(floor, item.id)
+      if (item.kind === 'surveySpot') deleteSurveySpot(plan, item.id)
     }
     for (const item of selection) {
       if (item.kind === 'wall') deleteWall(floor, item.id)
@@ -405,5 +449,6 @@ export function describeSelection(selection: Selection): string {
     node: 'corner',
     opening: 'opening',
     floorOpening: 'floor opening',
+    surveySpot: 'survey spot',
   }[selection[0]!.kind]
 }

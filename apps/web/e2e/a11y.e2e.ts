@@ -117,9 +117,7 @@ test('switches tools from the keyboard', async ({ page }) => {
     'true',
   )
   await page.keyboard.press('End')
-  await expect(
-    tools.getByRole('button', { name: 'Access point' }),
-  ).toBeFocused()
+  await expect(tools.getByRole('button', { name: 'Survey' })).toBeFocused()
   await page.keyboard.press('ArrowDown')
   await expect(tools.getByRole('button', { name: 'Select' })).toBeFocused()
   await page.keyboard.press('Enter')

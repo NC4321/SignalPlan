@@ -6,6 +6,7 @@ import {
   fitOpeningAt,
   materialSegments,
   openingSpans,
+  strongestReading,
   type Floor,
   type Point,
 } from '@signalplan/floorplan'
@@ -39,11 +40,13 @@ import {
   moveNodeRecipe,
   pressGrabsAccessPoint,
   moveOpeningRecipe,
+  moveSurveySpotRecipe,
   moveWallRecipe,
   nudgeRecipe,
   selectionHasLocked,
   snapDraggedNode,
   splitRecipe,
+  surveySpotAt,
   wallAt,
   wallDragDelta,
 } from './selectTool.ts'
@@ -152,6 +155,21 @@ export function EditorCanvas({
   const [cursor, setCursor] = useState<Cursor>('default')
 
   const floor = plan.floors.find((f) => f.id === floorId)!
+  const band = useEditor((s) => s.band)
+  // Each pin shows its strongest reading on the band on show (D71).
+  const surveySpots = useMemo(
+    () =>
+      (floor.surveySpots ?? []).map((spot) => {
+        const dbm = strongestReading(spot, band)
+        return {
+          id: spot.id,
+          x: spot.x,
+          y: spot.y,
+          label: dbm === undefined ? '–' : `${dbm}`.replace('-', '−'),
+        }
+      }),
+    [floor.surveySpots, band],
+  )
   const ghost = useEditor(ghostFloor)
   const ghostScene = useMemo(
     () =>
@@ -326,6 +344,9 @@ export function EditorCanvas({
       // No ghost while over (or dragging) an existing access point.
       accessPointPreview:
         tool === 'accessPoint' && cursor === 'default' ? pointer : undefined,
+      surveySpots,
+      surveyPreview:
+        tool === 'survey' && cursor === 'default' ? pointer : undefined,
       suggestions: suggestedHere?.map((move) => ({
         apId: move.apId,
         from: move.from,
@@ -367,6 +388,7 @@ export function EditorCanvas({
     wallMaterial,
     suggestedHere,
     ghostScene,
+    surveySpots,
   ])
 
   const snapForWallTool = (screen: Point, altKey: boolean) => {
@@ -438,6 +460,11 @@ export function EditorCanvas({
       const ap = accessPointAt(camera, accessPoints, screen)
       return ap?.locked ? 'pointer' : 'grab'
     }
+    if (tool === 'survey') {
+      return surveySpotAt(camera, floor.surveySpots ?? [], screen)
+        ? 'grab'
+        : 'default'
+    }
     if (openingTool) {
       if (placementAt(screen)) return 'default'
       return wallAt(camera, floor, screen) ? 'not-allowed' : 'default'
@@ -464,6 +491,9 @@ export function EditorCanvas({
       return accessPoints.find((a) => a.id === item.id)
     }
     if (item.kind === 'node') return floor.nodes.find((n) => n.id === item.id)
+    if (item.kind === 'surveySpot') {
+      return floor.surveySpots?.find((s) => s.id === item.id)
+    }
     if (item.kind === 'opening') {
       // For an opening, x holds its centre's distance along its wall.
       const opening = floor.openings.find((o) => o.id === item.id)
@@ -520,6 +550,13 @@ export function EditorCanvas({
           ap.y = origin.y + delta.y
         }
       })
+    } else if (item.kind === 'surveySpot') {
+      state.updateGesture(
+        moveSurveySpotRecipe(item.id, {
+          x: origin.x + delta.x,
+          y: origin.y + delta.y,
+        }),
+      )
     } else if (item.kind === 'opening') {
       const opening = floor.openings.find((o) => o.id === item.id)
       if (!opening) return
@@ -560,6 +597,7 @@ export function EditorCanvas({
       : (tool === 'wall' ||
             tool === 'floorOpening' ||
             tool === 'accessPoint' ||
+            tool === 'survey' ||
             openingTool) &&
           cursor === 'default'
         ? 'crosshair'
@@ -586,9 +624,11 @@ export function EditorCanvas({
                 ? 'Floor plan, floor opening tool'
                 : tool === 'accessPoint'
                   ? 'Floor plan, access point tool'
-                  : tool === 'calibrate'
-                    ? 'Floor plan, calibrating: click two points on the image'
-                    : 'Floor plan'
+                  : tool === 'survey'
+                    ? 'Floor plan, survey tool'
+                    : tool === 'calibrate'
+                      ? 'Floor plan, calibrating: click two points on the image'
+                      : 'Floor plan'
         }
         aria-describedby={hintId}
         onDoubleClick={(event) => {
@@ -680,6 +720,16 @@ export function EditorCanvas({
             return
           }
 
+          // A press on a pin grabs it; anywhere else adds a spot (D71).
+          if (
+            tool === 'survey' &&
+            !grabsAccessPoint(at, event.altKey) &&
+            !surveySpotAt(camera, floor.surveySpots ?? [], at)
+          ) {
+            state.addSurveySpot(toPlan(camera, at))
+            return
+          }
+
           if (openingTool && !grabsAccessPoint(at, event.altKey)) {
             const place = placementAt(at)
             if (!place) return
@@ -719,9 +769,13 @@ export function EditorCanvas({
           }
 
           const hit = hitTest(camera, floor, accessPoints, openings, at)
-          // On touch, editing is desktop-first: only access points drag (D16).
+          // On touch, editing is desktop-first: only access points and
+          // survey pins drag (D16, D71).
           const draggable =
-            hit && (event.pointerType !== 'touch' || hit.kind === 'accessPoint')
+            hit &&
+            (event.pointerType !== 'touch' ||
+              hit.kind === 'accessPoint' ||
+              hit.kind === 'surveySpot')
           if (!hit && event.pointerType !== 'touch' && draggableImageAt(at)) {
             state.select([])
             drag.current = {
@@ -940,7 +994,9 @@ export function EditorCanvas({
               ? `Click a wall to add a ${openingTool}. Esc returns to Select.`
               : tool === 'accessPoint'
                 ? 'Click to add an access point. Esc returns to Select.'
-                : 'Tab and Shift+Tab select walls, doors, windows, corners, floor openings and access points. Arrow keys move the selection, Delete removes it. Shortcuts: V select, W wall, D door, N window, O floor opening, A access point.'}
+                : tool === 'survey'
+                  ? 'Click to add a survey spot, then type its readings in the panel. Drag a pin to move it. Esc returns to Select.'
+                  : 'Tab and Shift+Tab select walls, doors, windows, corners, floor openings, access points and survey spots. Arrow keys move the selection, Delete removes it. Shortcuts: V select, W wall, D door, N window, O floor opening, A access point, S survey.'}
       </p>
       <p className="visually-hidden" aria-live="polite">
         {describeForScreenReader(selection, floor, accessPoints, units, order)}

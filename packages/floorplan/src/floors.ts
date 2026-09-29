@@ -4,6 +4,7 @@ import {
   type FloorMaterial,
   type Plan,
 } from './schema.ts'
+import { dropOrphanReadings } from './survey.ts'
 
 /**
  * Editing operations on a plan's floors (D52). Like those in `edit.ts`, each
@@ -76,8 +77,9 @@ export function addFloor(plan: Plan, where: 'above' | 'below'): string {
 }
 
 /**
- * Deletes a floor with everything on it, its access points included. The
- * last floor can't be deleted; returns whether it was.
+ * Deletes a floor with everything on it, its access points included, and
+ * the survey readings taken from them on other floors (D71). The last floor
+ * can't be deleted; returns whether it was.
  */
 export function deleteFloor(plan: Plan, floorId: string): boolean {
   if (plan.floors.length <= 1) return false
@@ -85,6 +87,7 @@ export function deleteFloor(plan: Plan, floorId: string): boolean {
   plan.floors = plan.floors.filter((f) => f.id !== floorId)
   if (plan.floors.length === before) return false
   plan.accessPoints = plan.accessPoints.filter((ap) => ap.floorId !== floorId)
+  dropOrphanReadings(plan)
   return true
 }
 
