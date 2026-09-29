@@ -233,6 +233,58 @@ describe('colourChannels', () => {
     }
   })
 
+  it('matches brute force on 2.4 GHz at 40 MHz, where channels partly overlap', () => {
+    // EU 40 MHz channels 3–11 overlap each other by different amounts, so
+    // they can't be treated as interchangeable.
+    const forty = candidateChoices('EU', '2.4GHz', 40, false)
+    // The reviewer's case: F on 1 hears A; A hears B; B doesn't hear F.
+    const found = {
+      ...graph(
+        3,
+        [
+          [0, 1],
+          [0, 2],
+        ],
+        forty,
+        '2.4GHz',
+      ),
+    }
+    found.radios = [
+      { fixed: c(1), candidates: [] },
+      { fixed: undefined, candidates: forty },
+      { fixed: undefined, candidates: forty },
+    ]
+    const result = colourChannels(found)
+    expect(result.cost[0]).toBe(0)
+    expect(compareCost(result.cost, bruteForce(found))).toBe(0)
+
+    const pairs: [number, number][] = [
+      [0, 1],
+      [0, 2],
+      [0, 3],
+      [1, 2],
+      [1, 3],
+      [2, 3],
+    ]
+    for (const fixedOn of [1, 6, 13]) {
+      for (let mask = 0; mask < 64; mask++) {
+        const problem = graph(
+          4,
+          pairs.filter((_, k) => mask & (1 << k)),
+          forty,
+          '2.4GHz',
+        )
+        problem.radios = [
+          { fixed: c(fixedOn), candidates: [] },
+          ...problem.radios.slice(1),
+        ]
+        const got = colourChannels(problem)
+        expect(got.exact).toBe(true)
+        expect(compareCost(got.cost, bruteForce(problem))).toBe(0)
+      }
+    }
+  })
+
   it('stops at its node limit with a full plan, not proven best', () => {
     const everyone: [number, number][] = []
     for (let a = 0; a < 8; a++)

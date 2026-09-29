@@ -37,6 +37,7 @@ const radio = (over: Partial<PlannedRadio>): PlannedRadio => ({
   widthMHz: 80,
   dfs: false,
   fixed: false,
+  widthFixed: false,
   hears: [],
   clashesWith: [],
   networks: [],
@@ -96,6 +97,14 @@ describe('channel plan text (D68)', () => {
   })
 
   it('gives each radio a one-line reason', () => {
+    // A width set by hand isn't the planner's narrowing.
+    expect(
+      radioReason(
+        named,
+        band({ autoWidthMHz: 20 }),
+        radio({ widthMHz: 20, widthFixed: true }),
+      ),
+    ).toBe('Hears no other access point.')
     const b = band({})
     expect(radioReason(named, b, radio({ fixed: true }))).toBe(
       'Set by hand, so kept.',
@@ -128,6 +137,12 @@ describe('channel plan text (D68)', () => {
   })
 
   it('sums up a band: clashes, narrowing, DFS and exactness', () => {
+    expect(bandSummary(named, band({ clashes: 2 }))[0]).toBe(
+      'No plan keeps them all apart on 5 GHz: 2 clashes are left, the fewest possible.',
+    )
+    expect(bandSummary(named, band({}))[0]).toBe(
+      'No access point to plan on 5 GHz.',
+    )
     expect(
       bandSummary(named, band({ radios: [radio({}), radio({})] })),
     ).toEqual([
@@ -153,7 +168,7 @@ describe('channel plan text (D68)', () => {
         }),
       ),
     ).toEqual([
-      'No plan keeps them all apart on 5 GHz: 1 clash is left, the fewest possible.',
+      'No plan keeps them all apart on 5 GHz: 1 clash is left.',
       'Narrowed from 80 to 20 MHz, since there aren’t enough 80 MHz channels to keep them apart.',
       'Allowing DFS channels would clear these clashes.',
       'That’s the best plan found in the time allowed; a better one may exist.',

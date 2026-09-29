@@ -200,8 +200,23 @@ export function colourChannels(
     for (const c of r.candidates) distinct.set(key(c), c)
   }
   const fixedChoices = radios.flatMap((r) => (r.fixed ? [r.fixed] : []))
+  // Swapping two channels only maps plans onto plans when channels of their
+  // width never partly overlap each other, as on 5 and 6 GHz. On 2.4 GHz at
+  // 40 MHz they do, so there each channel is its own group.
+  const grid = new Map<ChannelWidth, boolean>()
+  for (const a of distinct.values()) {
+    for (const b of distinct.values()) {
+      if (a !== b && a.widthMHz === b.widthMHz && overlapMHz(band, a, b) > 0) {
+        grid.set(a.widthMHz, false)
+      }
+    }
+  }
   const signature = new Map<string, string>()
   for (const [k, c] of distinct) {
+    if (grid.get(c.widthMHz) === false) {
+      signature.set(k, k)
+      continue
+    }
     signature.set(
       k,
       JSON.stringify([
@@ -307,6 +322,8 @@ export interface PlannedRadio {
   dfs: boolean
   /** Set by hand, so kept. */
   fixed: boolean
+  /** Its width was set by hand, so the planner didn't choose it. */
+  widthFixed: boolean
   /** Access points it hears or is heard by, at the CCA level. */
   hears: string[]
   /** Those it shares spectrum with in this plan. */
@@ -479,7 +496,13 @@ function planAtWidth(
         widthMHz: radio.channelWidthMHz,
         dfs: false,
       }
-      return { ap, fixed, candidates: [] as Choice[], widthMHz: fixed.widthMHz }
+      return {
+        ap,
+        fixed,
+        candidates: [] as Choice[],
+        widthMHz: fixed.widthMHz,
+        widthFixed: true,
+      }
     }
     const widthMHz = radio.channelWidthMHz ?? autoWidth
     return {
@@ -487,6 +510,7 @@ function planAtWidth(
       fixed: undefined,
       candidates: candidateChoices(region, band, widthMHz, allowDfs),
       widthMHz,
+      widthFixed: radio.channelWidthMHz !== undefined,
     }
   })
   // A radio whose width has no channel here can't be planned; leave it out.
@@ -543,6 +567,7 @@ function planAtWidth(
         (c) => c.channel === choice.channel && c.dfs,
       ),
       fixed: e.fixed !== undefined,
+      widthFixed: e.widthFixed,
       hears,
       clashesWith: kept
         .filter(

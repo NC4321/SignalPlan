@@ -100,7 +100,7 @@ export function radioReason(
       `overlaps the fainter ${listNames(weakShared.map((n) => network(n.id)))}`,
     )
   }
-  if (band.choosesWidth && r.widthMHz < band.usualWidthMHz) {
+  if (!r.widthFixed && r.widthMHz < band.usualWidthMHz) {
     parts.push(`narrowed to ${r.widthMHz} MHz`)
   }
   return `${parts.join('; ')}.`
@@ -113,17 +113,19 @@ export function bandSummary(plan: Plan, band: BandChannelPlan): string[] {
   const label = BAND_LABELS[band.band]
   if (band.clashes === 0) {
     lines.push(
-      band.radios.length <= 1
-        ? `One access point on ${label}.`
-        : band.radios.every((r) => r.hears.length === 0)
-          ? `No access point hears another on ${label}; channels are still spread to cut interference.`
-          : `No access points that hear each other share a channel on ${label}.`,
+      band.radios.length === 0
+        ? `No access point to plan on ${label}.`
+        : band.radios.length === 1
+          ? `One access point on ${label}.`
+          : band.radios.every((r) => r.hears.length === 0)
+            ? `No access point hears another on ${label}; channels are still spread to cut interference.`
+            : `No access points that hear each other share a channel on ${label}.`,
     )
   } else {
     lines.push(
       `No plan keeps them all apart on ${label}: ${
         band.clashes === 1 ? '1 clash is' : `${band.clashes} clashes are`
-      } left, the fewest possible.`,
+      } left${band.exact ? ', the fewest possible' : ''}.`,
     )
   }
   if (band.choosesWidth && band.autoWidthMHz < band.usualWidthMHz) {

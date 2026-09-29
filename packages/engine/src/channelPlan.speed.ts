@@ -56,6 +56,8 @@ describe('channel planner speed', () => {
           `${name}, DFS ${allowDfs ? 'on' : 'off'}: ${ms.toFixed(0)} ms (budget ${BUDGET_MS} ms, CI limit ${BUDGET_MS * CI_MARGIN} ms); exact on ${plans.filter((p) => p.exact).length} of ${plans.length} bands`,
         )
         expect(plans).toHaveLength(3)
+        // Up to this size the search finishes, so its plans are the best.
+        expect(plans.every((p) => p.exact)).toBe(true)
         expect(ms).toBeLessThan(BUDGET_MS * CI_MARGIN)
       })
     }
