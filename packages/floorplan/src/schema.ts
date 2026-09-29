@@ -291,6 +291,11 @@ export const planSchema = z.object({
     .optional(),
   /** Neighbours' networks, as background interference (D67). Omitted means none. */
   neighbourNetworks: z.array(neighbourNetworkSchema).optional(),
+  /**
+   * BSSIDs marked "not mine" when importing readings (D72), so later imports
+   * skip them without asking. Omitted means none.
+   */
+  ignoredBssids: z.array(bssidSchema).min(1).optional(),
 })
 
 export type WallMaterial = z.infer<typeof wallMaterialSchema>

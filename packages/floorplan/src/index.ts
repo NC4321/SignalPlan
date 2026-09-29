@@ -33,6 +33,7 @@ export {
   deleteSurveySpot,
   dropOrphanReadings,
   findSurveySpot,
+  forgetIgnoredBssids,
   moveSurveySpot,
   NEW_READING_DBM,
   parseBssids,
@@ -43,6 +44,23 @@ export {
   strongestReading,
   surveySpotName,
 } from './survey.ts'
+export {
+  applyImport,
+  bandOfFrequency,
+  bssidOwners,
+  MAX_IMPORT_ROWS,
+  meanPowerDbm,
+  parseReadings,
+  prepareImport,
+  type BssidChoice,
+  type ImportSummary,
+  type PreparedImport,
+  type PrepareResult,
+  type ReadingRow,
+  type ReadingsResult,
+  type RowTarget,
+  type UnknownBssid,
+} from './surveyImport.ts'
 export {
   checkStructure,
   loadPlan,

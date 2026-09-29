@@ -16,6 +16,7 @@ import {
 import {
   addNeighbourNetwork,
   addSurveyReading,
+  forgetIgnoredBssids,
   bssidOwner,
   deleteSurveyReading,
   parseBssids,
@@ -124,8 +125,11 @@ import {
   type CoverageGoal,
 } from './optimizer.ts'
 import { useOptimizer } from './optimizerContext.ts'
+import { useSurveyImport } from './surveyImportContext.ts'
 
 const MODEL_URL = 'https://github.com/NC4321/SignalPlan/blob/main/docs/MODEL.md'
+const FLOORPLAN_IMPORT_URL =
+  'https://github.com/NC4321/SignalPlan/blob/main/docs/FLOORPLAN.md#importing-survey-readings'
 
 export function TopBar({
   panelOpen,
@@ -2578,6 +2582,8 @@ function ReadingHint() {
 function SurveyList() {
   const store = useEditorStore()
   const floors = useEditor((s) => s.plan.floors)
+  const ignored = useEditor((s) => s.plan.ignoredBssids?.length ?? 0)
+  const { chooseReadingsFile } = useSurveyImport()
   const stack = stackedFloors(floors).reverse()
   const withSpots = stack.filter((f) => (f.surveySpots ?? []).length > 0)
   return (
@@ -2608,6 +2614,39 @@ function SurveyList() {
           </ul>
         </div>
       ))}
+      <button
+        type="button"
+        className="add-reading"
+        onClick={chooseReadingsFile}
+      >
+        Import readings…
+      </button>
+      <p className="hint">
+        From a CSV or JSON file with a BSSID and dBm (or RSSI) column, and a
+        spot or x and y in metres for each row.{' '}
+        <a href={FLOORPLAN_IMPORT_URL}>The file format</a>
+      </p>
+      {ignored > 0 && (
+        <p className="hint">
+          {ignored === 1 ? '1 BSSID is' : `${ignored} BSSIDs are`} marked not
+          mine, so imports skip {ignored === 1 ? 'it' : 'them'}.{' '}
+          <button
+            type="button"
+            className="link-button"
+            onClick={() =>
+              store
+                .getState()
+                .edit(
+                  'Forget BSSIDs marked not mine',
+                  (plan) => void forgetIgnoredBssids(plan),
+                  { keepOptimizer: true },
+                )
+            }
+          >
+            Forget {ignored === 1 ? 'it' : 'them'}
+          </button>
+        </p>
+      )}
     </>
   )
 }
@@ -2622,6 +2661,7 @@ function SurveySpotSection({ spot }: { spot: SurveySpot }) {
   const store = useEditorStore()
   const units = useEditor((s) => s.units)
   const plan = useEditor((s) => s.plan)
+  const { chooseReadingsFile } = useSurveyImport()
   const name = surveySpotName(spot.id)
   // Readings don't change coverage, so a suggestion stays (D71).
   const edit = (label: string, change: (plan: Draft<Plan>) => void) =>
@@ -2668,6 +2708,13 @@ function SurveySpotSection({ spot }: { spot: SurveySpot }) {
         }
       >
         Add a reading
+      </button>
+      <button
+        type="button"
+        className="add-reading"
+        onClick={chooseReadingsFile}
+      >
+        Import readings into {name}…
       </button>
       <TextField
         label="Note"

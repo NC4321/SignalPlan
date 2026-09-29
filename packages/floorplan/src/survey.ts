@@ -288,5 +288,18 @@ export function setRadioBssids(
   }
   if (bssids.length === 0) delete radio.bssids
   else radio.bssids = [...bssids]
+  // A BSSID typed onto a radio is yours after all (D72).
+  if (plan.ignoredBssids?.some((b) => bssids.includes(b))) {
+    const kept = plan.ignoredBssids.filter((b) => !bssids.includes(b))
+    if (kept.length === 0) delete plan.ignoredBssids
+    else plan.ignoredBssids = kept
+  }
+  return true
+}
+
+/** Forgets every BSSID marked not mine, so imports ask about them again. */
+export function forgetIgnoredBssids(plan: Plan): boolean {
+  if (!plan.ignoredBssids) return false
+  delete plan.ignoredBssids
   return true
 }
