@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ### Added
 
+- Channel planner: with nothing selected, the Channels section has a Plan channels button. It suggests a channel for every radio left on Auto, on every band at once, so access points that hear each other (at 802.11's clear-channel-assessment level, walls and floors included) don't share one, and steers clear of strong neighbours' networks. Radios whose width is on Auto keep the band's usual width unless a narrower one is needed to keep them apart. It says when no plan keeps them all apart, and when allowing DFS would help. Each radio gets a one-line reason, the map previews the plan, Apply sets it as one undo step and Dismiss drops it, as does any change to the plan (D68).
+
 - Neighbours' networks: with nothing selected, the panel has a Neighbours' networks section below Channels. Each network next door gets a band, width, channel, a rough signal in dBm and an optional name, with a hint on reading them from a Wi-Fi analyser app. The Interference view counts each at that strength everywhere in the home, on radios with a channel set, and its legend says how many count. A new network starts at the band's usual width with no channel, and isn't counted until one is picked. Each add, change and removal can be undone. Plans get the optional `neighbourNetworks` field (D67).
 
 - A more polished README: a feature gallery with three new demo GIFs (placement optimizer, 3D view, overlap and roaming), features grouped by task, a summary of the sources and validation behind the model, and the shipped releases. It only names features that exist. `scripts/record-demo.mjs` now records any of the four clips by name (D65).

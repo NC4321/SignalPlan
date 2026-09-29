@@ -74,6 +74,7 @@ import {
   type MapKind,
   type Swatch,
 } from '../mapView.ts'
+import { bandSummary, channelLabel, radioReason } from './channelPlan.ts'
 import { zoomAt } from './camera.ts'
 import { regionPlace } from './region.ts'
 import { BAND_LABELS, settledAnnouncement } from './coverageText.ts'
@@ -1527,7 +1528,101 @@ function RegionFields() {
         before using one and move off it if it hears any.
       </p>
       <ChannelIssueList />
+      <ChannelPlanSection />
     </>
+  )
+}
+
+/**
+ * The channel planner (D68): a button that suggests channels for every band,
+ * then the suggestion band by band with a reason per radio, and Apply or
+ * Dismiss. The map shows the plan with it applied while it waits.
+ */
+function ChannelPlanSection() {
+  const store = useEditorStore()
+  const plan = useEditor((s) => s.plan)
+  const suggestion = useEditor((s) => s.channelPlan)
+  const primary = useRef<HTMLButtonElement>(null)
+  const focusInside = useRef(false)
+  useEffect(() => {
+    const active = document.activeElement
+    if (focusInside.current && (!active || active === document.body)) {
+      primary.current?.focus()
+    }
+  }, [suggestion])
+  const name = (id: string) =>
+    plan.accessPoints.find((ap) => ap.id === id)?.name ?? id
+  return (
+    <div
+      className="channel-plan"
+      onFocus={() => (focusInside.current = true)}
+      onBlur={() => (focusInside.current = false)}
+    >
+      {!suggestion ? (
+        <>
+          <div className="actions">
+            <button
+              ref={primary}
+              type="button"
+              disabled={plan.accessPoints.length === 0}
+              onClick={() => store.getState().planChannels()}
+            >
+              Plan channels
+            </button>
+          </div>
+          <p className="hint">
+            {plan.accessPoints.length === 0
+              ? 'Add an access point first.'
+              : 'Suggests a channel and width for each radio left on Auto, so access points that hear each other don’t share one.'}
+          </p>
+        </>
+      ) : (
+        <>
+          {suggestion.map((band) => (
+            <section
+              key={band.band}
+              className="channel-plan-band"
+              aria-label={`${BAND_LABELS[band.band]} channel plan`}
+            >
+              <h4>{BAND_LABELS[band.band]}</h4>
+              {bandSummary(plan, band).map((line) => (
+                <p key={line} className="hint">
+                  {line}
+                </p>
+              ))}
+              <ul className="channel-plan-radios">
+                {band.radios.map((r) => (
+                  <li key={r.accessPointId}>
+                    <strong>{name(r.accessPointId)}</strong>:{' '}
+                    {channelLabel(band.band, r)}
+                    <span className="field-note">
+                      {' '}
+                      {radioReason(plan, band, r)}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ))}
+          <div className="actions">
+            <button
+              ref={primary}
+              type="button"
+              className="primary"
+              onClick={() => store.getState().applyChannelPlan()}
+            >
+              Apply
+            </button>
+            <button
+              type="button"
+              onClick={() => store.getState().dismissChannelPlan()}
+            >
+              Dismiss
+            </button>
+          </div>
+        </>
+      )}
+    </div>
   )
 }
 

@@ -151,3 +151,66 @@ test.describe('in a German browser', () => {
     await expect(region(page)).toHaveValue('EU')
   })
 })
+
+test.describe('channel planner (D68)', () => {
+  test.use({ locale: 'en-US' })
+
+  test('suggests channels with reasons, applies as one undo step', async ({
+    page,
+  }) => {
+    await openEditor(page)
+    // A second access point beside the sample's router.
+    await page.keyboard.press('a')
+    await clickPlan(page, 3, 2)
+    await page.keyboard.press('Escape')
+    await page.keyboard.press('Escape')
+    await page
+      .getByLabel('Show', { exact: true })
+      .selectOption({ label: 'Interference' })
+    await expect(panel(page).locator('.legend-note')).toContainText(
+      '2 access points have their channels on Auto',
+    )
+
+    await panel(page).getByRole('button', { name: 'Plan channels' }).click()
+    const five = panel(page).getByRole('region', {
+      name: '5 GHz channel plan',
+    })
+    await expect(five).toContainText(
+      'No access points that hear each other share a channel on 5 GHz.',
+    )
+    await expect(five.getByRole('listitem')).toHaveCount(2)
+    await expect(five.getByRole('listitem').first()).toContainText(
+      'which it hears.',
+    )
+    await expect(
+      panel(page).getByRole('region', { name: '2.4 GHz channel plan' }),
+    ).toBeVisible()
+    // The map previews the plan: no radio is on Auto any more.
+    await expect(panel(page).locator('.legend-note')).not.toContainText(
+      'on Auto',
+    )
+
+    await panel(page).getByRole('button', { name: 'Apply' }).click()
+    await expect(five).toBeHidden()
+    await panel(page)
+      .getByRole('button', { name: 'Wi-Fi 6E router', exact: true })
+      .click()
+    await expect(panel(page).getByLabel('5 GHz channel')).not.toHaveValue('')
+    await page.getByRole('button', { name: 'Undo' }).click()
+    await expect(panel(page).getByLabel('5 GHz channel')).toHaveValue('')
+  })
+
+  test('dismisses, and any change drops the suggestion', async ({ page }) => {
+    await openEditor(page)
+    const plan = panel(page).getByRole('button', { name: 'Plan channels' })
+    await plan.click()
+    await panel(page).getByRole('button', { name: 'Dismiss' }).click()
+    await expect(plan).toBeVisible()
+    await plan.click()
+    await dfs(page).check()
+    await expect(plan).toBeVisible()
+    await expect(page.locator('.status-bar')).toContainText(
+      'Channel plan dismissed: the plan changed.',
+    )
+  })
+})

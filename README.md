@@ -58,6 +58,7 @@ Free · Runs in your browser · No account · Plans stay on your device
 - **Channels by region** (United States or European Union), with an option for 5 GHz DFS channels.
 - **Overlap and Roaming views**, with defaults taken from Apple's roaming rules for iPhone and iPad.
 - **Interference view**: signal to interference and noise (SINR) in each spot, banded by the Wi-Fi rate it allows, so you can see where access points on the same or overlapping channels get in each other's way, with your neighbours' networks typed in as background interference.
+- **Channel planner** that suggests a channel and width for every radio, so access points that hear each other don't share one, with a reason for each.
 
 ### Plan the whole home
 
@@ -99,7 +100,7 @@ Every design choice and its reasoning is recorded in the [decision log](docs/DEC
 | [v0.2.0](https://github.com/NC4321/SignalPlan/releases/tag/v0.2.0) | Smart placement | Placement optimizer, several access points, "How many do I need?", locking        |
 | [v0.1.0](https://github.com/NC4321/SignalPlan/releases/tag/v0.1.0) | Single floor    | Walls to scale, doors and windows, tracing, heatmap, coverage summary, PNG export |
 
-Channels by region, channel and width per radio, the Overlap and Roaming views, and the Interference view are on `main` and live on the site, ahead of the next release. See the [changelog](CHANGELOG.md) for details and the [milestones](https://github.com/NC4321/SignalPlan/milestones) for what's next.
+Channels by region, channel and width per radio, the Overlap and Roaming views, the Interference view, neighbours' networks and the channel planner are on `main` and live on the site, ahead of the next release. See the [changelog](CHANGELOG.md) for details and the [milestones](https://github.com/NC4321/SignalPlan/milestones) for what's next.
 
 ## For developers
 

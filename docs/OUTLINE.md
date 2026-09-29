@@ -203,8 +203,8 @@ Goal: show where APs compete or hand off, and suggest channels that keep them fr
 - [x] Overlap view: cells where two or more APs are within a set margin of each other
 - [x] Roaming view: the boundary where a device would switch APs, and gaps between them
 - [x] Signal-to-interference view, counting same-channel APs as interference (D66)
-- [ ] Channel plan per band, treated as a graph-colouring problem so neighbouring APs get different channels
-- [ ] Channel width choice per AP and its effect on the plan
+- [x] Channel plan per band, treated as a graph-colouring problem so neighbouring APs get different channels (D68)
+- [x] Channel width choice per AP and its effect on the plan (D63, D68)
 
 **Decide at this phase**
 
