@@ -34,9 +34,9 @@ Free · Runs in your browser · No account · Plans stay on your device
       Stack floors, cut stairwells, and see how signal passes between storeys in an interactive 3D view.
     </td>
     <td width="33%" valign="top">
-      <img src="docs/demo-views.gif" alt="A home with two access points shown as a roaming map with switch lines, then as an overlap map, then as a signal heatmap">
-      <h3>Overlap and roaming</h3>
-      See where access points compete, which one a phone would use, and where it would switch.
+      <img src="docs/demo-views.gif" alt="The upper floor of a home with three access points shown as a roaming map, then an overlap map, then an interference map where 19% of the floor is too noisy; after the channels are planned again with DFS allowed, none of it is">
+      <h3>Roaming, overlap and channels</h3>
+      See which access point a phone would use, where they compete and where they interfere, then plan channels so they don't.
     </td>
   </tr>
 </table>

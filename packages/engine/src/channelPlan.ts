@@ -349,8 +349,25 @@ export interface BandChannelPlan {
    * fewer clashes or a wider width. Undefined otherwise.
    */
   withDfs: { clashes: number; autoWidthMHz: ChannelWidth } | undefined
+  /**
+   * With DFS on, when the planner gave radios DFS channels: what planning
+   * without them would give, and the first way it's worse, in the order
+   * plans are compared (D69). Undefined otherwise.
+   */
+  withoutDfs: WithoutDfs | undefined
   /** Whether the search was complete, so no better plan exists. */
   exact: boolean
+}
+
+export interface WithoutDfs {
+  clashes: number
+  autoWidthMHz: ChannelWidth
+  worse: 'clashes' | 'width' | 'sharedMHz' | 'interference'
+}
+
+/** A band's plan, with its cost, before the DFS comparisons are added. */
+type Attempt = Omit<BandChannelPlan, 'withDfs' | 'withoutDfs'> & {
+  cost: PlanCost
 }
 
 interface Node {
@@ -426,6 +443,7 @@ export function planBandChannels(
     nodeLimit,
   )
   let withDfs: BandChannelPlan['withDfs']
+  let withoutDfs: BandChannelPlan['withoutDfs']
   if (band === '5GHz' && !plan.allowDfs) {
     const dfs = bestPlan(plan, band, nodes, links, true, nodeLimit)
     const better =
@@ -435,7 +453,48 @@ export function planBandChannels(
       withDfs = { clashes: dfs.clashes, autoWidthMHz: dfs.autoWidthMHz }
     }
   }
-  return { ...best, withDfs }
+  if (
+    band === '5GHz' &&
+    plan.allowDfs &&
+    best.radios.some((r) => r.dfs && !r.fixed)
+  ) {
+    const plain = bestPlan(plan, band, nodes, links, false, nodeLimit)
+    // Only a finished search says how good a plan without DFS can be.
+    const worse = plain.exact ? plainIsWorse(best, plain) : undefined
+    if (worse) {
+      withoutDfs = {
+        clashes: plain.clashes,
+        autoWidthMHz: plain.autoWidthMHz,
+        worse,
+      }
+    }
+  }
+  const { cost: _, ...result } = best
+  return { ...result, withDfs, withoutDfs }
+}
+
+/**
+ * How a plan without DFS channels falls short of one with them, in the order
+ * plans are chosen: clashes, then width, then the cost's shared MHz and
+ * interference. Undefined when it doesn't, as after a search that stopped
+ * early.
+ */
+function plainIsWorse(
+  dfs: Attempt,
+  plain: Attempt,
+): WithoutDfs['worse'] | undefined {
+  if (plain.clashes !== dfs.clashes) {
+    return plain.clashes > dfs.clashes ? 'clashes' : undefined
+  }
+  if (plain.autoWidthMHz !== dfs.autoWidthMHz) {
+    return plain.autoWidthMHz < dfs.autoWidthMHz ? 'width' : undefined
+  }
+  const order = compareCost(
+    [0, plain.cost[1], plain.cost[2], 0],
+    [0, dfs.cost[1], dfs.cost[2], 0],
+  )
+  if (order <= 0) return undefined
+  return plain.cost[1] > dfs.cost[1] ? 'sharedMHz' : 'interference'
 }
 
 function bestPlan(
@@ -445,7 +504,7 @@ function bestPlan(
   links: readonly (readonly number[])[],
   allowDfs: boolean,
   nodeLimit: number | undefined,
-): Omit<BandChannelPlan, 'withDfs'> {
+): Attempt {
   const { region } = plan
   const usual = radioTuning({ band }, region).widthMHz
   const choosesWidth = nodes.some(
@@ -458,7 +517,7 @@ function bestPlan(
         .filter((w) => w <= usual)
         .reverse()
     : [usual]
-  let chosen: Omit<BandChannelPlan, 'withDfs'> | undefined
+  let chosen: Attempt | undefined
   for (const width of widths) {
     const attempt = planAtWidth(
       plan,
@@ -487,7 +546,7 @@ function planAtWidth(
   choosesWidth: boolean,
   allowDfs: boolean,
   nodeLimit: number | undefined,
-): Omit<BandChannelPlan, 'withDfs'> {
+): Attempt {
   const { region } = plan
   const entries = nodes.map(({ ap, radio }) => {
     if (radio.channel !== undefined && radio.channelWidthMHz !== undefined) {
@@ -591,6 +650,7 @@ function planAtWidth(
     usualWidthMHz: usual,
     choosesWidth,
     exact: result.exact,
+    cost: result.cost,
   }
 }
 

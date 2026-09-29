@@ -1,3 +1,4 @@
+import { fileURLToPath } from 'node:url'
 import { expect, test, type Page } from '@playwright/test'
 import { clickPlan, openEditor } from './helpers.ts'
 
@@ -198,6 +199,50 @@ test.describe('channel planner (D68)', () => {
     await expect(panel(page).getByLabel('5 GHz channel')).not.toHaveValue('')
     await page.getByRole('button', { name: 'Undo' }).click()
     await expect(panel(page).getByLabel('5 GHz channel')).toHaveValue('')
+  })
+
+  test('explains its plan for the three-AP home (exit gate, D69)', async ({
+    page,
+  }) => {
+    await openEditor(page)
+    await page
+      .getByLabel('Open a plan file')
+      .setInputFiles(
+        fileURLToPath(
+          new URL(
+            '../../../packages/floorplan/fixtures/three-ap-home.json',
+            import.meta.url,
+          ),
+        ),
+      )
+    await expect(
+      panel(page).getByRole('heading', { level: 2 }).first(),
+    ).toHaveText('Three-AP two-storey home')
+    const plan = panel(page).getByRole('button', { name: 'Plan channels' })
+    const five = panel(page).getByRole('region', {
+      name: '5 GHz channel plan',
+    })
+
+    // Without DFS, 80 MHz has only two channels for three access points.
+    await plan.click()
+    await expect(five).toContainText(
+      'No access points that hear each other share a channel on 5 GHz.',
+    )
+    await expect(five).toContainText('Narrowed from 80 to 40 MHz')
+    await expect(five).toContainText('Allowing DFS channels would keep 80 MHz.')
+    await panel(page).getByRole('button', { name: 'Dismiss' }).click()
+
+    await dfs(page).check()
+    await plan.click()
+    await expect(five).toContainText(
+      'Bedroom 2 mesh point and Upstairs mesh point are on DFS channels: without DFS channels, the plan would narrow to 40 MHz.',
+    )
+    const radios = five.getByRole('listitem')
+    await expect(radios).toHaveText([
+      /^Wi-Fi 6E router: 155 \(5775 MHz\) at 80 MHz Apart from Bedroom 2 mesh point and Upstairs mesh point, which it hears; clear of Next door\.$/,
+      /^Bedroom 2 mesh point: 58 \(5290 MHz, DFS\) at 80 MHz Apart from Wi-Fi 6E router and Upstairs mesh point, which it hears; clear of Next door\.$/,
+      /^Upstairs mesh point: 106 \(5530 MHz, DFS\) at 80 MHz Apart from Wi-Fi 6E router and Bedroom 2 mesh point, which it hears; clear of Next door\.$/,
+    ])
   })
 
   test('dismisses, and any change drops the suggestion', async ({ page }) => {

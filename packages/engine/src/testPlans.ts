@@ -11,6 +11,7 @@ import {
 import apartment from '@signalplan/floorplan/fixtures/apartment.json' with { type: 'json' }
 import lShapedHouse from '@signalplan/floorplan/fixtures/l-shaped-house.json' with { type: 'json' }
 import sampleHome from '@signalplan/floorplan/fixtures/sample-home.json' with { type: 'json' }
+import threeApJson from '@signalplan/floorplan/fixtures/three-ap-home.json' with { type: 'json' }
 import twoStoreyJson from '@signalplan/floorplan/fixtures/two-storey-home.json' with { type: 'json' }
 import { BAND_PROFILES } from './bands.ts'
 import { candidatePositions, type Scorer } from './placement.ts'
@@ -43,6 +44,18 @@ export function gateHomes(): { name: string; plan: Plan }[] {
 export function twoStoreyHome(): Plan {
   const result = parsePlan(twoStoreyJson)
   if (!result.ok) throw new Error('two-storey-home.json is invalid')
+  return result.plan
+}
+
+/**
+ * The Phase 6 exit gate's home (D69): the two-storey home with the router
+ * downstairs, a mesh point in the far downstairs bedroom and one upstairs,
+ * all three hearing each other on every band, in the US, with a faint
+ * neighbour's network next door on 5 GHz.
+ */
+export function threeApHome(): Plan {
+  const result = parsePlan(threeApJson)
+  if (!result.ok) throw new Error('three-ap-home.json is invalid')
   return result.plan
 }
 

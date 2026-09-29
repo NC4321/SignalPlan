@@ -367,6 +367,97 @@ describe('planBandChannels (D68)', () => {
     expect(result.autoWidthMHz).toBe(80)
     expect(result.radios.filter((r) => r.dfs)).toHaveLength(1)
     expect(result.withDfs).toBeUndefined()
+    // Without DFS it would have had to narrow (D69).
+    expect(result.withoutDfs).toEqual({
+      clashes: 0,
+      autoWidthMHz: 40,
+      worse: 'width',
+    })
+  })
+
+  it('says nothing about DFS when the plan uses none (D69)', () => {
+    const two = home(three.slice(0, 2), { allowDfs: true })
+    const result = planBandChannels(two, '5GHz')!
+    expect(result.radios.some((r) => r.dfs)).toBe(false)
+    expect(result.withoutDfs).toBeUndefined()
+    expect(planBandChannels(home(three), '5GHz')!.withoutDfs).toBeUndefined()
+  })
+
+  it('says there’d be more interference without DFS (D69)', () => {
+    // Two at 80 MHz: without DFS they take 42 and 155, one on a faint
+    // network's channel; with DFS both avoid it.
+    const plan = home(three.slice(0, 2), {
+      allowDfs: true,
+      neighbourNetworks: [
+        {
+          id: 'n',
+          band: '5GHz',
+          channel: 42,
+          channelWidthMHz: 80,
+          strengthDbm: -80,
+        },
+      ],
+    })
+    for (const ap of plan.accessPoints) ap.radios[1]!.channelWidthMHz = 80
+    const result = planBandChannels(plan, '5GHz')!
+    expect(result.radios.some((r) => r.networks[0]!.overlaps)).toBe(false)
+    expect(result.withoutDfs).toEqual({
+      clashes: 0,
+      autoWidthMHz: 80,
+      worse: 'interference',
+    })
+  })
+
+  it('says clashes would share more spectrum without DFS (D69)', () => {
+    // One radio at 80 MHz, and every 80 MHz channel meets a strong network:
+    // 40 MHz of 42, all of 155, but only 20 MHz of each DFS channel. So one
+    // clash either way, and DFS shares less.
+    const strong = (channel: number, widthMHz: 20 | 40 | 80) => ({
+      id: `n${channel}`,
+      band: '5GHz' as const,
+      channel,
+      channelWidthMHz: widthMHz,
+      strengthDbm: -50,
+    })
+    const plan = home(three.slice(0, 1), {
+      allowDfs: true,
+      neighbourNetworks: [
+        strong(38, 40),
+        strong(155, 80),
+        ...[52, 100, 116, 132].map((c) => strong(c, 20)),
+      ],
+    })
+    plan.accessPoints[0]!.radios[1]!.channelWidthMHz = 80
+    const result = planBandChannels(plan, '5GHz')!
+    expect(result.clashes).toBe(1)
+    expect(result.radios[0]!.dfs).toBe(true)
+    expect(result.withoutDfs).toEqual({
+      clashes: 1,
+      autoWidthMHz: 80,
+      worse: 'sharedMHz',
+    })
+  })
+
+  it('says nothing about DFS when the search without it stops early (D69)', () => {
+    const plan = home(three, { allowDfs: true })
+    for (const ap of plan.accessPoints) ap.radios[1]!.channelWidthMHz = 80
+    // One choice: the search with DFS gives its greedy plan, and so does the
+    // one without, which can't be trusted to be the best.
+    const result = planBandChannels(plan, '5GHz', 1)!
+    expect(result.exact).toBe(false)
+    expect(result.withoutDfs).toBeUndefined()
+  })
+
+  it('says a hand-set width would clash without DFS (D69)', () => {
+    const plan = home(three, { allowDfs: true })
+    for (const ap of plan.accessPoints) ap.radios[1]!.channelWidthMHz = 80
+    const result = planBandChannels(plan, '5GHz')!
+    expect(result.clashes).toBe(0)
+    expect(result.withoutDfs).toEqual({
+      clashes: 1,
+      autoWidthMHz: 80,
+      worse: 'clashes',
+    })
   })
 
   it('leaves a clash on 2.4 GHz for four access points in the US, not in the EU', () => {
