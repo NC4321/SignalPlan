@@ -342,6 +342,12 @@ function fitValues(
   ]
   const freeWalls = new Set(plan.walls)
   const freeFloors = new Set(plan.floors)
+  // Each round's values are judged with their own winners, and the best
+  // round is kept, in case the winners never settle.
+  const squaredError = (v: ModelValues) =>
+    paths.reduce((sum, p) => sum + (predictPath(p, v) - p.measuredDbm) ** 2, 0)
+  let best = values
+  let bestError = Number.POSITIVE_INFINITY
   let key = winnersKey(paths, values.wallLossDb)
   for (let round = 0; round < 5; round++) {
     const rows: number[][] = []
@@ -381,11 +387,20 @@ function fitValues(
     plan.floors.forEach(
       (m, i) => (values.floorScale[m] = x[2 + plan.walls.length + i]!),
     )
+    const error = squaredError(values)
+    if (error < bestError) {
+      bestError = error
+      best = {
+        ...values,
+        wallLossDb: { ...values.wallLossDb },
+        floorScale: { ...values.floorScale },
+      }
+    }
     const next = winnersKey(paths, values.wallLossDb)
     if (next === key) break
     key = next
   }
-  return values
+  return best
 }
 
 /** A fitted number next to its default and limits. */
@@ -430,6 +445,11 @@ export interface HeldOutReading {
   beforeDb: number
   /** The same by a fit that didn't use this reading's spot. */
   afterDb: number
+  /**
+   * The same fit without its device offset: what the error report shows
+   * once only the home's values are applied.
+   */
+  afterWithoutOffsetDb: number
 }
 
 /** Parts of the home that need spots before a fit is offered (D75). */
@@ -507,9 +527,16 @@ export interface BandFit {
   floors: MaterialFit<FloorMaterial>[]
   /** The fitted values, ready to save to the plan. */
   calibration: BandCalibration
-  /** Held out by spot: each spot predicted by a fit without it. */
+  /**
+   * Held out by spot: each spot predicted by a fit without it. Before is
+   * the defaults with no offset; after includes the fitted device offset,
+   * which judges the fit; `afterWithoutOffset` leaves it out, as the saved
+   * calibration does. n and the offset trade off, so that one can be worse
+   * than before.
+   */
   before: ErrorStats
   after: ErrorStats
+  afterWithoutOffset: ErrorStats
   heldOut: HeldOutReading[]
 }
 
@@ -563,6 +590,8 @@ export function calibrateBand(plan: Plan, band: Band): BandCalibrationResult {
         apId: path.apId,
         beforeDb: predictPath(path, defaults) - path.measuredDbm,
         afterDb: predictPath(path, restValues) - path.measuredDbm,
+        afterWithoutOffsetDb:
+          predictPath(path, { ...restValues, offsetDb: 0 }) - path.measuredDbm,
       })
     }
   }
@@ -650,6 +679,7 @@ export function calibrateBand(plan: Plan, band: Band): BandCalibrationResult {
       calibration,
       before: stats(heldOut.map((r) => r.beforeDb)),
       after: stats(heldOut.map((r) => r.afterDb)),
+      afterWithoutOffset: stats(heldOut.map((r) => r.afterWithoutOffsetDb)),
       heldOut,
     },
   }

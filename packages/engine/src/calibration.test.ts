@@ -237,6 +237,11 @@ describe('calibrateBand', () => {
     expect(wall('wood').valueDb).toBeCloseTo(3, 5)
     expect(fit!.walls.map((w) => w.material)).toEqual(['drywall', 'wood'])
     expect(fit!.after.rmsDb).toBeLessThan(1e-4)
+    // Without its offset, the fit is 5 dB too hopeful at every reading:
+    // the offset belongs to the phone and isn't saved.
+    expect(fit!.afterWithoutOffset.meanDb).toBeCloseTo(5, 4)
+    expect(fit!.afterWithoutOffset.rmsDb).toBeCloseTo(5, 4)
+    expect(fit!.calibration).not.toHaveProperty('offsetDb')
     // Before, the defaults are off by the offset and the materials.
     expect(fit!.before.rmsDb).toBeGreaterThan(3)
   })
@@ -314,6 +319,32 @@ describe('calibrateBand', () => {
       9,
     )
     expect(Math.abs(fit!.exponent.value - 2.1)).toBeLessThan(0.2)
+  })
+
+  it('refits when the lossiest material at a shared crossing changes', () => {
+    // A spot whose path from AP 1 at (5, 4) passes exactly through the edge
+    // of a door, at (4, 3.6), where the drywall wall and the wood door meet.
+    // By default drywall is lossier there; in truth wood is.
+    const plan = surveyedBigHouse()
+    const floor = plan.floors[0]!
+    const edge = { ...floor.surveySpots![0]!, id: 'edge', x: 2, y: 2.8 }
+    const surveyed: Plan = {
+      ...plan,
+      floors: [{ ...floor, surveySpots: [...floor.surveySpots!, edge] }],
+    }
+    const path = surveyPaths(surveyed, '5GHz').find(
+      (p) => p.spotId === 'edge' && p.apId === plan.accessPoints[0]!.id,
+    )!
+    expect(path.crossings.some((c) => c.length === 2)).toBe(true)
+    const truth: Calibration = {
+      '5GHz': { pathLossExponent: 2.1, wallLossDb: { drywall: 2, wood: 5 } },
+    }
+    const { fit } = calibrateBand(simulate(surveyed, truth, -3, 0), '5GHz')
+    expect(fit!.exponent.value).toBeCloseTo(2.1, 6)
+    const wall = (m: string) => fit!.walls.find((w) => w.material === m)!
+    expect(wall('drywall').valueDb).toBeCloseTo(2, 5)
+    expect(wall('wood').valueDb).toBeCloseTo(5, 5)
+    expect(fit!.after.rmsDb).toBeLessThan(1e-4)
   })
 
   it('stops at a limit and says so', () => {
