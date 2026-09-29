@@ -11,7 +11,12 @@ import {
   moveSurveySpotRecipe,
   onlySurveySpots,
 } from './selectTool.ts'
-import { createEditorStore, ghostFloor, HISTORY_LIMIT } from './store.ts'
+import {
+  createEditorStore,
+  ghostFloor,
+  heatmapFaded,
+  HISTORY_LIMIT,
+} from './store.ts'
 
 function sample(): Plan {
   const result = parsePlan(sampleHome)
@@ -689,5 +694,45 @@ describe('survey spots (D71)', () => {
     )
     store.getState().undo()
     expect(store.getState().plan).toEqual(withReading)
+  })
+})
+
+describe('heatmapFaded (D74)', () => {
+  it('fades with the Survey tool or a spot selected, unless turned off', () => {
+    const store = createEditorStore(sample())
+    const faded = () => heatmapFaded(store.getState())
+    expect(store.getState().fadeHeatmapForSurvey).toBe(true)
+    expect(faded()).toBe(false)
+
+    store.getState().setTool('survey')
+    expect(faded()).toBe(true)
+    store.getState().addSurveySpot({ x: 2, y: 3 })
+    store.getState().setTool('select')
+    // Back on Select, the new spot is still selected.
+    expect(store.getState().selection).toEqual([
+      { kind: 'surveySpot', id: 'spot1' },
+    ])
+    expect(faded()).toBe(true)
+
+    store.getState().setFadeHeatmapForSurvey(false)
+    expect(faded()).toBe(false)
+    store.getState().setFadeHeatmapForSurvey(true)
+
+    store.getState().select([])
+    expect(faded()).toBe(false)
+    const router = store.getState().plan.accessPoints[0]!.id
+    store.getState().select([{ kind: 'accessPoint', id: router }])
+    expect(faded()).toBe(false)
+
+    // Only while the panel shows a survey section, with its checkbox: not
+    // with the Survey tool and an access point selected, nor a mixed selection.
+    store.getState().setTool('survey')
+    store.getState().select([{ kind: 'accessPoint', id: router }])
+    expect(faded()).toBe(false)
+    store.getState().select([
+      { kind: 'surveySpot', id: 'spot1' },
+      { kind: 'accessPoint', id: router },
+    ])
+    expect(faded()).toBe(false)
   })
 })

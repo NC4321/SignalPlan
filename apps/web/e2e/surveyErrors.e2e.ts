@@ -105,3 +105,64 @@ test('pins and the report compare predicted with measured (D73)', async ({
     panel(page).getByRole('heading', { name: 'Spot 1' }),
   ).toBeVisible()
 })
+
+/** The canvas colour at a plan point, in metres. */
+async function planColour(page: Page, x: number, y: number) {
+  const canvas = page.locator('.editor-canvas')
+  const box = (await canvas.boundingBox())!
+  const at = await screenPoint(page, x, y)
+  return canvas.evaluate(
+    (el: HTMLCanvasElement, p) => {
+      const ratio = el.width / el.getBoundingClientRect().width
+      const data = el
+        .getContext('2d')!
+        .getImageData(
+          Math.round(p.x * ratio),
+          Math.round(p.y * ratio),
+          1,
+          1,
+        ).data
+      return [data[0], data[1], data[2]]
+    },
+    { x: at.x - box.x, y: at.y - box.y },
+  )
+}
+
+test('the heatmap fades while surveying, unless turned off (D74)', async ({
+  page,
+}) => {
+  const hex = await page
+    .locator('.editor-canvas')
+    .evaluate((el) => getComputedStyle(el).getPropertyValue('--canvas').trim())
+  const canvas = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16))
+  const away = (rgb: (number | undefined)[]) =>
+    rgb.reduce((total: number, c, i) => total + Math.abs(c! - canvas[i]!), 0)
+
+  // A point in the big room, clear of walls, pins, labels and grid lines.
+  // The heatmap comes from a worker, so wait until it's drawn there.
+  const at = [9.45, 6.45] as const
+  await expect
+    .poll(async () => away(await planColour(page, ...at)))
+    .toBeGreaterThan(60)
+  const full = await planColour(page, ...at)
+
+  // The Survey tool fades it towards the canvas colour behind it.
+  await page.keyboard.press('s')
+  await expect
+    .poll(async () => away(await planColour(page, ...at)))
+    .toBeLessThan(away(full) / 2)
+  const faded = await planColour(page, ...at)
+
+  const fade = panel(page).getByRole('checkbox', {
+    name: 'Fade heatmap behind pins',
+  })
+  await expect(fade).toBeChecked()
+  await fade.uncheck()
+  await expect.poll(() => planColour(page, ...at)).toEqual(full)
+  await fade.check()
+  await expect.poll(() => planColour(page, ...at)).toEqual(faded)
+
+  // Back on Select with nothing selected, it's full strength again.
+  await page.keyboard.press('v')
+  await expect.poll(() => planColour(page, ...at)).toEqual(full)
+})

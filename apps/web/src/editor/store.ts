@@ -112,6 +112,11 @@ export interface EditorState {
    * saved: it resets to on when the page reloads.
    */
   showGhost: boolean
+  /**
+   * Whether the heatmap fades behind survey pins while surveying (D74), so
+   * its purples don't read as the pins'. Not saved: it resets to on.
+   */
+  fadeHeatmapForSurvey: boolean
   tool: Tool
   selection: Selection
   /** Undefined until the canvas has a size to fit the plan into. */
@@ -212,6 +217,7 @@ export interface EditorState {
   setUnits: (units: Units) => void
   setShowHeatmap: (show: boolean) => void
   setShowGhost: (show: boolean) => void
+  setFadeHeatmapForSurvey: (fade: boolean) => void
   setTool: (tool: Tool) => void
   /** Replaces the selection. */
   select: (selection: Selection) => void
@@ -374,6 +380,7 @@ export function createEditorStore(
     units: options.units ?? 'metric',
     showHeatmap: true,
     showGhost: true,
+    fadeHeatmapForSurvey: true,
     tool: 'select',
     selection: [],
     camera: undefined,
@@ -627,6 +634,8 @@ export function createEditorStore(
     setUnits: (units) => set({ units }),
     setShowHeatmap: (showHeatmap) => set({ showHeatmap }),
     setShowGhost: (showGhost) => set({ showGhost }),
+    setFadeHeatmapForSurvey: (fadeHeatmapForSurvey) =>
+      set({ fadeHeatmapForSurvey }),
     setTool: (tool) =>
       set((state) =>
         tool === 'floorOpening' && !canCutFloor(state.plan, state.floorId)
@@ -806,6 +815,19 @@ export const heatmapShown = (
     'plan' | 'floorId' | 'tool' | 'selection' | 'showHeatmap'
   >,
 ) => state.showHeatmap && !tracingHidesHeatmap(state)
+
+/**
+ * Whether the heatmap is drawn faintly so survey pins stand out (D74): while
+ * the panel shows a survey section, with its checkbox to turn this off. That's
+ * the Survey tool with nothing selected, or one survey spot selected.
+ */
+export const heatmapFaded = (
+  state: Pick<EditorState, 'tool' | 'selection' | 'fadeHeatmapForSurvey'>,
+) =>
+  state.fadeHeatmapForSurvey &&
+  (state.selection.length === 0
+    ? state.tool === 'survey'
+    : state.selection.length === 1 && state.selection[0]!.kind === 'surveySpot')
 
 /**
  * The floor drawn faintly under the one on show (D53): the one directly
