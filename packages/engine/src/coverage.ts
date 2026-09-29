@@ -45,6 +45,11 @@ export interface Coverage {
   /** 1 for cells inside the floor's walls, 0 outside (see `floorAreaMask`). */
   floorArea: Uint8Array
   accessPointIds: string[]
+  /**
+   * Each access point's signal in dBm per cell, one grid after another in the
+   * order of `accessPointIds`, for the Overlap view (D64).
+   */
+  sourceDbm: Float32Array
 }
 
 /** Around access points on a floor with no walls yet, the grid reaches this far. */
@@ -166,7 +171,9 @@ export function evaluateCoverage(
     const from = storeyOf.get(ap.floorId)
     return radio && from !== undefined ? [{ ap, radio, from }] : []
   })
+  const sourceDbm = new Float32Array(size * sources.length)
   sources.forEach(({ ap, radio, from }, index) => {
+    const offset = index * size
     const apZ = stack[from]!.floor.elevationM + ap.heightM
     // Walls sorted by direction from the access point (D56).
     const crossing =
@@ -185,6 +192,7 @@ export function evaluateCoverage(
           ? crossingLossDb(crossing, ap.x, ap.y, x, y)
           : indexedWallLoss(sorted!, ap.x, ap.y, x, y)
         const value = signalDbm(ap, radio, x, y, loss, dz)
+        sourceDbm[offset + i] = value
         if (value > dbm[i]!) {
           dbm[i] = value
           strongest[i] = index
@@ -200,5 +208,6 @@ export function evaluateCoverage(
     strongest,
     floorArea: floorAreaMask(floor, grid),
     accessPointIds: sources.map(({ ap }) => ap.id),
+    sourceDbm,
   }
 }

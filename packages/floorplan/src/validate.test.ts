@@ -249,6 +249,18 @@ describe('structural checks', () => {
     expect(issuesOf(parsePlan(plan))[0]?.path).toBe('accessPoints[0].floorId')
   })
 
+  it('keeps the overlap margin and roaming threshold in range (D64)', () => {
+    expect(
+      parsePlan({ ...box(), overlapMarginDb: 8, roamThresholdDbm: -70 }).ok,
+    ).toBe(true)
+    expect(issuesOf(parsePlan({ ...box(), overlapMarginDb: 0 }))[0]?.path).toBe(
+      'overlapMarginDb',
+    )
+    expect(
+      issuesOf(parsePlan({ ...box(), roamThresholdDbm: -95 }))[0]?.path,
+    ).toBe('roamThresholdDbm')
+  })
+
   it('reports duplicate radio bands on one access point', () => {
     const plan = box()
     plan.accessPoints[0]!.radios.push({ band: '5GHz', txPowerDbm: 17 })

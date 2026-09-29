@@ -1,0 +1,85 @@
+import { expect, test, type Page } from '@playwright/test'
+import { openEditor } from './helpers.ts'
+
+const panel = (page: Page) =>
+  page.getByRole('complementary', { name: 'Properties' })
+const show = (page: Page) => page.getByLabel('Show', { exact: true })
+const summary = (page: Page) => page.locator('.status-bar .coverage-status')
+
+test.beforeEach(async ({ page }) => {
+  await openEditor(page)
+})
+
+test('switches between Signal, Overlap and Roaming (D64)', async ({ page }) => {
+  await expect(show(page)).toHaveValue('signal')
+  await expect(
+    panel(page).getByRole('heading', { name: 'Signal quality' }),
+  ).toBeVisible()
+  await expect(summary(page)).toContainText('at Fair or better on 5 GHz')
+
+  await show(page).selectOption({ label: 'Overlap' })
+  await expect(
+    panel(page).getByRole('heading', { name: 'Overlap' }),
+  ).toBeVisible()
+  // The sample has one access point, so nothing competes.
+  await expect(summary(page)).toContainText(
+    '0% of 150 m² has two or more access points competing on 5 GHz.',
+  )
+
+  await show(page).selectOption({ label: 'Roaming' })
+  await expect(
+    panel(page).getByRole('heading', { name: 'Roaming' }),
+  ).toBeVisible()
+  await expect(
+    panel(page).locator('.legend').getByText('Wi-Fi 6E router'),
+  ).toBeVisible()
+  await expect(summary(page)).toContainText('is a gap below -70 dBm on 5 GHz.')
+})
+
+test('changes the roaming threshold as an undoable plan setting', async ({
+  page,
+}) => {
+  await show(page).selectOption({ label: 'Roaming' })
+  await panel(page).getByText('Overlap and roaming').click()
+  const threshold = panel(page).getByLabel('Roaming threshold (dBm)')
+  await expect(threshold).toHaveAttribute('placeholder', '-70 (default)')
+
+  await threshold.fill('-95')
+  await threshold.press('Enter')
+  await expect(panel(page).getByRole('alert')).toContainText(
+    'Use a number from -90 to -50',
+  )
+  await threshold.fill('-80')
+  await threshold.press('Enter')
+  await expect(summary(page)).toContainText('is a gap below -80 dBm')
+
+  await page.getByRole('button', { name: 'Undo' }).click()
+  await expect(summary(page)).toContainText('is a gap below -70 dBm')
+  await expect(threshold).toHaveValue('')
+})
+
+test('exports the map on show', async ({ page }) => {
+  await show(page).selectOption({ label: 'Roaming' })
+  await page.getByText('File', { exact: true }).click()
+  await page.getByRole('button', { name: 'Export image…' }).click()
+  const dialog = page.getByRole('dialog', { name: 'Export image' })
+  await expect(dialog).toContainText('5 GHz roaming map')
+  const [download] = await Promise.all([
+    page.waitForEvent('download'),
+    dialog.getByRole('button', { name: 'Export PNG' }).click(),
+  ])
+  expect(download.suggestedFilename()).toBe(
+    'Sample bungalow - 5 GHz roaming.png',
+  )
+})
+
+test('the 3D view follows the map on show', async ({ page }) => {
+  await show(page).selectOption({ label: 'Overlap' })
+  await page
+    .getByRole('group', { name: 'View' })
+    .locator('label', { hasText: '3D' })
+    .click()
+  await expect(
+    page.getByRole('list', { name: 'Floors in the 3D view' }),
+  ).toContainText('has two or more access points competing')
+})

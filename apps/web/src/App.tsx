@@ -1,3 +1,5 @@
+import { viewSettings } from '@signalplan/engine'
+import { mapData } from './mapView.ts'
 import { adjacentFloorId, type PlanIssue } from '@signalplan/floorplan'
 import { lazy, Suspense, useEffect, useMemo, useState } from 'react'
 import { useEditor, useEditorStore } from './editor/context.ts'
@@ -85,7 +87,25 @@ function App({
   const units = useEditor((s) => s.units)
   const floorsCoverage = useFloorsCoverage(shownPlan, band, view === '3d')
   const shown = broadcasting ? coverage : undefined
-  const summary = useCoverageMessage(shown)
+  // What the heatmap shows, worked out from the coverage (D64).
+  const show = useEditor((s) => s.show)
+  const { overlapMarginDb, roamThresholdDbm } = viewSettings(shownPlan)
+  const settings = useMemo(
+    () => ({ overlapMarginDb, roamThresholdDbm }),
+    [overlapMarginDb, roamThresholdDbm],
+  )
+  const map = useMemo(
+    () => (shown ? mapData(shown, show, settings) : undefined),
+    [shown, show, settings],
+  )
+  const floorMaps = useMemo(
+    () =>
+      new Map(
+        [...floorsCoverage].map(([id, c]) => [id, mapData(c, show, settings)]),
+      ),
+    [floorsCoverage, show, settings],
+  )
+  const summary = useCoverageMessage(map)
   const coverageText =
     suggestion && summary ? `With the suggestion: ${summary}` : summary
 
@@ -180,7 +200,7 @@ function App({
               >
                 <View3D
                   plan={shownPlan}
-                  coverages={floorsCoverage}
+                  maps={floorMaps}
                   hiddenFloors={view3d.hiddenFloors}
                   spreadM={view3d.spreadM}
                   fullWalls={view3d.fullWalls}
@@ -191,7 +211,7 @@ function App({
               </Suspense>
             ) : (
               <>
-                <EditorCanvas coverage={shown} />
+                <EditorCanvas coverage={shown} map={map} />
                 {tool === 'calibrate' && <CalibrationBar />}
                 <FloorStack />
               </>

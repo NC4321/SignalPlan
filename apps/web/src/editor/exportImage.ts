@@ -1,4 +1,8 @@
-import { evaluateCoverage, type Coverage } from '@signalplan/engine'
+import {
+  evaluateCoverage,
+  viewSettings,
+  type Coverage,
+} from '@signalplan/engine'
 import {
   materialSegments,
   openingSpans,
@@ -6,13 +10,16 @@ import {
   type Plan,
 } from '@signalplan/floorplan'
 import {
-  cssColour,
-  DEFAULT_TARGET,
-  QUALITY_BANDS,
-  targetBand,
-} from '../quality.ts'
+  MAP_LABELS,
+  mapData,
+  mapLegend,
+  mapMessage,
+  rgbCss,
+  type MapKind,
+} from '../mapView.ts'
+import { DEFAULT_TARGET, targetBand } from '../quality.ts'
 import { fitCamera, type Bounds } from './camera.ts'
-import { BAND_LABELS, coverageMessage } from './coverageText.ts'
+import { BAND_LABELS } from './coverageText.ts'
 import { PALETTES, type Theme } from './palettes.ts'
 import { safeBaseName } from './persistence.ts'
 import { draw, heatmapBitmap } from './render.ts'
@@ -49,14 +56,21 @@ export interface ExportOptions {
   plan: Plan
   floorId: string
   band: Band
+  /** The map on show (D64). */
+  show: MapKind
   units: Units
   theme: Theme
   size: ExportSize
 }
 
-/** `Sample bungalow - 5 GHz.png` */
-export function exportFileName(plan: Plan, band: Band): string {
-  return `${safeBaseName(plan.name)} - ${BAND_LABELS[band]}.png`
+/** `Sample bungalow - 5 GHz.png`, or `… - 5 GHz roaming.png` for another map. */
+export function exportFileName(
+  plan: Plan,
+  band: Band,
+  show: MapKind = 'signal',
+): string {
+  const map = show === 'signal' ? '' : ` ${MAP_LABELS[show].toLowerCase()}`
+  return `${safeBaseName(plan.name)} - ${BAND_LABELS[band]}${map}.png`
 }
 
 const NICE_METRES = [0.1, 0.2, 0.5, 1, 2, 5, 10, 20, 50, 100, 200, 500]
@@ -144,7 +158,7 @@ export function renderExport(
   context: CanvasRenderingContext2D,
   options: ExportOptions,
 ) {
-  const { plan, floorId, band, units, theme } = options
+  const { plan, floorId, band, show, units, theme } = options
   const size = EXPORT_SIZES.find((s) => s.id === options.size)!
   const palette = PALETTES[theme]
   const colour = (name: string) => palette[name] ?? palette['--text']!
@@ -171,7 +185,7 @@ export function renderExport(
   context.fillStyle = colour('--muted')
   context.font = `14px ${FONT}`
   context.fillText(
-    `${floor.name} · Predicted ${BAND_LABELS[band]} coverage`,
+    `${floor.name} · Predicted ${BAND_LABELS[band]} ${show === 'signal' ? 'coverage' : MAP_LABELS[show].toLowerCase()}`,
     MARGIN,
     MARGIN + 46,
   )
@@ -179,6 +193,8 @@ export function renderExport(
   // The plan.
   const coverage = evaluateCoverage(plan, floorId, band)
   const broadcasting = coverage.accessPointIds.length > 0
+  const settings = viewSettings(plan)
+  const map = mapData(coverage, show, settings)
   const area = PLAN_AREA
   const bounds = planBounds(plan, floorId, coverage)
   const camera = fitCamera(bounds, area.width, area.height, 8)
@@ -194,7 +210,7 @@ export function renderExport(
     units,
     grid: false,
     coverage: broadcasting ? coverage : undefined,
-    heatmap: broadcasting ? heatmapBitmap(coverage) : undefined,
+    heatmap: broadcasting ? heatmapBitmap(map) : undefined,
     segments: materialSegments(floor),
     accessPoints: plan.accessPoints.filter((ap) => ap.floorId === floorId),
     selection: [],
@@ -230,27 +246,36 @@ export function renderExport(
   context.textBaseline = 'middle'
   context.fillStyle = colour('--text')
   context.font = `600 15px ${FONT}`
-  context.fillText('Signal quality', x, y)
+  const names = coverage.accessPointIds.map(
+    (id) => plan.accessPoints.find((ap) => ap.id === id)?.name ?? id,
+  )
+  const legend = mapLegend(show, settings, names)
+  context.fillText(legend.title, x, y)
   y += 30
-  const rows = [
-    ...QUALITY_BANDS.map((q, i) => ({
-      label: q.label,
-      range:
-        i === 0
-          ? `≥ ${q.minDbm} dBm`
-          : `${q.minDbm} to ${QUALITY_BANDS[i - 1]!.minDbm} dBm`,
-      fill: cssColour(q) as string | undefined,
-    })),
-    {
-      label: 'No signal',
-      range: `< ${QUALITY_BANDS.at(-1)!.minDbm} dBm`,
-      fill: undefined,
-    },
-  ]
-  for (const row of rows) {
-    if (row.fill) {
-      context.fillStyle = row.fill
+  for (const row of legend.rows) {
+    const { swatch } = row
+    if (swatch.kind === 'fill') {
+      context.fillStyle = rgbCss(swatch.rgb)
       context.fillRect(x, y - 8, 16, 16)
+    } else if (swatch.kind === 'hatch') {
+      context.fillStyle = '#bdbdbd'
+      context.fillRect(x, y - 8, 16, 16)
+      context.strokeStyle = '#737373'
+      context.lineWidth = 1.5
+      context.save()
+      context.beginPath()
+      context.rect(x, y - 8, 16, 16)
+      context.clip()
+      context.beginPath()
+      for (const d of [-8, 0, 8]) {
+        context.moveTo(x + d, y + 8)
+        context.lineTo(x + d + 16, y - 8)
+      }
+      context.stroke()
+      context.restore()
+    } else if (swatch.kind === 'edge') {
+      context.fillStyle = '#1a1a1a'
+      context.fillRect(x, y - 2, 16, 4)
     } else {
       context.setLineDash([3, 2])
       context.strokeStyle = colour('--muted')
@@ -263,8 +288,17 @@ export function renderExport(
     context.fillText(row.label, x + 26, y)
     context.fillStyle = colour('--muted')
     context.font = `13px ${FONT}`
-    context.fillText(row.range, x + 118, y)
+    context.fillText(row.detail, x + 150, y)
     y += 26
+  }
+  if (legend.note) {
+    context.fillStyle = colour('--muted')
+    context.font = `13px ${FONT}`
+    y += 4
+    for (const line of wrap(context, legend.note, SIDEBAR)) {
+      context.fillText(line, x, y)
+      y += 18
+    }
   }
 
   y += 22
@@ -275,20 +309,21 @@ export function renderExport(
   const target = targetBand(plan.coverageTarget ?? DEFAULT_TARGET)
   context.font = `14px ${FONT}`
   const summary = broadcasting
-    ? coverageMessage(coverage, plan.coverageTarget, units)
+    ? mapMessage(map, plan.coverageTarget, units)
     : `No access point on this floor broadcasts on ${BAND_LABELS[band]}.`
   for (const line of wrap(context, summary, SIDEBAR)) {
     context.fillText(line, x, y)
     y += 20
   }
+  // The target applies to the Signal map only.
   context.fillStyle = colour('--muted')
   context.font = `13px ${FONT}`
   y += 4
-  for (const line of wrap(
-    context,
-    `Target: ${target.label}, ${target.meaning.toLowerCase()} (≥ ${target.minDbm} dBm)`,
-    SIDEBAR,
-  )) {
+  const targetLine =
+    show === 'signal'
+      ? `Target: ${target.label}, ${target.meaning.toLowerCase()} (≥ ${target.minDbm} dBm)`
+      : ''
+  for (const line of wrap(context, targetLine, SIDEBAR)) {
     context.fillText(line, x, y)
     y += 18
   }
@@ -326,7 +361,7 @@ export async function downloadImage(options: ExportOptions) {
   const url = URL.createObjectURL(blob)
   const link = document.createElement('a')
   link.href = url
-  link.download = exportFileName(options.plan, options.band)
+  link.download = exportFileName(options.plan, options.band, options.show)
   document.body.append(link)
   link.click()
   link.remove()

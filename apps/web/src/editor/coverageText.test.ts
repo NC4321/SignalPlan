@@ -11,6 +11,7 @@ function coverage(dbm: number[], inside = [1, 1, 1, 1]): Coverage {
     strongest: new Int16Array(4),
     floorArea: Uint8Array.from(inside),
     accessPointIds: ['ap'],
+    sourceDbm: Float32Array.from(dbm),
   }
 }
 

@@ -1,3 +1,4 @@
+import type { MapKind } from '../mapView.ts'
 import {
   addFloor,
   addFloorOpening,
@@ -97,6 +98,8 @@ export interface EditorState {
   view: '2d' | '3d'
   view3d: View3dSettings
   band: Band
+  /** What the heatmap shows (D64). Not saved, like the band. */
+  show: MapKind
   units: Units
   showHeatmap: boolean
   /**
@@ -182,6 +185,7 @@ export interface EditorState {
   setView: (view: '2d' | '3d') => void
   setView3d: (settings: Partial<View3dSettings>) => void
   setBand: (band: Band) => void
+  setShow: (show: MapKind) => void
   setUnits: (units: Units) => void
   setShowHeatmap: (show: boolean) => void
   setShowGhost: (show: boolean) => void
@@ -324,6 +328,7 @@ export function createEditorStore(
     view: '2d',
     view3d: { hiddenFloors: [], spreadM: 0, fullWalls: false },
     band: '5GHz',
+    show: 'signal',
     units: options.units ?? 'metric',
     showHeatmap: true,
     showGhost: true,
@@ -556,6 +561,7 @@ export function createEditorStore(
           ? {}
           : { band, ...dropOptimizer(state.optimizer, 'the band changed') },
       ),
+    setShow: (show) => set({ show }),
     setUnits: (units) => set({ units }),
     setShowHeatmap: (showHeatmap) => set({ showHeatmap }),
     setShowGhost: (showGhost) => set({ showGhost }),

@@ -1,3 +1,4 @@
+import { MAP_LABELS } from '../mapView.ts'
 import { useState } from 'react'
 import { useEditorStore } from './context.ts'
 import { BAND_LABELS } from './coverageText.ts'
@@ -22,7 +23,7 @@ export function ExportDialog({
   const [size, setSize] = useState<ExportSize>('medium')
   const [theme, setTheme] = useState<Theme>('light')
   const [problem, setProblem] = useState<string>()
-  const { plan, band } = store.getState()
+  const { plan, band, show } = store.getState()
 
   const exportImage = async () => {
     const state = store.getState()
@@ -31,6 +32,7 @@ export function ExportDialog({
         plan: state.plan,
         floorId: state.floorId,
         band: state.band,
+        show: state.show,
         units: state.units,
         theme,
         size,
@@ -63,8 +65,12 @@ export function ExportDialog({
       }
     >
       <p>
-        The plan with its {BAND_LABELS[band]} heatmap, legend, coverage summary
-        and a scale bar, saved as “{exportFileName(plan, band)}”.
+        The plan with its {BAND_LABELS[band]}{' '}
+        {show === 'signal'
+          ? 'heatmap'
+          : `${MAP_LABELS[show].toLowerCase()} map`}
+        , legend, summary and a scale bar, saved as “
+        {exportFileName(plan, band, show)}”.
       </p>
       <fieldset className="choices">
         <legend>Size</legend>

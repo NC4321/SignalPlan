@@ -197,6 +197,16 @@ describe('setRegion and setAllowDfs', () => {
   })
 })
 
+describe('setShow', () => {
+  it('switches the map without an undo step (D64)', () => {
+    const store = createEditorStore(sample())
+    expect(store.getState().show).toBe('signal')
+    store.getState().setShow('roaming')
+    expect(store.getState().show).toBe('roaming')
+    expect(store.getState().past).toHaveLength(0)
+  })
+})
+
 describe('channels', () => {
   it('sets a width and channel, each as one undoable edit', () => {
     const store = createEditorStore(sample())

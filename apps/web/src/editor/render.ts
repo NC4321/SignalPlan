@@ -7,7 +7,7 @@ import type {
   Point,
   WallMaterial,
 } from '@signalplan/floorplan'
-import { qualityOf } from '../quality.ts'
+import { cellColour, type MapData } from '../mapView.ts'
 import { toPlan, toScreen, type Camera } from './camera.ts'
 import type { Selection } from './store.ts'
 import type { SnapKind } from './snap.ts'
@@ -101,15 +101,15 @@ export interface Scene {
     | undefined
 }
 
-/** A bitmap with one pixel per coverage cell, coloured by quality band. */
-export function heatmapBitmap(coverage: Coverage): OffscreenCanvas | undefined {
-  const { cols, rows } = coverage.grid
+/** A bitmap with one pixel per coverage cell, coloured for the map on show. */
+export function heatmapBitmap(map: MapData): OffscreenCanvas | undefined {
+  const { cols, rows } = map.coverage.grid
   if (cols === 0 || rows === 0) return undefined
   const image = new ImageData(cols, rows)
-  coverage.dbm.forEach((dbm, i) => {
-    const band = qualityOf(dbm)
-    if (band) image.data.set([...band.rgb, 210], i * 4)
-  })
+  for (let i = 0; i < cols * rows; i++) {
+    const rgb = cellColour(map, i)
+    if (rgb !== 'none') image.data.set([...rgb, 210], i * 4)
+  }
   const bitmap = new OffscreenCanvas(cols, rows)
   bitmap.getContext('2d')?.putImageData(image, 0, 0)
   return bitmap

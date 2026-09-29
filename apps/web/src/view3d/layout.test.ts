@@ -1,6 +1,7 @@
 import type { Coverage } from '@signalplan/engine'
 import type { AccessPoint, Floor, Plan } from '@signalplan/floorplan'
 import { describe, expect, it } from 'vitest'
+import { mapData } from '../mapView.ts'
 import {
   accessPointMarkers,
   CUTAWAY_M,
@@ -124,10 +125,17 @@ describe('heatmapPixels', () => {
     strongest: new Int16Array(dbm.length),
     floorArea: Uint8Array.from(floorArea),
     accessPointIds: [],
+    sourceDbm: new Float32Array(0),
   })
+  // Coloured as the Signal map, which these tests are about.
+  const signal = (dbm: number[], floorArea: number[]) =>
+    mapData(coverage(dbm, floorArea), 'signal', {
+      overlapMarginDb: 8,
+      roamThresholdDbm: -70,
+    })
 
   it('colours the floor, greys it where there is no signal, clears the rest', () => {
-    const pixels = heatmapPixels(coverage([-40, -95, -40], [1, 1, 0]))
+    const pixels = heatmapPixels(signal([-40, -95, -40], [1, 1, 0]))
     // Excellent (viridis yellow), no signal (grey), outside (clear).
     expect([...pixels]).toEqual([
       0xfd, 0xe7, 0x25, 235, 160, 160, 160, 200, 0, 0, 0, 0,
@@ -135,7 +143,7 @@ describe('heatmapPixels', () => {
   })
 
   it('shows the heatmap everywhere, fainter, with no closed outline', () => {
-    const pixels = heatmapPixels(coverage([-40, -95], [0, 0]))
+    const pixels = heatmapPixels(signal([-40, -95], [0, 0]))
     expect([...pixels]).toEqual([0xfd, 0xe7, 0x25, 140, 0, 0, 0, 0])
   })
 })
