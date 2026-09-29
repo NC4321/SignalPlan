@@ -167,3 +167,84 @@ describe('mapMessage', () => {
     ).toMatch(/Close the outer walls/)
   })
 })
+
+describe('Interference (D66)', () => {
+  /** Both access points on 5 GHz channel 36, or B moved to 44. */
+  const tuned = (bChannel: number, bAuto = false) => ({
+    region: 'US' as const,
+    accessPoints: [
+      {
+        id: 'a',
+        name: 'Router',
+        radios: [{ band: '5GHz', channel: 36, channelWidthMHz: 20 }],
+      },
+      {
+        id: 'b',
+        name: 'Upstairs',
+        radios: [
+          bAuto
+            ? { band: '5GHz' }
+            : { band: '5GHz', channel: bChannel, channelWidthMHz: 20 },
+        ],
+      },
+    ] as Plan['accessPoints'],
+  })
+  const interference = (p: ReturnType<typeof tuned>) =>
+    mapData(row(), 'interference', settings, p)
+
+  it('colours by the rate the SINR allows, hatching what no rate can use', () => {
+    // Same channel, noise −90.97 dBm. Cell 0: −50 over −75 and the noise is
+    // 24.9 dB, Medium. Cells 1–3: 6.0, 3.0 and 1.9 dB, all below the 9 dB
+    // the slowest rate needs.
+    const data = interference(tuned(36))
+    const [medium, low1, low2, low3] = [0, 1, 2, 3].map((i) =>
+      cellColour(data, i),
+    )
+    expect(data.sinr![0]).toBeCloseTo(24.89, 2)
+    expect(medium).toEqual([0x3b, 0x52, 0x8b])
+    expect(low1).toEqual([0xbd, 0xbd, 0xbd])
+    expect(low2).toEqual([0xbd, 0xbd, 0xbd])
+    expect(low3).toEqual([0xbd, 0xbd, 0xbd])
+  })
+
+  it('hears only noise with channels apart', () => {
+    // Cell 0: −50 − (−90.97) = 41.0 dB, Fastest; cell 3: 19.0 dB, Slow.
+    const data = interference(tuned(44))
+    expect(cellColour(data, 0)).toEqual([0xfd, 0xe7, 0x25])
+    expect(cellColour(data, 3)).toEqual([0x44, 0x01, 0x54])
+  })
+
+  it('leaves cells no access point reaches clear', () => {
+    const coverage = row()
+    coverage.dbm[4] = Number.NEGATIVE_INFINITY
+    coverage.strongest[4] = -1
+    const data = mapData(coverage, 'interference', settings, tuned(36))
+    expect(cellColour(data, 4)).toBe('none')
+  })
+
+  it('gives the share too noisy for any rate, rounded up', () => {
+    expect(mapMessage(interference(tuned(36)), 'fair', 'metric')).toBe(
+      '75% of 4 m² is too noisy for any rate (below 9 dB) on 5 GHz.',
+    )
+    expect(mapMessage(interference(tuned(44)), 'fair', 'metric')).toBe(
+      '0% of 4 m² is too noisy for any rate (below 9 dB) on 5 GHz.',
+    )
+  })
+
+  it('names the bands in dB and says how many radios are on Auto', () => {
+    const data = interference(tuned(36, true))
+    expect(data.autoChannels).toBe(1)
+    const legend = mapLegend('interference', settings, [], data.autoChannels)
+    expect(legend.rows.map((r) => [r.label, r.detail])).toEqual([
+      ['Fastest', '≥ 39 dB'],
+      ['Very fast', '34 to 39 dB'],
+      ['Fast', '27 to 34 dB'],
+      ['Medium', '21 to 27 dB'],
+      ['Slow', '9 to 21 dB'],
+      ['Unusable', '< 9 dB'],
+      ['No signal', ''],
+    ])
+    expect(legend.note).toMatch(/1 access point has its channel on Auto/)
+    expect(mapLegend('interference', settings, [], 0).note).not.toMatch(/Auto/)
+  })
+})
