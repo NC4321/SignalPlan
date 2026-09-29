@@ -53,6 +53,13 @@ export const DEFAULT_REGION: Region = 'US'
  */
 export const CHANNEL_WIDTHS = [20, 40, 80, 160] as const
 
+/**
+ * Limits for the Overlap view's margin and the Roaming view's threshold
+ * (D64); their defaults live in the engine with their source.
+ */
+export const OVERLAP_MARGIN_RANGE_DB = { min: 1, max: 20 } as const
+export const ROAM_THRESHOLD_RANGE_DBM = { min: -90, max: -50 } as const
+
 /** Signal levels a plan can aim for, named after the heatmap bands (D12). */
 export const COVERAGE_TARGETS = ['excellent', 'good', 'fair', 'weak'] as const
 
@@ -195,6 +202,25 @@ export const planSchema = z.object({
   region: z.enum(REGIONS).optional(),
   /** Whether 5 GHz DFS channels may be used (D61). Omitted means no. */
   allowDfs: z.boolean().optional(),
+  /**
+   * The Overlap view counts access points within this many dB of the
+   * strongest (D64). Omitted means the engine's default.
+   */
+  overlapMarginDb: z
+    .number()
+    .min(OVERLAP_MARGIN_RANGE_DB.min)
+    .max(OVERLAP_MARGIN_RANGE_DB.max)
+    .optional(),
+  /**
+   * Below this signal a device looks for another access point, and where none
+   * reaches it the Roaming view shows a gap (D64). Omitted means the engine's
+   * default.
+   */
+  roamThresholdDbm: z
+    .number()
+    .min(ROAM_THRESHOLD_RANGE_DBM.min)
+    .max(ROAM_THRESHOLD_RANGE_DBM.max)
+    .optional(),
 })
 
 export type WallMaterial = z.infer<typeof wallMaterialSchema>

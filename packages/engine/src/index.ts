@@ -107,3 +107,13 @@ export {
   type PlacementMessage,
   type PlacementRequest,
 } from './worker.ts'
+export {
+  DEFAULT_OVERLAP_MARGIN_DB,
+  DEFAULT_ROAM_THRESHOLD_DBM,
+  overlapCounts,
+  roamingEdges,
+  roamingOwners,
+  viewSettings,
+  viewShares,
+  type ViewSettings,
+} from './views.ts'

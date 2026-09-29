@@ -172,6 +172,7 @@ describe('summariseCoverage', () => {
       strongest: new Int16Array(dbm.length),
       floorArea: Uint8Array.from(floorArea),
       accessPointIds: [],
+      sourceDbm: new Float32Array(0),
     }
   }
 

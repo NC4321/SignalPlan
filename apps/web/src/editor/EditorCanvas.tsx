@@ -1,3 +1,4 @@
+import type { MapData } from '../mapView.ts'
 import { gridForFloor, type Coverage } from '@signalplan/engine'
 import {
   addAccessPoint,
@@ -99,7 +100,14 @@ function pointAlong(floor: Floor, wallId: string, d: number): Point {
 }
 
 /** The plan, its heatmap and access points, with pan, zoom and editing. */
-export function EditorCanvas({ coverage }: { coverage: Coverage | undefined }) {
+export function EditorCanvas({
+  coverage,
+  map,
+}: {
+  coverage: Coverage | undefined
+  /** The coverage coloured for the map on show (D64). */
+  map: MapData | undefined
+}) {
   const store = useEditorStore()
   const plan = useEditor((s) => s.plan)
   const floorId = useEditor((s) => s.floorId)
@@ -174,10 +182,7 @@ export function EditorCanvas({ coverage }: { coverage: Coverage | undefined }) {
       return a && b ? [{ id: w.id, a, b }] : []
     })
   }, [floor])
-  const heatmap = useMemo(
-    () => (coverage ? heatmapBitmap(coverage) : undefined),
-    [coverage],
-  )
+  const heatmap = useMemo(() => (map ? heatmapBitmap(map) : undefined), [map])
 
   // Track the canvas's size.
   useEffect(() => {

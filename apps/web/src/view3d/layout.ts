@@ -1,4 +1,3 @@
-import type { Coverage } from '@signalplan/engine'
 import {
   materialSegments,
   stackedFloors,
@@ -7,7 +6,7 @@ import {
   type Plan,
   type WallMaterial,
 } from '@signalplan/floorplan'
-import { qualityOf } from '../quality.ts'
+import { cellColour, type MapData } from '../mapView.ts'
 
 /**
  * What the 3D view draws (D57), worked out without three.js so it can be
@@ -86,19 +85,20 @@ const NO_SIGNAL: readonly [number, number, number, number] = [
 /**
  * The heatmap drawn on one floor, one RGBA pixel per coverage cell, row by
  * row from the grid's top (smallest y). Inside the walls each cell has its
- * quality colour, or grey where there's no signal; outside, cells are clear,
- * so each floor reads as its own shape. Openings in the floor aren't floor
- * area, so they're clear too. A floor with no closed outline has no floor
- * area, so it shows the heatmap everywhere, fainter.
+ * colour for the map on show (D64), or grey where there's nothing to show;
+ * outside, cells are clear, so each floor reads as its own shape. Openings in
+ * the floor aren't floor area, so they're clear too. A floor with no closed
+ * outline has no floor area, so it shows the heatmap everywhere, fainter.
  */
-export function heatmapPixels(coverage: Coverage): Uint8ClampedArray {
+export function heatmapPixels(map: MapData): Uint8ClampedArray {
+  const { coverage } = map
   const { cols, rows } = coverage.grid
   const pixels = new Uint8ClampedArray(cols * rows * 4)
   const hasArea = coverage.floorArea.some((inside) => inside === 1)
   for (let i = 0; i < cols * rows; i++) {
-    const band = qualityOf(coverage.dbm[i]!)
     if (hasArea && !coverage.floorArea[i]) continue
-    if (band) pixels.set([...band.rgb, hasArea ? 235 : 140], i * 4)
+    const rgb = cellColour(map, i)
+    if (rgb !== 'none') pixels.set([...rgb, hasArea ? 235 : 140], i * 4)
     else if (hasArea) pixels.set(NO_SIGNAL, i * 4)
   }
   return pixels

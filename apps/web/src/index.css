@@ -190,6 +190,15 @@ input:focus-visible + *,
   accent-color: var(--accent);
 }
 
+.show-menu select {
+  font: inherit;
+  padding: 0.25rem 0.4rem;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 0.375rem;
+}
+
 .panel-toggle {
   display: none;
 }
@@ -399,6 +408,10 @@ dd {
 .swatch-none {
   box-sizing: border-box;
   border: 1px dashed var(--muted);
+}
+
+.legend-note {
+  margin-top: 0.5rem;
 }
 
 .legend-label {
@@ -1129,4 +1142,15 @@ button.danger-fill {
   border-radius: 0.5rem;
   background: var(--surface);
   font-variant-numeric: tabular-nums;
+}
+
+.advanced {
+  margin: 0.25rem 0 0.75rem;
+}
+
+.advanced summary {
+  margin-bottom: 0.5rem;
+  font-weight: 600;
+  font-size: 0.8125rem;
+  cursor: pointer;
 }

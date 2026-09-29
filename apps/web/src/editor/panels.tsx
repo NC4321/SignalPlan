@@ -1,6 +1,9 @@
 import {
   availableChannels,
   BAND_PROFILES,
+  DEFAULT_OVERLAP_MARGIN_DB,
+  DEFAULT_ROAM_THRESHOLD_DBM,
+  viewSettings,
   channelWidths,
   MAX_ADDED,
   radioChannelIssue,
@@ -18,6 +21,8 @@ import {
   DEFAULT_FLOOR_MATERIAL,
   EIRP_RANGE_DBM,
   FLOOR_MATERIALS,
+  OVERLAP_MARGIN_RANGE_DB,
+  ROAM_THRESHOLD_RANGE_DBM,
   MIN_WALL_LENGTH_M,
   NEW_ACCESS_POINT_HEIGHT_M,
   polygonArea,
@@ -47,13 +52,18 @@ import {
 } from '@signalplan/floorplan'
 import type { Draft } from 'immer'
 import { useEffect, useId, useRef, useState } from 'react'
+import { DEFAULT_TARGET, qualityOf, targetBand } from '../quality.ts'
 import {
-  cssColour,
-  DEFAULT_TARGET,
-  QUALITY_BANDS,
-  qualityOf,
-  targetBand,
-} from '../quality.ts'
+  EDGE_KEY_CSS,
+  HATCH_KEY_CSS,
+  MAP_KINDS,
+  MAP_LABELS,
+  mapLegend,
+  rgbCss,
+  type MapData,
+  type MapKind,
+  type Swatch,
+} from '../mapView.ts'
 import { zoomAt } from './camera.ts'
 import { regionPlace } from './region.ts'
 import { BAND_LABELS, settledAnnouncement } from './coverageText.ts'
@@ -104,6 +114,8 @@ export function TopBar({
   const redoLabel = useEditor((s) => s.future.at(-1)?.label)
   const units = useEditor((s) => s.units)
   const band = useEditor((s) => s.band)
+  const show = useEditor((s) => s.show)
+  const showId = useId()
   const showHeatmap = useEditor((s) => s.showHeatmap)
   const view = useEditor((s) => s.view)
 
@@ -158,6 +170,23 @@ export function TopBar({
         options={BANDS.map((b) => ({ value: b, label: BAND_LABELS[b] }))}
         onChange={(b) => store.getState().setBand(b)}
       />
+
+      <div className="toggle show-menu">
+        <label htmlFor={showId}>Show</label>
+        <select
+          id={showId}
+          value={show}
+          onChange={(event) =>
+            store.getState().setShow(event.target.value as MapKind)
+          }
+        >
+          {MAP_KINDS.map((kind) => (
+            <option key={kind} value={kind}>
+              {MAP_LABELS[kind]}
+            </option>
+          ))}
+        </select>
+      </div>
 
       <Segmented
         label="Units"
@@ -332,10 +361,13 @@ export function Toolbar() {
 export function PropertiesPanel({
   open,
   coverageText,
+  map,
 }: {
   open: boolean
   /** The coverage summary line, or '' when nothing broadcasts. */
   coverageText: string
+  /** The map on show, for its legend (D64). */
+  map: MapData | undefined
 }) {
   const plan = useEditor((s) => s.plan)
   const floorId = useEditor((s) => s.floorId)
@@ -423,28 +455,7 @@ export function PropertiesPanel({
       )}
 
       <section>
-        <h2>Signal quality</h2>
-        <ul className="legend">
-          {QUALITY_BANDS.map((q, i) => (
-            <li key={q.label}>
-              <span className="swatch" style={{ background: cssColour(q) }} />
-              <span className="legend-label">{q.label}</span>
-              <span className="legend-range">
-                {i === 0
-                  ? `≥ ${q.minDbm}`
-                  : `${q.minDbm} to ${QUALITY_BANDS[i - 1]!.minDbm}`}{' '}
-                dBm
-              </span>
-            </li>
-          ))}
-          <li>
-            <span className="swatch swatch-none" />
-            <span className="legend-label">No signal</span>
-            <span className="legend-range">
-              {`< ${QUALITY_BANDS.at(-1)!.minDbm}`} dBm
-            </span>
-          </li>
-        </ul>
+        <MapLegend map={map} />
         <CoverageSummary message={coverageText} />
         <p className="hint">
           Predictions come from a simplified model.{' '}
@@ -453,6 +464,48 @@ export function PropertiesPanel({
       </section>
     </aside>
   )
+}
+
+/**
+ * The legend for the map on show (D64), with how to read it. The Roaming
+ * view's names come from the map itself, so they match its colours, even
+ * with a suggestion's access points added.
+ */
+function MapLegend({ map }: { map: MapData | undefined }) {
+  const show = useEditor((s) => s.show)
+  const plan = useEditor((s) => s.plan)
+  const names = map ? map.accessPointNames : []
+  const legend = mapLegend(show, viewSettings(plan), names)
+  return (
+    <>
+      <h2>{legend.title}</h2>
+      <ul className="legend">
+        {legend.rows.map((row, i) => (
+          <li key={`${i}-${row.label}`}>
+            <LegendSwatch swatch={row.swatch} />
+            <span className="legend-label">{row.label}</span>
+            <span className="legend-range">{row.detail}</span>
+          </li>
+        ))}
+      </ul>
+      {legend.note && <p className="hint legend-note">{legend.note}</p>}
+    </>
+  )
+}
+
+function LegendSwatch({ swatch }: { swatch: Swatch }) {
+  switch (swatch.kind) {
+    case 'fill':
+      return (
+        <span className="swatch" style={{ background: rgbCss(swatch.rgb) }} />
+      )
+    case 'none':
+      return <span className="swatch swatch-none" />
+    case 'hatch':
+      return <span className="swatch" style={{ background: HATCH_KEY_CSS }} />
+    case 'edge':
+      return <span className="swatch" style={{ background: EDGE_KEY_CSS }} />
+  }
 }
 
 /**
@@ -1383,6 +1436,7 @@ function PlanSection() {
         <dd>{floor?.openings.length ?? 0}</dd>
       </dl>
       <RegionFields />
+      <ViewSettingsFields />
       {floor?.walls.length === 0 && (
         <p className="hint start-hint">
           To start, pick <strong>Wall</strong> (W) and click to place each
@@ -1457,6 +1511,123 @@ function RegionFields() {
       </p>
       <ChannelIssueList />
     </>
+  )
+}
+
+/**
+ * The Overlap view's margin and the Roaming view's threshold, saved with the
+ * plan so a shared plan shows the same views (D61, D64).
+ */
+function ViewSettingsFields() {
+  const store = useEditorStore()
+  const margin = useEditor((s) => s.plan.overlapMarginDb)
+  const threshold = useEditor((s) => s.plan.roamThresholdDbm)
+  // Neither setting changes a search or suggestion, so they keep it.
+  const edit = (label: string, change: (plan: Draft<Plan>) => void) =>
+    store.getState().edit(label, change, { keepOptimizer: true })
+  return (
+    <details className="advanced">
+      <summary>Overlap and roaming</summary>
+      <SettingField
+        label="Overlap margin (dB)"
+        value={margin}
+        fallback={DEFAULT_OVERLAP_MARGIN_DB}
+        range={OVERLAP_MARGIN_RANGE_DB}
+        onCommit={(value) =>
+          edit('Change overlap margin', (plan) => {
+            if (value === undefined) delete plan.overlapMarginDb
+            else plan.overlapMarginDb = value
+          })
+        }
+      />
+      <SettingField
+        label="Roaming threshold (dBm)"
+        value={threshold}
+        fallback={DEFAULT_ROAM_THRESHOLD_DBM}
+        range={ROAM_THRESHOLD_RANGE_DBM}
+        onCommit={(value) =>
+          edit('Change roaming threshold', (plan) => {
+            if (value === undefined) delete plan.roamThresholdDbm
+            else plan.roamThresholdDbm = value
+          })
+        }
+      />
+      <p className="hint">
+        The defaults are Apple’s for iPhone and iPad: they look for another
+        access point below −70 dBm, and move to one about 8 dB stronger. Macs
+        wait until −75 dBm and need 12 dB.
+      </p>
+    </details>
+  )
+}
+
+/**
+ * A number saved with the plan, or empty for its default. Out-of-range
+ * values are refused with a message, like the power field (D25).
+ */
+function SettingField({
+  label,
+  value,
+  fallback,
+  range,
+  onCommit,
+}: {
+  label: string
+  value: number | undefined
+  fallback: number
+  range: { min: number; max: number }
+  onCommit: (value: number | undefined) => void
+}) {
+  const [draft, setDraft] = useState<string>()
+  const [invalid, setInvalid] = useState(false)
+  const id = useId()
+  const current = value === undefined ? '' : String(value)
+  const reset = () => {
+    setDraft(undefined)
+    setInvalid(false)
+  }
+  const commit = () => {
+    if (draft === undefined || draft.trim() === current) return reset()
+    if (draft.trim() === '') {
+      reset()
+      onCommit(undefined)
+      return
+    }
+    const next = Number(draft.trim().replace(',', '.').replace('−', '-'))
+    if (!Number.isFinite(next) || next < range.min || next > range.max) {
+      setInvalid(true)
+      return
+    }
+    reset()
+    if (next !== value) onCommit(next)
+  }
+  return (
+    <div className="field">
+      <label htmlFor={id}>{label}</label>
+      <input
+        id={id}
+        value={draft ?? current}
+        placeholder={`${fallback} (default)`}
+        aria-invalid={invalid}
+        onChange={(event) => {
+          setDraft(event.target.value)
+          setInvalid(false)
+        }}
+        onBlur={commit}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter') commit()
+          if (event.key === 'Escape') reset()
+        }}
+        autoComplete="off"
+        inputMode="decimal"
+      />
+      {invalid && (
+        <p className="field-error" role="alert">
+          Use a number from {range.min} to {range.max}, or leave it empty for
+          the default {fallback}.
+        </p>
+      )}
+    </div>
   )
 }
 

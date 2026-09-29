@@ -38,6 +38,14 @@ describe('exportFileName', () => {
       'a-b- c- - 6 GHz.png',
     )
   })
+
+  it('names the map when it isn’t Signal (D64)', () => {
+    const plan = { ...blankPlan(), name: 'My house' }
+    expect(exportFileName(plan, '5GHz', 'signal')).toBe('My house - 5 GHz.png')
+    expect(exportFileName(plan, '5GHz', 'roaming')).toBe(
+      'My house - 5 GHz roaming.png',
+    )
+  })
 })
 
 describe('export layout', () => {

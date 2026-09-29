@@ -31,7 +31,9 @@ Plan
 │       radios[]: { band, txPowerDbm?, channelWidthMHz?, channel? } }
 ├─ coverageTarget?     excellent | good | fair | weak
 ├─ region?             US | EU
-└─ allowDfs?           boolean
+├─ allowDfs?           boolean
+├─ overlapMarginDb?    1 to 20
+└─ roamThresholdDbm?   −90 to −50
 ```
 
 Wall materials are `drywall`, `brick`, `concrete`, `glass`, `low-e-glass`, `wood` and `metal`; each stands for a typical North American construction described in [MODEL.md](MODEL.md#wall-materials). Openings can use any of these, or `open` for a doorway with no door. Bands are `2.4GHz`, `5GHz` and `6GHz`. `txPowerDbm` is the radio's EIRP (antenna gain included); a radio without it uses the engine's default for its band.
@@ -49,6 +51,8 @@ An access point with `locked: true` can't be moved, by hand or by the placement 
 A radio's optional `channelWidthMHz` (20, 40, 80 or 160) and `channel` (its IEEE 802.11 channel number at that width) are set by hand; without them the channel planner chooses, and a hand-set channel stays fixed for it. A channel needs a width, but a width can be set alone. Validation doesn't check them against the plan's region, so a plan keeps its channels when the region changes; the engine's `radioChannelIssue` says whether the region and DFS setting allow them, and the editor flags the ones they don't. `setRadioWidth` and `setRadioChannel` in `accessPoints.ts` edit them; a new width clears the channel. Turning a band off drops its radio, channel and width included, as it does its power. See [D63](DECISIONS.md#d63-channel-and-width-per-radio--2026-09-28).
 
 `region` says whose channel and power rules the plan follows; without it the plan is `US`. `allowDfs: true` lets 5 GHz DFS channels be used; without it they aren't. The rules themselves live in the engine, not the plan ([MODEL.md](MODEL.md#channels-and-regions), [D62](DECISIONS.md#d62-channels-by-region--2026-09-28)).
+
+`overlapMarginDb` and `roamThresholdDbm` set the Overlap view's margin and the Roaming view's threshold; without them the engine's defaults apply (8 dB and −70 dBm, sourced in [MODEL.md](MODEL.md#overlap-and-roaming)). They're saved so a shared plan shows the same views. See [D64](DECISIONS.md#d64-overlap-and-roaming-views--2026-09-28).
 
 A floor may have a **background** image to trace over. `x` and `y` place its top-left corner and `metresPerPixel` sets its scale. In the browser the image lives in its own store and is referenced by `imageId`; saved files embed it as a `dataUrl` instead. At least one of the two is needed. `widthPx` and `heightPx` are the image's size in pixels, `opacity` runs from 0 to 1, and `locked` stops the image being dragged by accident. See [D22](DECISIONS.md#d22-tracing-over-a-floor-plan-image--2026-09-27).
 

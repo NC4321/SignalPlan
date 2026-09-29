@@ -1,9 +1,8 @@
-import type { Coverage } from '@signalplan/engine'
 import type { CoverageTarget, Plan } from '@signalplan/floorplan'
 import { useEffect, useEffectEvent, useMemo, useRef, useState } from 'react'
 import * as THREE from 'three'
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
-import { coverageMessage } from '../editor/coverageText.ts'
+import { mapMessage, type MapData } from '../mapView.ts'
 import { formatLength, type Units } from '../editor/units.ts'
 import { WALL_STYLES } from '../editor/wallStyles.ts'
 import {
@@ -29,7 +28,8 @@ import {
  */
 export interface View3DProps {
   plan: Plan
-  coverages: ReadonlyMap<string, Coverage>
+  /** Each floor's coverage, coloured for the map on show (D64). */
+  maps: ReadonlyMap<string, MapData>
   hiddenFloors: readonly string[]
   spreadM: number
   /** The Heatmap setting: off leaves the floors plain. */
@@ -43,8 +43,7 @@ export interface View3DProps {
 const STEP_RAD = Math.PI / 12
 
 export default function View3D(props: View3DProps) {
-  const { plan, coverages, hiddenFloors, spreadM, fullWalls, showHeatmap } =
-    props
+  const { plan, maps, hiddenFloors, spreadM, fullWalls, showHeatmap } = props
   const host = useRef<HTMLDivElement>(null)
   const world = useRef<World>(undefined)
   const [supported] = useState(hasWebGL)
@@ -89,10 +88,10 @@ export default function View3D(props: View3DProps) {
     world.current?.show(
       layouts,
       plan,
-      showHeatmap ? coverages : new Map(),
+      showHeatmap ? maps : new Map(),
       fullWalls,
     )
-  }, [layouts, plan, coverages, fullWalls, showHeatmap])
+  }, [layouts, plan, maps, fullWalls, showHeatmap])
 
   const frame = useEffectEvent(() => {
     if (bounds) world.current?.frame(bounds)
@@ -209,7 +208,7 @@ function FrameRate({ world }: { world: React.RefObject<World | undefined> }) {
  */
 function Description({
   plan,
-  coverages,
+  maps,
   layouts,
   units,
   target,
@@ -221,7 +220,7 @@ function Description({
     <ul className="visually-hidden" aria-label="Floors in the 3D view">
       {[...layouts].reverse().map(({ floor }) => {
         const aps = plan.accessPoints.filter((ap) => ap.floorId === floor.id)
-        const coverage = coverages.get(floor.id)
+        const map = maps.get(floor.id)
         const names = aps.map((ap) => ap.name).join(', ')
         return (
           <li key={floor.id}>
@@ -230,8 +229,8 @@ function Description({
             {aps.length === 0
               ? 'no access points. '
               : `access point${aps.length === 1 ? '' : 's'} ${names}. `}
-            {coverage
-              ? coverageMessage(coverage, target, units)
+            {map
+              ? mapMessage(map, target, units)
               : 'Coverage is being worked out.'}
           </li>
         )
@@ -257,7 +256,7 @@ interface World {
   show(
     layouts: readonly FloorLayout[],
     plan: Plan,
-    coverages: ReadonlyMap<string, Coverage>,
+    maps: ReadonlyMap<string, MapData>,
     fullWalls: boolean,
   ): void
   frame(bounds: Bounds): void
@@ -341,17 +340,10 @@ function createWorld(element: HTMLDivElement): World {
   }
 
   return {
-    show(layouts, plan, coverages, fullWalls) {
+    show(layouts, plan, maps, fullWalls) {
       scene.remove(content)
       disposeTree(content)
-      content = buildContent(
-        layouts,
-        plan,
-        coverages,
-        fullWalls,
-        material,
-        token,
-      )
+      content = buildContent(layouts, plan, maps, fullWalls, material, token)
       scene.add(content)
       sizeLabels()
       render()
@@ -430,7 +422,7 @@ function createWorld(element: HTMLDivElement): World {
 function buildContent(
   layouts: readonly FloorLayout[],
   plan: Plan,
-  coverages: ReadonlyMap<string, Coverage>,
+  maps: ReadonlyMap<string, MapData>,
   fullWalls: boolean,
   material: (key: string, make: () => THREE.Material) => THREE.Material,
   token: (name: string) => string,
@@ -474,11 +466,11 @@ function buildContent(
       group.add(slab)
     }
 
-    const coverage = coverages.get(floor.id)
-    if (coverage && coverage.grid.cols > 0 && coverage.grid.rows > 0) {
-      const { grid } = coverage
+    const map = maps.get(floor.id)
+    if (map && map.coverage.grid.cols > 0 && map.coverage.grid.rows > 0) {
+      const { grid } = map.coverage
       const texture = new THREE.DataTexture(
-        heatmapPixels(coverage),
+        heatmapPixels(map),
         grid.cols,
         grid.rows,
         THREE.RGBAFormat,
