@@ -70,6 +70,11 @@ export interface Scene {
     { at: Point; label: string; title: string; lines: string[] } | undefined
   /** Survey tool: where a click would add a spot. */
   surveyPreview?: Point | undefined
+  /**
+   * Rooms that need a survey spot before Calibrate can fit the band on show
+   * (D76): a point inside each, ringed.
+   */
+  emptyRooms?: readonly Point[] | undefined
   /** Access point tool: where a click would add one. */
   accessPointPreview?: Point | undefined
   /**
@@ -307,6 +312,9 @@ export function draw(
     context.restore()
   }
 
+  for (const room of scene.emptyRooms ?? []) {
+    drawEmptyRoom(context, colour, toScreen(camera, room))
+  }
   context.font = '600 12px system-ui, sans-serif'
   context.textBaseline = 'middle'
   for (const spot of scene.surveySpots ?? []) {
@@ -492,6 +500,27 @@ function drawCard(
     lineY += CARD_LINE_PX
     context.fillText(line, x + CARD_PAD_PX, lineY)
   }
+  context.restore()
+}
+
+const EMPTY_ROOM_RADIUS_PX = 14
+
+/** A room without a survey spot (D76): a dashed ring, outlined to stand out. */
+function drawEmptyRoom(
+  context: CanvasRenderingContext2D,
+  colour: (name: string) => string,
+  at: Point,
+) {
+  context.save()
+  context.beginPath()
+  context.arc(at.x, at.y, EMPTY_ROOM_RADIUS_PX, 0, Math.PI * 2)
+  context.lineWidth = 5
+  context.strokeStyle = colour('--canvas')
+  context.stroke()
+  context.setLineDash([5, 4])
+  context.lineWidth = 2.5
+  context.strokeStyle = colour('--accent')
+  context.stroke()
   context.restore()
 }
 

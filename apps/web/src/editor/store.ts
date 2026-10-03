@@ -32,6 +32,11 @@ import { DEFAULT_TARGET } from '../quality.ts'
 import type { Camera } from './camera.ts'
 import { channelPlanRecipe } from './channelPlan.ts'
 import {
+  calibrationRecipe,
+  pendingCalibration,
+  type ModelCalibrationState,
+} from './modelCalibration.ts'
+import {
   DEFAULT_COVERAGE_GOAL,
   suggestionRecipe,
   type CoverageGoal,
@@ -159,6 +164,11 @@ export interface EditorState {
    */
   channelPlan: BandChannelPlan[] | undefined
   /**
+   * Calibrate's fit of every band with readings (D76), while it runs and
+   * then waiting for Apply or Dismiss. Any change to the plan drops it.
+   */
+  modelCalibration: ModelCalibrationState | undefined
+  /**
    * Share of the floor, from 0 to 1, that "How many access points do I
    * need?" aims for (D46). Not saved: it resets when the page reloads.
    */
@@ -235,6 +245,12 @@ export interface EditorState {
   /** Sets the suggested channels and widths as one edit. */
   applyChannelPlan: () => void
   dismissChannelPlan: () => void
+  setModelCalibration: (state: ModelCalibrationState | undefined) => void
+  /** Saves the fitted values of every band that improves, as one edit. */
+  applyModelCalibration: () => void
+  dismissModelCalibration: () => void
+  /** Puts every band back to the model's defaults, as one edit. */
+  resetModelCalibration: () => void
   setWallMaterial: (material: WallMaterial) => void
   addCalibrationPoint: (point: Point) => void
   setOpeningMaterial: (
@@ -302,6 +318,24 @@ function dropChannelPlan(state: EditorState): Partial<EditorState> {
         notice: 'Channel plan dismissed: the plan changed.',
       }
     : {}
+}
+
+/** A fit is for the plan as it was, so a change drops it (D76). */
+function dropModelCalibration(state: EditorState): Partial<EditorState> {
+  switch (state.modelCalibration?.status) {
+    case 'fitting':
+      return {
+        modelCalibration: undefined,
+        notice: 'Calibration stopped: the plan changed.',
+      }
+    case 'result':
+      return {
+        modelCalibration: undefined,
+        notice: 'Calibration dismissed: the plan changed.',
+      }
+    case undefined:
+      return {}
+  }
 }
 
 const sameSelection = (a: Selection, b: Selection) =>
@@ -398,6 +432,7 @@ export function createEditorStore(
     notice: undefined,
     optimizer: undefined,
     channelPlan: undefined,
+    modelCalibration: undefined,
     coverageGoal: DEFAULT_COVERAGE_GOAL,
 
     edit: (label, recipe, options) => {
@@ -415,6 +450,7 @@ export function createEditorStore(
           ? {}
           : dropOptimizer(state.optimizer, 'the plan changed')),
         ...dropChannelPlan(state),
+        ...dropModelCalibration(state),
       }))
     },
 
@@ -439,6 +475,7 @@ export function createEditorStore(
           ? {}
           : dropOptimizer(state.optimizer, 'the plan changed')),
         ...dropChannelPlan(state),
+        ...dropModelCalibration(state),
       }))
     },
 
@@ -485,6 +522,7 @@ export function createEditorStore(
         future: [...state.future, entry],
         ...dropOptimizer(state.optimizer, 'the plan changed'),
         ...dropChannelPlan(state),
+        ...dropModelCalibration(state),
       }))
     },
 
@@ -500,6 +538,7 @@ export function createEditorStore(
         future: state.future.slice(0, -1),
         ...dropOptimizer(state.optimizer, 'the plan changed'),
         ...dropChannelPlan(state),
+        ...dropModelCalibration(state),
       }))
     },
 
@@ -518,6 +557,7 @@ export function createEditorStore(
         outline: undefined,
         optimizer: undefined,
         channelPlan: undefined,
+        modelCalibration: undefined,
       })
     },
 
@@ -707,6 +747,24 @@ export function createEditorStore(
       get().edit('Apply the channel plan', channelPlanRecipe(channelPlan))
     },
     dismissChannelPlan: () => set({ channelPlan: undefined }),
+    setModelCalibration: (modelCalibration) =>
+      set({ modelCalibration, notice: undefined }),
+    applyModelCalibration: () => {
+      const { modelCalibration, plan } = get()
+      if (modelCalibration?.status !== 'result') return
+      const calibration = pendingCalibration(plan, modelCalibration.results)
+      if (!calibration) return
+      set({ modelCalibration: undefined })
+      get().edit('Apply the calibration', calibrationRecipe(calibration))
+    },
+    dismissModelCalibration: () => set({ modelCalibration: undefined }),
+    resetModelCalibration: () => {
+      if (!get().plan.calibration) return
+      get().edit(
+        'Reset the model to its defaults',
+        calibrationRecipe(undefined),
+      )
+    },
     setWallMaterial: (wallMaterial) => set({ wallMaterial }),
     setOpeningMaterial: (kind, material) =>
       set((state) => ({
@@ -776,7 +834,12 @@ export function createEditorStore(
         },
         { keepOptimizer: true },
       )
-      if (created) get().select([{ kind: 'surveySpot', id: created }])
+      if (created) {
+        // Selecting the new spot is part of the edit, so its note stays.
+        const { notice } = get()
+        get().select([{ kind: 'surveySpot', id: created }])
+        set({ notice })
+      }
     },
   }))
 }

@@ -106,6 +106,35 @@ describe('parsePlan', () => {
     ).toBe('coverageTarget')
   })
 
+  it('accepts an optional calibration per band and rejects nonsense (D76)', () => {
+    const plan: Plan = {
+      ...box(),
+      calibration: {
+        '5GHz': {
+          pathLossExponent: 2.2,
+          wallLossDb: { drywall: 4, brick: 12 },
+          floorLossDb: { 'timber-joist': 5.5 },
+          deviceOffsetDb: -6,
+        },
+        '2.4GHz': {},
+      },
+    }
+    expect(parsePlan(plan)).toEqual({ ok: true, plan })
+    const paths = (calibration: unknown) =>
+      issuesOf(parsePlan({ ...box(), calibration })).map((i) => i.path)
+    expect(paths({ '5GHz': { pathLossExponent: 0.5 } })).toEqual([
+      'calibration.5GHz.pathLossExponent',
+    ])
+    expect(paths({ '5GHz': { wallLossDb: { drywall: -1 } } })).toEqual([
+      'calibration.5GHz.wallLossDb.drywall',
+    ])
+    expect(paths({ '5GHz': { deviceOffsetDb: 90 } })).toEqual([
+      'calibration.5GHz.deviceOffsetDb',
+    ])
+    expect(paths({ '5GHz': { wallLossDb: { paper: 1 } } })).toHaveLength(1)
+    expect(paths({ '7GHz': {} })).toHaveLength(1)
+  })
+
   it('accepts an optional locked flag on access points', () => {
     const plan: Plan = {
       ...box(),

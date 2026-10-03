@@ -37,7 +37,9 @@ Plan
 ├─ roamThresholdDbm?   −90 to −50
 ├─ neighbourNetworks[]?
 │  └─ { id, name?, band, channel?, channelWidthMHz, strengthDbm: −100 to −20 }
-└─ ignoredBssids[]?    BSSIDs marked not mine when importing readings
+├─ ignoredBssids[]?    BSSIDs marked not mine when importing readings
+└─ calibration?        by band: { wallLossDb?: { material: dB }, floorLossDb?: { material: dB },
+                         pathLossExponent?, deviceOffsetDb? }
 ```
 
 Wall materials are `drywall`, `brick`, `concrete`, `glass`, `low-e-glass`, `wood` and `metal`; each stands for a typical North American construction described in [MODEL.md](MODEL.md#wall-materials). Openings can use any of these, or `open` for a doorway with no door. Bands are `2.4GHz`, `5GHz` and `6GHz`. `txPowerDbm` is the radio's EIRP (antenna gain included); a radio without it uses the engine's default for its band.
@@ -65,6 +67,8 @@ A floor's optional `surveySpots` are places where signal was measured, in plan m
 A floor may have a **background** image to trace over. `x` and `y` place its top-left corner and `metresPerPixel` sets its scale. In the browser the image lives in its own store and is referenced by `imageId`; saved files embed it as a `dataUrl` instead. At least one of the two is needed. `widthPx` and `heightPx` are the image's size in pixels, `opacity` runs from 0 to 1, and `locked` stops the image being dragged by accident. See [D22](DECISIONS.md#d22-tracing-over-a-floor-plan-image--2026-09-27).
 
 `ignoredBssids` lists BSSIDs marked "not mine" when importing readings, such as neighbours' networks, so later imports skip them without asking. A BSSID can't be both on a radio and in this list; typing one onto a radio takes it off the list. `forgetIgnoredBssids` in `survey.ts` clears it. See [D72](DECISIONS.md#d72-importing-survey-readings--2026-09-29).
+
+`calibration` holds the model fitted to this home's survey, by band (`2.4GHz`, `5GHz`, `6GHz`), as Calibrate applies it. Each value replaces the engine's default where given: `wallLossDb` a wall material's loss per crossing (0 to 100 dB), `floorLossDb` a floor material's head-on loss (0 to 100 dB; its loss at other angles scales with it), and `pathLossExponent` the band's n (1 to 6). `deviceOffsetDb` (−60 to 60) is how much more the phone that took the readings shows than the model's receiver; it's added only when comparing with survey readings, never to the heatmap. These bounds only keep out nonsense; the fit keeps to tighter limits from published measurements ([MODEL.md](MODEL.md#calibration)). Without `calibration`, or for a band it doesn't list, the defaults apply. It was added without a version bump. See [D76](DECISIONS.md#d76-calibrate-suggest-preview-and-apply--2026-10-03).
 
 ## Importing survey readings
 

@@ -32,6 +32,12 @@ import {
   type SearchWorker,
 } from './editor/optimizer.ts'
 import { OptimizerContext } from './editor/optimizerContext.ts'
+import {
+  createModelCalibrator,
+  withModelCalibration,
+  type CalibrationWorker,
+} from './editor/modelCalibration.ts'
+import { CalibratorContext } from './editor/calibratorContext.ts'
 import { useCoverage } from './useCoverage.ts'
 import { useFloorsCoverage } from './useFloorsCoverage.ts'
 import { DEFAULT_TARGET } from './quality.ts'
@@ -71,14 +77,29 @@ function App({
     [store],
   )
   useEffect(() => optimizer.dispose, [optimizer])
+  const calibrator = useMemo(
+    () =>
+      createModelCalibrator(
+        store,
+        () =>
+          new Worker(new URL('./calibration.worker.ts', import.meta.url), {
+            type: 'module',
+          }) as CalibrationWorker,
+      ),
+    [store],
+  )
+  useEffect(() => calibrator.dispose, [calibrator])
 
   // While a suggestion waits, the heatmap shows the plan with it applied;
-  // the same goes for a channel plan (D68).
+  // the same goes for a channel plan (D68) and a calibration (D76).
   const channelPlan = useEditor((s) => s.channelPlan)
+  const modelCalibration = useEditor((s) => s.modelCalibration)
   const shownPlan = useMemo(() => {
     const placed = suggestion ? withSuggestion(plan, suggestion) : plan
-    return channelPlan ? withChannelPlan(placed, channelPlan) : placed
-  }, [plan, suggestion, channelPlan])
+    const planned = channelPlan ? withChannelPlan(placed, channelPlan) : placed
+    return withModelCalibration(planned, modelCalibration)
+  }, [plan, suggestion, channelPlan, modelCalibration])
+  const calibrating = shownPlan.calibration !== plan.calibration
   const hasAccessPoint = shownPlan.accessPoints.some(
     (ap) => ap.floorId === floorId,
   )
@@ -117,8 +138,13 @@ function App({
     [floorsCoverage, show, settings, shownPlan],
   )
   const summary = useCoverageMessage(map)
-  const coverageText =
-    suggestion && summary ? `With the suggestion: ${summary}` : summary
+  const coverageText = !summary
+    ? summary
+    : suggestion
+      ? `With the suggestion: ${summary}`
+      : calibrating
+        ? `With the calibration: ${summary}`
+        : summary
 
   // Global shortcuts: undo, redo and tools.
   useEffect(() => {
@@ -201,91 +227,93 @@ function App({
     <TracingProvider>
       <SurveyImportProvider>
         <OptimizerContext value={optimizer}>
-          <div className="app">
-            <TopBar
-              panelOpen={panelOpen}
-              onTogglePanel={() => setPanelOpen((open) => !open)}
-            />
-            <Toolbar />
-            <main className="stage">
-              <h1 className="visually-hidden">SignalPlan editor</h1>
-              {view === '3d' ? (
-                <Suspense
-                  fallback={<p className="notice">Loading the 3D view…</p>}
-                >
-                  <View3D
-                    plan={shownPlan}
-                    maps={floorMaps}
-                    hiddenFloors={view3d.hiddenFloors}
-                    spreadM={view3d.spreadM}
-                    fullWalls={view3d.fullWalls}
-                    showHeatmap={showHeatmap}
-                    units={units}
-                    target={plan.coverageTarget ?? DEFAULT_TARGET}
-                  />
-                </Suspense>
-              ) : (
-                <>
-                  <EditorCanvas coverage={shown} map={map} />
-                  {tool === 'calibrate' && <CalibrationBar />}
-                  <FloorStack />
-                </>
-              )}
-              {view === '2d' && !broadcastingHere && (
-                <p className="notice">
-                  {(hasAccessPoint
-                    ? 'No access point on this floor broadcasts on this band.'
-                    : 'No access points on this floor.') +
-                    (broadcasting
-                      ? ' The heatmap shows signal from other floors.'
-                      : hasAccessPoint
-                        ? ' Select one and turn the band on under Bands.'
-                        : ' Add one with the Access point tool.')}
+          <CalibratorContext value={calibrator}>
+            <div className="app">
+              <TopBar
+                panelOpen={panelOpen}
+                onTogglePanel={() => setPanelOpen((open) => !open)}
+              />
+              <Toolbar />
+              <main className="stage">
+                <h1 className="visually-hidden">SignalPlan editor</h1>
+                {view === '3d' ? (
+                  <Suspense
+                    fallback={<p className="notice">Loading the 3D view…</p>}
+                  >
+                    <View3D
+                      plan={shownPlan}
+                      maps={floorMaps}
+                      hiddenFloors={view3d.hiddenFloors}
+                      spreadM={view3d.spreadM}
+                      fullWalls={view3d.fullWalls}
+                      showHeatmap={showHeatmap}
+                      units={units}
+                      target={plan.coverageTarget ?? DEFAULT_TARGET}
+                    />
+                  </Suspense>
+                ) : (
+                  <>
+                    <EditorCanvas coverage={shown} map={map} />
+                    {tool === 'calibrate' && <CalibrationBar />}
+                    <FloorStack />
+                  </>
+                )}
+                {view === '2d' && !broadcastingHere && (
+                  <p className="notice">
+                    {(hasAccessPoint
+                      ? 'No access point on this floor broadcasts on this band.'
+                      : 'No access points on this floor.') +
+                      (broadcasting
+                        ? ' The heatmap shows signal from other floors.'
+                        : hasAccessPoint
+                          ? ' Select one and turn the band on under Bands.'
+                          : ' Add one with the Access point tool.')}
+                  </p>
+                )}
+                {error && (
+                  <p className="notice">Couldn’t compute coverage: {error}</p>
+                )}
+              </main>
+              <PropertiesPanel
+                open={panelOpen}
+                coverageText={coverageText}
+                map={map}
+              />
+              <StatusBar
+                coverage={shown}
+                coverageText={coverageText}
+                saveStatus={saveStatus}
+              />
+              <Dialog
+                open={problemOpen}
+                title="Your saved plan couldn’t be opened"
+                onClose={() => setProblemOpen(false)}
+                actions={
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => rescuePlan(savedPlanProblem?.raw)}
+                    >
+                      Download it
+                    </button>
+                    <button
+                      type="button"
+                      className="primary"
+                      onClick={() => setProblemOpen(false)}
+                    >
+                      Continue with the sample
+                    </button>
+                  </>
+                }
+              >
+                <p>
+                  The sample home is open instead. The plan is still in My
+                  plans; download it to keep a copy of what was stored.
                 </p>
-              )}
-              {error && (
-                <p className="notice">Couldn’t compute coverage: {error}</p>
-              )}
-            </main>
-            <PropertiesPanel
-              open={panelOpen}
-              coverageText={coverageText}
-              map={map}
-            />
-            <StatusBar
-              coverage={shown}
-              coverageText={coverageText}
-              saveStatus={saveStatus}
-            />
-            <Dialog
-              open={problemOpen}
-              title="Your saved plan couldn’t be opened"
-              onClose={() => setProblemOpen(false)}
-              actions={
-                <>
-                  <button
-                    type="button"
-                    onClick={() => rescuePlan(savedPlanProblem?.raw)}
-                  >
-                    Download it
-                  </button>
-                  <button
-                    type="button"
-                    className="primary"
-                    onClick={() => setProblemOpen(false)}
-                  >
-                    Continue with the sample
-                  </button>
-                </>
-              }
-            >
-              <p>
-                The sample home is open instead. The plan is still in My plans;
-                download it to keep a copy of what was stored.
-              </p>
-              <PlanIssues issues={savedPlanProblem?.issues ?? []} />
-            </Dialog>
-          </div>
+                <PlanIssues issues={savedPlanProblem?.issues ?? []} />
+              </Dialog>
+            </div>
+          </CalibratorContext>
         </OptimizerContext>
       </SurveyImportProvider>
     </TracingProvider>

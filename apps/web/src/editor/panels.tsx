@@ -127,6 +127,15 @@ import {
   type CoverageGoal,
 } from './optimizer.ts'
 import { useOptimizer } from './optimizerContext.ts'
+import { useCalibrator } from './calibratorContext.ts'
+import {
+  appliedFits,
+  calibratedNote,
+  errorChange,
+  fitRows,
+  improves,
+  readinessLines,
+} from './modelCalibration.ts'
 import { useSurveyImport } from './surveyImportContext.ts'
 import {
   errorLegendRows,
@@ -420,8 +429,10 @@ export function PropertiesPanel({
   const selection = useEditor((s) => s.selection)
   const tool = useEditor((s) => s.tool)
   const optimizing = useEditor((s) => s.optimizer !== undefined)
+  const calibrating = useEditor((s) => s.modelCalibration !== undefined)
   const in3d = useEditor((s) => s.view === '3d')
   const floor = plan.floors.find((f) => f.id === floorId)!
+  const calibrationNote = calibratedNote(plan)
 
   const only = selection.length === 1 ? selection[0] : undefined
   const ap =
@@ -450,6 +461,8 @@ export function PropertiesPanel({
       : undefined
 
   let details
+  // Whether the details already show Calibrate, with the survey list (D76).
+  let calibrateShown = false
   if (in3d) details = <View3DSection />
   else if (tool === 'wall' && selection.length === 0) {
     details = <WallToolSection />
@@ -461,6 +474,7 @@ export function PropertiesPanel({
     details = <FloorOpeningToolSection />
   } else if (tool === 'survey' && selection.length === 0) {
     details = <SurveyToolSection />
+    calibrateShown = true
   } else if (surveySpot) {
     details = <SurveySpotSection key={surveySpot.id} spot={surveySpot} />
   } else if (floorOpening) {
@@ -471,7 +485,10 @@ export function PropertiesPanel({
   else if (wall) details = <WallSection wall={wall} floor={floor} />
   else if (node) details = <CornerSection node={node} floor={floor} />
   else if (selection.length > 1) details = <MultipleSection />
-  else
+  else {
+    calibrateShown =
+      plan.calibration !== undefined ||
+      plan.floors.some((f) => (f.surveySpots ?? []).length > 0)
     details = (
       <>
         <PlanSection />
@@ -479,6 +496,7 @@ export function PropertiesPanel({
         {floor.background && <TracingSection background={floor.background} />}
       </>
     )
+  }
 
   return (
     <aside
@@ -493,6 +511,12 @@ export function PropertiesPanel({
         (optimizing || ap || (tool === 'select' && selection.length === 0)) && (
           <OptimizerSection />
         )}
+
+      {!in3d && calibrating && !calibrateShown && (
+        <section>
+          <CalibrateSection />
+        </section>
+      )}
 
       {tool !== 'wall' && (
         <section>
@@ -514,6 +538,7 @@ export function PropertiesPanel({
         <CoverageSummary message={coverageText} />
         <p className="hint">
           Predictions come from a simplified model.{' '}
+          {calibrationNote && `${calibrationNote} `}
           <a href={MODEL_URL}>How it works and its limits</a>
         </p>
       </section>
@@ -1516,11 +1541,14 @@ function PlanSection() {
       </dl>
       <RegionFields />
       <NeighbourFields />
-      {plan.floors.some((f) => (f.surveySpots ?? []).length > 0) && (
+      {plan.floors.some((f) => (f.surveySpots ?? []).length > 0) ? (
         <>
           <SurveyList />
           <p className="hint">Add more with the Survey tool (S).</p>
         </>
+      ) : (
+        // Reset stays in reach after the spots are gone (D76).
+        plan.calibration && <CalibrateSection />
       )}
       <ViewSettingsFields />
       {floor?.walls.length === 0 && (
@@ -2680,7 +2708,161 @@ function SurveyList() {
         </p>
       )}
       {withSpots.length > 0 && <SurveyReport />}
+      {withSpots.length > 0 && <CalibrateSection />}
     </>
+  )
+}
+
+/**
+ * Calibrate (D76): fits every band with readings, then shows each band's
+ * fitted values next to the defaults with the held-out error before and
+ * after, or what it still needs, with Apply or Dismiss. The map previews
+ * the fit while it waits. Reset to defaults puts every band back.
+ */
+function CalibrateSection() {
+  const store = useEditorStore()
+  const calibrator = useCalibrator()
+  const plan = useEditor((s) => s.plan)
+  const state = useEditor((s) => s.modelCalibration)
+  const note = calibratedNote(plan)
+  const primary = useRef<HTMLButtonElement>(null)
+  const focusInside = useRef(false)
+  useEffect(() => {
+    const active = document.activeElement
+    if (focusInside.current && (!active || active === document.body)) {
+      primary.current?.focus()
+    }
+  }, [state])
+  const fitting = state?.status === 'fitting'
+  return (
+    <div
+      className="calibrate"
+      onFocus={() => (focusInside.current = true)}
+      onBlur={() => (focusInside.current = false)}
+    >
+      <h3>Calibrate the model</h3>
+      {state?.status !== 'result' ? (
+        <>
+          <p className="hint">
+            {note ??
+              'Fits the walls’ and floors’ losses and how fast signal fades to your readings, band by band, within published limits.'}
+          </p>
+          <div className="actions">
+            <button
+              ref={primary}
+              type="button"
+              disabled={fitting}
+              onClick={() => calibrator.start()}
+            >
+              {fitting
+                ? 'Calibrating…'
+                : note
+                  ? 'Calibrate again'
+                  : 'Calibrate'}
+            </button>
+            {note && (
+              <button
+                type="button"
+                onClick={() => store.getState().resetModelCalibration()}
+              >
+                Reset to defaults
+              </button>
+            )}
+          </div>
+        </>
+      ) : (
+        <>
+          {state.results.length === 0 && (
+            <p className="hint">
+              No readings to fit yet: add readings from your access points
+              first.
+            </p>
+          )}
+          {state.results.map(({ band, readiness, fit }) => (
+            <section
+              key={band}
+              className="calibrate-band"
+              aria-label={`${BAND_LABELS[band]} calibration`}
+            >
+              <h4>{BAND_LABELS[band]}</h4>
+              {!fit ? (
+                <>
+                  <p className="hint">Not enough spots to fit yet.</p>
+                  {readinessLines(plan, readiness).map((line) => (
+                    <p key={line} className="hint">
+                      {line}
+                    </p>
+                  ))}
+                  {readiness.floors.some(
+                    (f) => f.roomsWithSpots < f.roomsNeeded,
+                  ) && (
+                    <p className="hint">
+                      Rooms without a spot are ringed on the map while{' '}
+                      {BAND_LABELS[band]} is on show.
+                    </p>
+                  )}
+                </>
+              ) : (
+                <>
+                  <p className="hint">{errorChange(fit)}</p>
+                  {!improves(fit) && (
+                    <p className="hint">
+                      Not applied: it doesn’t predict the readings better than
+                      the defaults.
+                    </p>
+                  )}
+                  <table className="error-table calibrate-table">
+                    <thead>
+                      <tr>
+                        <th scope="col">Value</th>
+                        <th scope="col">Default</th>
+                        <th scope="col">Fitted</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {fitRows(fit).map((row) => (
+                        <tr key={row.label}>
+                          <th scope="row">
+                            {row.label}
+                            {row.note && (
+                              <span className="field-note">{row.note}</span>
+                            )}
+                          </th>
+                          <td>{row.defaultText}</td>
+                          <td>{row.valueText}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </>
+              )}
+            </section>
+          ))}
+          {appliedFits(state.results).length > 0 && (
+            <p className="hint">
+              The map shows the calibration until you apply or dismiss it.
+            </p>
+          )}
+          <div className="actions">
+            <button
+              ref={primary}
+              type="button"
+              className="primary"
+              disabled={appliedFits(state.results).length === 0}
+              onClick={() => store.getState().applyModelCalibration()}
+            >
+              Apply
+            </button>
+            <button
+              type="button"
+              onClick={() => store.getState().dismissModelCalibration()}
+            >
+              Dismiss
+            </button>
+          </div>
+        </>
+      )}
+    </div>
   )
 }
 

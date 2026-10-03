@@ -386,6 +386,7 @@ export function accessPointLinks(
   nodes: readonly Node[],
 ): number[][] {
   const stack = prepareStack(plan, band)
+  const exponent = plan.calibration?.[band]?.pathLossExponent
   const storeyOf = new Map(stack.map((s, i) => [s.floor.id, i]))
   const place = nodes.map(({ ap }) => {
     const storey = storeyOf.get(ap.floorId)!
@@ -412,7 +413,15 @@ export function accessPointLinks(
               to.ap.x,
               to.ap.y,
             )
-      return signalDbm(from.ap, from.radio, to.ap.x, to.ap.y, loss, a.z - b.z)
+      return signalDbm(
+        from.ap,
+        from.radio,
+        to.ap.x,
+        to.ap.y,
+        loss,
+        a.z - b.z,
+        exponent,
+      )
     }),
   )
 }

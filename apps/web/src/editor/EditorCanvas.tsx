@@ -163,6 +163,17 @@ export function EditorCanvas({
   const band = useEditor((s) => s.band)
   // Each pin shows its mean error on the band on show (D73).
   const errors = useSurveyErrors()
+  // Rooms Calibrate still needs a spot in, on the band on show (D76).
+  const modelCalibration = useEditor((s) => s.modelCalibration)
+  const emptyRooms = useMemo(() => {
+    if (modelCalibration?.status !== 'result') return undefined
+    const result = modelCalibration.results.find((r) => r.band === band)
+    if (!result || result.fit) return undefined
+    const here = result.readiness.floors.find((f) => f.floorId === floorId)
+    return here && here.roomsWithSpots < here.roomsNeeded
+      ? here.emptyRooms
+      : undefined
+  }, [modelCalibration, band, floorId])
   const surveySpots = useMemo(
     () =>
       (floor.surveySpots ?? []).map((spot) => ({
@@ -378,6 +389,7 @@ export function EditorCanvas({
         tool === 'accessPoint' && cursor === 'default' ? pointer : undefined,
       surveySpots,
       surveyCard,
+      emptyRooms,
       surveyPreview:
         tool === 'survey' && cursor === 'default' ? pointer : undefined,
       suggestions: suggestedHere?.map((move) => ({
@@ -424,6 +436,7 @@ export function EditorCanvas({
     ghostScene,
     surveySpots,
     surveyCard,
+    emptyRooms,
   ])
 
   const snapForWallTool = (screen: Point, altKey: boolean) => {
