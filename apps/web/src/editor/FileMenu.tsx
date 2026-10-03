@@ -13,6 +13,7 @@ import {
 import { PlansDialog } from './PlansDialog.tsx'
 import { useServices } from './services.ts'
 import { embedImages, storeEmbeddedImages } from './tracing.ts'
+import { useScan } from './scanContext.ts'
 import { useSurveyImport } from './surveyImportContext.ts'
 import { useTracing } from './tracingContext.ts'
 import { isTyping, MOD_KEY } from './util.ts'
@@ -27,6 +28,7 @@ export function FileMenu() {
   const { library, autosaver } = useServices()
   const { chooseImage } = useTracing()
   const { chooseReadingsFile } = useSurveyImport()
+  const { openScan } = useScan()
   /** Saves the open plan to a file, with its tracing images embedded. */
   const saveToFile = async () => {
     const state = store.getState()
@@ -216,6 +218,15 @@ export function FileMenu() {
             }}
           >
             Import readings…
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              closeMenu()
+              openScan()
+            }}
+          >
+            Scan your network…
           </button>
           <button type="button" onClick={() => void startFresh(samplePlan())}>
             Open the sample home

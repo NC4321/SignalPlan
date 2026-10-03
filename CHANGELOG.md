@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ### Added
 
+- Scan your network (File menu, Survey spots list, Neighbours' networks): copy the scan command for your computer (guessed from the browser), paste what it prints or open the file, then say which devices are yours, which are a neighbour's and which to ignore, a device at a time. Your radios get their BSSIDs, and their channel and width when on Auto and the scan says; it asks before changing a channel you've set. Neighbours' networks are added, or updated by a later scan, with band, channel, width and strength. One undo step; later scans match on their own (D80).
+
 - Reading Wi-Fi scans (engine for Scan your network): the output of `netsh` (Windows, any language), `system_profiler -json` (macOS), `nmcli` or `iw` (Linux), WiFi Analyzer's export (Android) and SignalPlan's own scan scripts is read into one entry per BSSID with band, channel, width where given, and signal in dBm. Percentages from netsh and nmcli are converted with each tool's own mapping and marked approximate. BSSIDs that look like one device are grouped. Survey readings get the optional `approximate` field and neighbour networks the optional `bssid` (D79).
 
 - Phase 7 exit gate, automated part: on the surveyed bungalow and a two-storey house whose walls, floor and fall-off differ from the defaults, calibration at least halves the held-out error on every band, and the error report shows it once applied (bias gone, errors about the size of the noise). Where the defaults were already right, Apply never makes the report worse. Recording a real home's survey completes the gate (D78).

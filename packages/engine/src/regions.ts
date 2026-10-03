@@ -110,6 +110,28 @@ export function availableChannels(
 }
 
 /**
+ * The channel at `width` that a scanned network on 20 MHz `primary` channel
+ * is on, by the region's channel numbers (D80): the one whose span holds
+ * the primary's 20 MHz. Undefined when the region has none, or more than
+ * one: at 2.4 GHz a 40 MHz channel can sit either side of its primary.
+ */
+export function channelAtWidth(
+  region: Region | undefined,
+  band: Band,
+  primary: number,
+  width: ChannelWidth,
+): number | undefined {
+  const centre = channelCentreMHz(band, primary)
+  const matches = (regionBand(region, band).channels[width] ?? []).filter(
+    (channel) => {
+      const [low, high] = channelSpanMHz(band, channel, width)
+      return low <= centre - 10 && centre + 10 <= high
+    },
+  )
+  return matches.length === 1 ? matches[0] : undefined
+}
+
+/**
  * Why a radio's hand-set width or channel isn't allowed by the plan's rules:
  * `region` when the region doesn't have it at all, `dfs` when it's a DFS
  * channel and DFS is off. Undefined when it's allowed or left to the planner.

@@ -150,6 +150,7 @@ export {
   availableChannels,
   CHANNEL_WIDTHS,
   channelCentreMHz,
+  channelAtWidth,
   channelSpanMHz,
   channelWidths,
   radioChannelIssue,
