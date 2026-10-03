@@ -330,7 +330,7 @@ export function roomSpots(
 }
 
 /** Standard normal numbers from a seeded generator (Box–Muller). */
-function gaussian(seed: number) {
+export function gaussian(seed: number) {
   const random = mulberry32(seed)
   return () =>
     Math.sqrt(-2 * Math.log(1 - random())) * Math.cos(2 * Math.PI * random())
