@@ -1,0 +1,4 @@
+Time Stamp|SSID|BSSID|Strength|Primary Channel|Primary Frequency|Center Channel|Center Frequency|Width (Range)|Distance|802.11mc|Security
+2026/10/03 12:00:00|HomeNet|a4:2b:b0:12:34:56|-56dBm|36|5180MHz|42|5210MHz|80MHz (5170 - 5250)|~3.1m|false|[WPA2-PSK-CCMP]
+2026/10/03 12:00:00|HomeNet|a4:2b:b0:12:34:55|-41dBm|6|2437MHz|6|2437MHz|20MHz (2427 - 2447)|~1.0m|false|[WPA2-PSK-CCMP]
+2026/10/03 12:00:00|Next door|10:20:30:40:50:60|-84dBm|149|5745MHz|151|5755MHz|40MHz (5735 - 5775)|~40m|false|[WPA2-PSK-CCMP]

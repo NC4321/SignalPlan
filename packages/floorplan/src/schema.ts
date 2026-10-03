@@ -124,6 +124,11 @@ export const surveyReadingSchema = z.object({
     .number()
     .min(SURVEY_READING_RANGE_DBM.min)
     .max(SURVEY_READING_RANGE_DBM.max),
+  /**
+   * Converted from a signal percentage (netsh, nmcli) rather than read in
+   * dBm, so only roughly right (D77). Omitted means read in dBm.
+   */
+  approximate: z.literal(true).optional(),
 })
 
 /**
@@ -252,6 +257,11 @@ export const neighbourNetworkSchema = z.object({
    */
   channel: z.number().int().min(1).max(233).optional(),
   channelWidthMHz: z.union(CHANNEL_WIDTHS.map((w) => z.literal(w))),
+  /**
+   * The BSSID it was scanned with (D77), so a later scan updates it rather
+   * than adding another. Omitted for a network typed in by hand.
+   */
+  bssid: bssidSchema.optional(),
   /** Its rough signal in the home, in dBm, as a phone or analyser shows it. */
   strengthDbm: z
     .number()

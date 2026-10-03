@@ -1,0 +1,27 @@
+{
+  "signalplanScan": 1,
+  "source": "example",
+  "networks": [
+    {
+      "bssid": "a4:2b:b0:12:34:56",
+      "ssid": "HomeNet",
+      "frequencyMHz": 5180,
+      "widthMHz": 80,
+      "dbm": -56
+    },
+    {
+      "bssid": "a4:2b:b0:12:34:55",
+      "ssid": "HomeNet",
+      "frequencyMHz": 2437,
+      "widthMHz": 20,
+      "dbm": -41
+    },
+    {
+      "bssid": "10:20:30:40:50:60",
+      "ssid": "Next door",
+      "frequencyMHz": 5745,
+      "widthMHz": 40,
+      "dbm": -84
+    }
+  ]
+}
