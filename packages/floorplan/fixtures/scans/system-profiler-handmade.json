@@ -1,0 +1,31 @@
+{
+  "SPAirPortDataType": [
+    {
+      "spairport_airport_interfaces": [
+        {
+          "_name": "en0",
+          "spairport_current_network_information": {
+            "_name": "HomeNet",
+            "spairport_network_bssid": "a4:2b:b0:12:34:56",
+            "spairport_network_channel": "36 (5GHz, 80MHz)",
+            "spairport_network_phymode": "802.11ax",
+            "spairport_signal_noise": "-56 dBm / -92 dBm"
+          },
+          "spairport_airport_other_local_wireless_networks": [
+            {
+              "_name": "HomeNet",
+              "spairport_network_bssid": "a4:2b:b0:12:34:55",
+              "spairport_network_channel": "6 (2GHz, 20MHz)",
+              "spairport_signal_noise": "-41 dBm / -95 dBm"
+            },
+            {
+              "_name": "Next door",
+              "spairport_network_channel": "149 (5GHz, 40MHz)",
+              "spairport_signal_noise": "-84 dBm / -92 dBm"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

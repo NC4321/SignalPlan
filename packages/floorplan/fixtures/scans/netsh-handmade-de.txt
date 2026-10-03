@@ -1,0 +1,15 @@
+
+Schnittstellenname : WLAN
+Zurzeit sind 1 Netzwerke sichtbar.
+
+SSID 1 : HomeNet
+    Netzwerktyp             : Infrastruktur
+    Authentifizierung       : WPA2-Personal
+    Verschlüsselung         : CCMP
+    BSSID 1                 : a4:2b:b0:12:34:56
+         Signal             : 86 %
+         Funktyp            : 802.11ax
+         Band               : 5 GHz
+         Kanal              : 36
+         Basisraten (MBit/s) : 6 12 24
+         Andere Raten (MBit/s) : 9 18 36 48 54

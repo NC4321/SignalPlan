@@ -162,7 +162,8 @@ function checkFloor(
 
 /**
  * Survey spots (D71): ids unique across floors, readings from access points
- * in the plan, one per access point and band; and each BSSID on one radio.
+ * in the plan, one per access point and band; and each BSSID on one radio
+ * or one neighbour network (D77).
  */
 function checkSurvey(
   plan: Plan,
@@ -223,6 +224,22 @@ function checkSurvey(
         bssids.add(bssid)
       })
     })
+  })
+  const neighbours = new Set<string>()
+  plan.neighbourNetworks?.forEach((network, n) => {
+    const { bssid } = network
+    if (bssid === undefined) return
+    const path = `neighbourNetworks[${n}].bssid`
+    if (neighbours.has(bssid)) {
+      report(path, `BSSID ${bssid} is on more than one neighbour network.`)
+    }
+    if (bssids.has(bssid)) {
+      report(path, `BSSID ${bssid} is on a radio and also a neighbour’s.`)
+    }
+    if (ignored.has(bssid)) {
+      report(path, `BSSID ${bssid} is a neighbour’s and also marked not mine.`)
+    }
+    neighbours.add(bssid)
   })
 }
 

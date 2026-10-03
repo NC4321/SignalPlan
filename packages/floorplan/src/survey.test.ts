@@ -331,4 +331,58 @@ describe('survey validation (D71)', () => {
       },
     ])
   })
+
+  it('keeps a neighbour’s BSSID off radios, other neighbours and the not-mine list (D77)', () => {
+    const p = plan()
+    p.accessPoints[0]!.radios[1]!.bssids = ['a4:2b:b0:12:34:56']
+    p.ignoredBssids = ['10:20:30:40:50:61']
+    const network = (id: string, bssid: string) => ({
+      id,
+      band: '5GHz' as const,
+      channelWidthMHz: 80 as const,
+      strengthDbm: -80,
+      bssid,
+    })
+    p.neighbourNetworks = [
+      network('nn1', '10:20:30:40:50:60'),
+      network('nn2', '10:20:30:40:50:60'),
+      network('nn3', 'a4:2b:b0:12:34:56'),
+      network('nn4', '10:20:30:40:50:61'),
+    ]
+    expect(checkStructure(p)).toEqual([
+      {
+        path: 'neighbourNetworks[1].bssid',
+        message:
+          'BSSID 10:20:30:40:50:60 is on more than one neighbour network.',
+      },
+      {
+        path: 'neighbourNetworks[2].bssid',
+        message:
+          'BSSID a4:2b:b0:12:34:56 is on a radio and also a neighbour’s.',
+      },
+      {
+        path: 'neighbourNetworks[3].bssid',
+        message:
+          'BSSID 10:20:30:40:50:61 is a neighbour’s and also marked not mine.',
+      },
+    ])
+    p.neighbourNetworks = [network('nn1', '10:20:30:40:50:60')]
+    delete p.ignoredBssids
+    expect(parsePlan(p).ok).toBe(true)
+  })
+
+  it('takes approximate readings, marked true or left out (D77)', () => {
+    const p = plan()
+    addSurveySpot(p, 'down', { x: 0, y: 0 })
+    spotOf(p, 'spot1').readings.push({
+      apId: 'router',
+      band: '5GHz',
+      dbm: -57,
+      approximate: true,
+    })
+    expect(parsePlan(p).ok).toBe(true)
+    ;(spotOf(p, 'spot1').readings[0] as { approximate: unknown }).approximate =
+      false
+    expect(parsePlan(p).ok).toBe(false)
+  })
 })

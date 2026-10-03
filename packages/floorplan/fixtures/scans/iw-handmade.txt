@@ -1,0 +1,39 @@
+BSS a4:2b:b0:12:34:56(on wlan0) -- associated
+	TSF: 1234567890 usec (0d, 00:20:34)
+	freq: 5180.0
+	beacon interval: 100 TUs
+	capability: ESS Privacy SpectrumMgmt (0x0111)
+	signal: -56.00 dBm
+	last seen: 120 ms ago
+	SSID: HomeNet
+	HT operation:
+		 * primary channel: 36
+		 * secondary channel offset: above
+		 * STA channel width: any
+	VHT operation:
+		 * channel width: 1 (80 MHz)
+		 * center freq segment 1: 42
+		 * center freq segment 2: 0
+BSS a4:2b:b0:12:34:55(on wlan0)
+	freq: 2437
+	signal: -41.00 dBm
+	SSID: HomeNet
+	DS Parameter set: channel 6
+	HT operation:
+		 * primary channel: 6
+		 * secondary channel offset: no secondary
+		 * STA channel width: 20 MHz
+BSS 10:20:30:40:50:60(on wlan0)
+	freq: 5745
+	signal: -84.00 dBm
+	SSID: Next door
+	HT operation:
+		 * primary channel: 149
+		 * secondary channel offset: above
+		 * STA channel width: any
+	VHT operation:
+		 * channel width: 0 (20 or 40 MHz)
+BSS 02:aa:bb:cc:dd:ee(on wlan0)
+	freq: 58320
+	signal: -70.00 dBm
+	SSID: Sixty

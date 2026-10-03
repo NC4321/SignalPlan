@@ -62,6 +62,20 @@ export {
   type UnknownBssid,
 } from './surveyImport.ts'
 export {
+  bandOfScanFrequency,
+  channelOfFrequency,
+  groupScanDevices,
+  netshPercentToDbm,
+  nmcliPercentToDbm,
+  parseScan,
+  SCAN_FORMAT_NAMES,
+  type ScanDevice,
+  type ScanEntry,
+  type ScanFormat,
+  type ScanResult,
+  type SkippedEntry,
+} from './scanImport.ts'
+export {
   checkStructure,
   loadPlan,
   MIN_WALL_LENGTH_M,
