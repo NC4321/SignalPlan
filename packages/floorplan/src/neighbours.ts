@@ -116,3 +116,27 @@ export function setNeighbourStrength(
   network.strengthDbm = dbm
   return true
 }
+
+/**
+ * Adds or updates a network from a scan (D77), keyed by its BSSID: an
+ * existing network keeps its id and, if it has one, its name. Returns the id.
+ */
+export function upsertScannedNeighbour(
+  plan: Plan,
+  id: string | undefined,
+  fields: Omit<NeighbourNetwork, 'id'>,
+): string {
+  const existing = id === undefined ? undefined : find(plan, id)
+  if (existing) {
+    const name = existing.name ?? fields.name
+    Object.assign(existing, fields)
+    if (name === undefined) delete existing.name
+    else existing.name = name
+    if (fields.channel === undefined) delete existing.channel
+    return existing.id
+  }
+  const next = nextNeighbourId(plan)
+  plan.neighbourNetworks ??= []
+  plan.neighbourNetworks.push({ id: next, ...fields })
+  return next
+}

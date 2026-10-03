@@ -24,6 +24,7 @@ export {
   setNeighbourChannel,
   setNeighbourStrength,
   setNeighbourWidth,
+  upsertScannedNeighbour,
 } from './neighbours.ts'
 export {
   addSurveyReading,
@@ -61,6 +62,18 @@ export {
   type RowTarget,
   type UnknownBssid,
 } from './surveyImport.ts'
+export {
+  applyScan,
+  planScan,
+  radioKey,
+  unknownScanEntries,
+  type ScanChanges,
+  type ScanChoice,
+  type ScanNeighbourChange,
+  type ScanRadioChange,
+  type ScanSummary,
+  type ScanTuning,
+} from './scanApply.ts'
 export {
   bandOfScanFrequency,
   channelOfFrequency,

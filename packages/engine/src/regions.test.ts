@@ -4,6 +4,7 @@ import { BAND_PROFILES } from './bands.ts'
 import {
   availableChannels,
   CHANNEL_WIDTHS,
+  channelAtWidth,
   channelCentreMHz,
   channelSpanMHz,
   channelWidths,
@@ -197,5 +198,24 @@ describe('radioChannelIssue', () => {
         channelWidthMHz: 20,
       }),
     ).toBe('region')
+  })
+})
+
+describe('channelAtWidth (D80)', () => {
+  it('finds the channel at a width that holds a scanned primary channel', () => {
+    expect(channelAtWidth('US', '5GHz', 36, 20)).toBe(36)
+    expect(channelAtWidth('US', '5GHz', 36, 40)).toBe(38)
+    expect(channelAtWidth('US', '5GHz', 40, 80)).toBe(42)
+    expect(channelAtWidth('US', '5GHz', 149, 80)).toBe(155)
+    expect(channelAtWidth('US', '5GHz', 100, 160)).toBe(114)
+    expect(channelAtWidth('US', '6GHz', 1, 80)).toBe(7)
+    expect(channelAtWidth('US', '2.4GHz', 6, 20)).toBe(6)
+  })
+
+  it('gives none where the region has no such channel, or several', () => {
+    // 165 has no 80 MHz channel in the US.
+    expect(channelAtWidth('US', '5GHz', 165, 80)).toBeUndefined()
+    // At 2.4 GHz, 40 MHz on primary 6 is centred on 4 or 8.
+    expect(channelAtWidth('US', '2.4GHz', 6, 40)).toBeUndefined()
   })
 })

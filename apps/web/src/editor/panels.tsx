@@ -136,6 +136,7 @@ import {
   improves,
   readinessLines,
 } from './modelCalibration.ts'
+import { useScan } from './scanContext.ts'
 import { useSurveyImport } from './surveyImportContext.ts'
 import {
   errorLegendRows,
@@ -1734,6 +1735,7 @@ function NeighbourFields() {
   const edit = (label: string, change: (plan: Draft<Plan>) => void) =>
     store.getState().edit(label, change, { keepOptimizer: true })
   const usualWidth = (band: Band) => radioTuning({ band }, region).widthMHz
+  const { openScan } = useScan()
   return (
     <>
       <h3>Neighbours’ networks</h3>
@@ -1763,6 +1765,9 @@ function NeighbourFields() {
         }
       >
         Add a network
+      </button>
+      <button type="button" onClick={openScan}>
+        Scan your network…
       </button>
     </>
   )
@@ -2644,6 +2649,7 @@ function SurveyList() {
   const floors = useEditor((s) => s.plan.floors)
   const ignored = useEditor((s) => s.plan.ignoredBssids?.length ?? 0)
   const { chooseReadingsFile } = useSurveyImport()
+  const { openScan } = useScan()
   const stack = stackedFloors(floors).reverse()
   const withSpots = stack.filter((f) => (f.surveySpots ?? []).length > 0)
   return (
@@ -2685,6 +2691,13 @@ function SurveyList() {
         From a CSV or JSON file with a BSSID and dBm (or RSSI) column, and a
         spot or x and y in metres for each row.{' '}
         <a href={FLOORPLAN_IMPORT_URL}>The file format</a>
+      </p>
+      <button type="button" onClick={openScan}>
+        Scan your network…
+      </button>
+      <p className="hint">
+        Import what your computer or phone hears, to match your radios’ BSSIDs
+        and add the neighbours’ networks.
       </p>
       {ignored > 0 && (
         <p className="hint">

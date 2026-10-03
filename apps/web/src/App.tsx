@@ -8,6 +8,7 @@ import { EditorCanvas } from './editor/EditorCanvas.tsx'
 import { FloorStack } from './editor/FloorStack.tsx'
 import { useSaveStatus } from './editor/autosave.ts'
 import { CalibrationBar } from './editor/CalibrationBar.tsx'
+import { ScanProvider } from './editor/ScanProvider.tsx'
 import { SurveyImportProvider } from './editor/SurveyImportProvider.tsx'
 import { TracingProvider } from './editor/TracingProvider.tsx'
 import { Dialog, PlanIssues } from './editor/Dialog.tsx'
@@ -226,95 +227,97 @@ function App({
   return (
     <TracingProvider>
       <SurveyImportProvider>
-        <OptimizerContext value={optimizer}>
-          <CalibratorContext value={calibrator}>
-            <div className="app">
-              <TopBar
-                panelOpen={panelOpen}
-                onTogglePanel={() => setPanelOpen((open) => !open)}
-              />
-              <Toolbar />
-              <main className="stage">
-                <h1 className="visually-hidden">SignalPlan editor</h1>
-                {view === '3d' ? (
-                  <Suspense
-                    fallback={<p className="notice">Loading the 3D view…</p>}
-                  >
-                    <View3D
-                      plan={shownPlan}
-                      maps={floorMaps}
-                      hiddenFloors={view3d.hiddenFloors}
-                      spreadM={view3d.spreadM}
-                      fullWalls={view3d.fullWalls}
-                      showHeatmap={showHeatmap}
-                      units={units}
-                      target={plan.coverageTarget ?? DEFAULT_TARGET}
-                    />
-                  </Suspense>
-                ) : (
-                  <>
-                    <EditorCanvas coverage={shown} map={map} />
-                    {tool === 'calibrate' && <CalibrationBar />}
-                    <FloorStack />
-                  </>
-                )}
-                {view === '2d' && !broadcastingHere && (
-                  <p className="notice">
-                    {(hasAccessPoint
-                      ? 'No access point on this floor broadcasts on this band.'
-                      : 'No access points on this floor.') +
-                      (broadcasting
-                        ? ' The heatmap shows signal from other floors.'
-                        : hasAccessPoint
-                          ? ' Select one and turn the band on under Bands.'
-                          : ' Add one with the Access point tool.')}
+        <ScanProvider>
+          <OptimizerContext value={optimizer}>
+            <CalibratorContext value={calibrator}>
+              <div className="app">
+                <TopBar
+                  panelOpen={panelOpen}
+                  onTogglePanel={() => setPanelOpen((open) => !open)}
+                />
+                <Toolbar />
+                <main className="stage">
+                  <h1 className="visually-hidden">SignalPlan editor</h1>
+                  {view === '3d' ? (
+                    <Suspense
+                      fallback={<p className="notice">Loading the 3D view…</p>}
+                    >
+                      <View3D
+                        plan={shownPlan}
+                        maps={floorMaps}
+                        hiddenFloors={view3d.hiddenFloors}
+                        spreadM={view3d.spreadM}
+                        fullWalls={view3d.fullWalls}
+                        showHeatmap={showHeatmap}
+                        units={units}
+                        target={plan.coverageTarget ?? DEFAULT_TARGET}
+                      />
+                    </Suspense>
+                  ) : (
+                    <>
+                      <EditorCanvas coverage={shown} map={map} />
+                      {tool === 'calibrate' && <CalibrationBar />}
+                      <FloorStack />
+                    </>
+                  )}
+                  {view === '2d' && !broadcastingHere && (
+                    <p className="notice">
+                      {(hasAccessPoint
+                        ? 'No access point on this floor broadcasts on this band.'
+                        : 'No access points on this floor.') +
+                        (broadcasting
+                          ? ' The heatmap shows signal from other floors.'
+                          : hasAccessPoint
+                            ? ' Select one and turn the band on under Bands.'
+                            : ' Add one with the Access point tool.')}
+                    </p>
+                  )}
+                  {error && (
+                    <p className="notice">Couldn’t compute coverage: {error}</p>
+                  )}
+                </main>
+                <PropertiesPanel
+                  open={panelOpen}
+                  coverageText={coverageText}
+                  map={map}
+                />
+                <StatusBar
+                  coverage={shown}
+                  coverageText={coverageText}
+                  saveStatus={saveStatus}
+                />
+                <Dialog
+                  open={problemOpen}
+                  title="Your saved plan couldn’t be opened"
+                  onClose={() => setProblemOpen(false)}
+                  actions={
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => rescuePlan(savedPlanProblem?.raw)}
+                      >
+                        Download it
+                      </button>
+                      <button
+                        type="button"
+                        className="primary"
+                        onClick={() => setProblemOpen(false)}
+                      >
+                        Continue with the sample
+                      </button>
+                    </>
+                  }
+                >
+                  <p>
+                    The sample home is open instead. The plan is still in My
+                    plans; download it to keep a copy of what was stored.
                   </p>
-                )}
-                {error && (
-                  <p className="notice">Couldn’t compute coverage: {error}</p>
-                )}
-              </main>
-              <PropertiesPanel
-                open={panelOpen}
-                coverageText={coverageText}
-                map={map}
-              />
-              <StatusBar
-                coverage={shown}
-                coverageText={coverageText}
-                saveStatus={saveStatus}
-              />
-              <Dialog
-                open={problemOpen}
-                title="Your saved plan couldn’t be opened"
-                onClose={() => setProblemOpen(false)}
-                actions={
-                  <>
-                    <button
-                      type="button"
-                      onClick={() => rescuePlan(savedPlanProblem?.raw)}
-                    >
-                      Download it
-                    </button>
-                    <button
-                      type="button"
-                      className="primary"
-                      onClick={() => setProblemOpen(false)}
-                    >
-                      Continue with the sample
-                    </button>
-                  </>
-                }
-              >
-                <p>
-                  The sample home is open instead. The plan is still in My
-                  plans; download it to keep a copy of what was stored.
-                </p>
-                <PlanIssues issues={savedPlanProblem?.issues ?? []} />
-              </Dialog>
-            </div>
-          </CalibratorContext>
-        </OptimizerContext>
+                  <PlanIssues issues={savedPlanProblem?.issues ?? []} />
+                </Dialog>
+              </div>
+            </CalibratorContext>
+          </OptimizerContext>
+        </ScanProvider>
       </SurveyImportProvider>
     </TracingProvider>
   )
