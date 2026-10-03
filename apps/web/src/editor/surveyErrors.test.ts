@@ -112,6 +112,7 @@ describe('spotCardLines', () => {
     apId: 'a',
     band: '5GHz',
     measuredDbm: -62,
+    approximate: false,
     predictedDbm: -57.84,
     errorDb: 4.16,
   }
@@ -123,6 +124,16 @@ describe('spotCardLines', () => {
     ])
     expect(spotCardLines(spot, '6GHz', [error], aps)).toEqual([
       'No readings on this band',
+    ])
+  })
+
+  it('marks an approximate reading with ≈ (D82)', () => {
+    const rough: SurveySpot = {
+      ...spot,
+      readings: [{ ...spot.readings[0]!, approximate: true }],
+    }
+    expect(spotCardLines(rough, '5GHz', [error], aps)).toEqual([
+      'Router: measured ≈−62.0 dBm, predicted −57.8 dBm (+4.2 dB)',
     ])
   })
 })

@@ -715,6 +715,19 @@ export interface ScanDevice {
 }
 
 /**
+ * The same for every BSSID `groupScanDevices` takes for one device: the
+ * MAC address without its last octet or the first octet's locally
+ * administered bit.
+ */
+export function scanDeviceKey(bssid: string): string {
+  const octets = bssid.split(':')
+  const firstOctet = (parseInt(octets[0]!, 16) & ~0x02)
+    .toString(16)
+    .padStart(2, '0')
+  return [firstOctet, ...octets.slice(1, 5)].join(':')
+}
+
+/**
  * Groups BSSIDs that look like one device (D77): MAC addresses that differ
  * only in the last octet, or also in the first octet's locally administered
  * bit, which devices set for their extra networks. It's a guess, so the
@@ -723,11 +736,7 @@ export interface ScanDevice {
 export function groupScanDevices(entries: readonly ScanEntry[]): ScanDevice[] {
   const groups = new Map<string, ScanEntry[]>()
   for (const entry of entries) {
-    const octets = entry.bssid.split(':')
-    const firstOctet = (parseInt(octets[0]!, 16) & ~0x02)
-      .toString(16)
-      .padStart(2, '0')
-    const key = [firstOctet, ...octets.slice(1, 5)].join(':')
+    const key = scanDeviceKey(entry.bssid)
     const group = groups.get(key) ?? []
     group.push(entry)
     groups.set(key, group)

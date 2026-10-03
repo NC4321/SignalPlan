@@ -95,6 +95,8 @@ export interface ScanChanges {
   ignored: string[]
   /** BSSIDs given to an access point without a radio on their band. */
   noRadio: { bssid: string; apId: string; band: Band }[]
+  /** Every neighbour's BSSID in the scan, for a scan at a spot (D82). */
+  neighbourEntries: ScanEntry[]
 }
 
 /** The key for `applyScan`'s `overwrite`: a radio already set, to retune. */
@@ -144,6 +146,7 @@ export function planScan(
     neighbours: [],
     ignored: [],
     noRadio: [],
+    neighbourEntries: [],
   }
   const mine = new Map<
     string,
@@ -205,6 +208,7 @@ export function planScan(
     }
   }
 
+  changes.neighbourEntries = neighbours
   const { min, max } = NEIGHBOUR_STRENGTH_RANGE_DBM
   for (const device of groupScanDevices(neighbours)) {
     const bands = [...new Set(device.entries.map((e) => e.band))]

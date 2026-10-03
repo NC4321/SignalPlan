@@ -576,6 +576,8 @@ export function applyImport(
     )
     if (existing) {
       existing.dbm = dbm
+      delete existing.approximate
+      delete existing.scans
       summary.readingsReplaced++
     } else {
       spot.readings.push({ apId, band, dbm })

@@ -124,6 +124,12 @@ export interface EditorState {
   fadeHeatmapForSurvey: boolean
   tool: Tool
   selection: Selection
+  /**
+   * Scan your network is waiting for a click where the scan was taken
+   * (D82): a click on the plan calls this with the point, on the floor on
+   * show, in place of the tool's own action.
+   */
+  placeScan: ((at: Point) => void) | undefined
   /** Undefined until the canvas has a size to fit the plan into. */
   camera: Camera | undefined
   /** Where the pointer is over the plan, in metres. */
@@ -229,6 +235,8 @@ export interface EditorState {
   setShowGhost: (show: boolean) => void
   setFadeHeatmapForSurvey: (fade: boolean) => void
   setTool: (tool: Tool) => void
+  /** Waits for a click to place a scan (D82), or stops waiting. */
+  setPlaceScan: (place: ((at: Point) => void) | undefined) => void
   /** Replaces the selection. */
   select: (selection: Selection) => void
   /** Adds an item to the selection, or removes it if already selected. */
@@ -417,6 +425,7 @@ export function createEditorStore(
     fadeHeatmapForSurvey: true,
     tool: 'select',
     selection: [],
+    placeScan: undefined,
     camera: undefined,
     pointer: undefined,
     wallMaterial: 'drywall',
@@ -659,6 +668,7 @@ export function createEditorStore(
               chain: undefined,
               outline: undefined,
               calibrationPoints: [],
+              placeScan: undefined,
               tool: state.tool === 'calibrate' ? 'select' : state.tool,
             },
       ),
@@ -685,8 +695,10 @@ export function createEditorStore(
               chain: undefined,
               outline: undefined,
               calibrationPoints: [],
+              placeScan: undefined,
             },
       ),
+    setPlaceScan: (placeScan) => set({ placeScan }),
     addCalibrationPoint: (point) =>
       set((state) => ({
         calibrationPoints: [...state.calibrationPoints, point].slice(-2),

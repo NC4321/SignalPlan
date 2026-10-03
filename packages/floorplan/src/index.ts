@@ -75,6 +75,12 @@ export {
   type ScanTuning,
 } from './scanApply.ts'
 export {
+  addScanToMean,
+  applyScanAtSpot,
+  type ScanPlace,
+  type SpotScanSummary,
+} from './scanSpot.ts'
+export {
   bandOfScanFrequency,
   channelOfFrequency,
   groupScanDevices,
@@ -82,6 +88,7 @@ export {
   nmcliPercentToDbm,
   parseScan,
   SCAN_FORMAT_NAMES,
+  scanDeviceKey,
   type ScanDevice,
   type ScanEntry,
   type ScanFormat,

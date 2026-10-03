@@ -67,6 +67,29 @@ describe('scanSummaryText', () => {
       }),
     ).toBe('Scan imported: nothing new.')
   })
+
+  it('says what it did at a spot first (D82)', () => {
+    expect(
+      scanSummaryText(
+        {
+          bssidsMapped: 0,
+          radiosTuned: 0,
+          neighboursAdded: 1,
+          neighboursUpdated: 0,
+          bssidsIgnored: 0,
+        },
+        {
+          spotId: 'spot3',
+          spotAdded: true,
+          readingsAdded: 2,
+          readingsAveraged: 1,
+          neighboursHeard: 1,
+        },
+      ),
+    ).toBe(
+      'Scan imported: added Spot 3, 2 readings at Spot 3, 1 reading averaged with earlier scans, added 1 neighbour’s network.',
+    )
+  })
 })
 
 describe('scan scripts (D81)', () => {

@@ -195,6 +195,16 @@ function checkSurvey(
         }
         sources.add(source)
       })
+      const heard = new Set<string>()
+      spot.neighbourReadings?.forEach((reading, r) => {
+        if (heard.has(reading.bssid)) {
+          report(
+            `${path}.neighbourReadings[${r}]`,
+            `BSSID ${reading.bssid} is listed twice.`,
+          )
+        }
+        heard.add(reading.bssid)
+      })
     })
   })
 

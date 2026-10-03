@@ -45,6 +45,7 @@ describe('predictReadings', () => {
     expect(error!.predictedDbm).toBeCloseTo(-33.83, 1)
     expect(error!.predictedDbm).toBeCloseTo(freeSpaceDbm(3), 9)
     expect(error!.measuredDbm).toBe(-40)
+    expect(error!.approximate).toBe(false)
     // Predicted − measured: the model is 6.2 dB too hopeful here.
     expect(error!.errorDb).toBeCloseTo(6.17, 1)
   })
@@ -61,6 +62,12 @@ describe('predictReadings', () => {
       apId: 'ap',
       band: '5GHz',
     })
+  })
+
+  it('says which readings were converted from a percentage (D82)', () => {
+    const p = plan([spot('s', 8, 3, [{ dbm: -70 }])])
+    p.floors[0]!.surveySpots![0]!.readings[0]!.approximate = true
+    expect(predictReadings(p)[0]!.approximate).toBe(true)
   })
 
   it('leaves out readings of a band the access point has turned off', () => {
@@ -110,6 +117,7 @@ const reading = (
   spotId: string,
   band: Band,
   errorDb: number,
+  approximate = false,
 ): ReadingError => ({
   spotId,
   floorId: 'f',
@@ -117,6 +125,7 @@ const reading = (
   apId: 'ap',
   band,
   measuredDbm: -60,
+  approximate,
   predictedDbm: -60 + errorDb,
   errorDb,
 })
@@ -126,14 +135,20 @@ describe('summariseErrors', () => {
     const summary = summariseErrors([
       reading('a', '5GHz', 2),
       reading('b', '5GHz', -4),
-      reading('c', '5GHz', 5),
+      reading('c', '5GHz', 5, true),
       reading('a', '2.4GHz', -3),
     ])
     // 5 GHz: mean (2 − 4 + 5)/3 = 1; RMS √((4 + 16 + 25)/3) = √15.
     expect(summary).toHaveLength(2)
     expect(summary[0]).toMatchObject({ band: '2.4GHz', count: 1, meanDb: -3 })
     expect(summary[0]!.rmsDb).toBeCloseTo(3, 12)
-    expect(summary[1]).toMatchObject({ band: '5GHz', count: 3, meanDb: 1 })
+    expect(summary[1]).toMatchObject({
+      band: '5GHz',
+      count: 3,
+      approximate: 1,
+      meanDb: 1,
+    })
+    expect(summary[0]!.approximate).toBe(0)
     expect(summary[1]!.rmsDb).toBeCloseTo(Math.sqrt(15), 12)
   })
 

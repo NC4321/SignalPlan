@@ -18,6 +18,8 @@ export interface ReadingError {
   apId: string
   band: Band
   measuredDbm: number
+  /** The reading was converted from a signal percentage (D77, D82). */
+  approximate: boolean
   predictedDbm: number
   /** Predicted − measured, in dB: above 0 the model is too hopeful. */
   errorDb: number
@@ -96,6 +98,7 @@ export function predictReadings(
           apId: ap.id,
           band: reading.band,
           measuredDbm: reading.dbm,
+          approximate: reading.approximate === true,
           predictedDbm,
           errorDb: predictedDbm - reading.dbm,
         })
@@ -109,6 +112,8 @@ export function predictReadings(
 export interface BandErrorSummary {
   band: Band
   count: number
+  /** How many of them were converted from a percentage (D82). */
+  approximate: number
   /** Mean of predicted − measured: the model's bias. */
   meanDb: number
   /** Root mean square of predicted − measured. */
@@ -120,7 +125,8 @@ export function summariseErrors(
   errors: readonly ReadingError[],
 ): BandErrorSummary[] {
   return BANDS.flatMap((band) => {
-    const values = errors.filter((e) => e.band === band).map((e) => e.errorDb)
+    const onBand = errors.filter((e) => e.band === band)
+    const values = onBand.map((e) => e.errorDb)
     if (values.length === 0) return []
     const sum = values.reduce((total, v) => total + v, 0)
     const squares = values.reduce((total, v) => total + v * v, 0)
@@ -128,6 +134,7 @@ export function summariseErrors(
       {
         band,
         count: values.length,
+        approximate: onBand.filter((e) => e.approximate).length,
         meanDb: sum / values.length,
         rmsDb: Math.sqrt(squares / values.length),
       },
