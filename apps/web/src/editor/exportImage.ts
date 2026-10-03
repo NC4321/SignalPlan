@@ -9,6 +9,7 @@ import {
   type Band,
   type Plan,
 } from '@signalplan/floorplan'
+import { calibratedBands } from './modelCalibration.ts'
 import {
   EDGE_KEY_RGB,
   EDGE_RGB,
@@ -340,9 +341,12 @@ export function renderExport(
   context.fillStyle = colour('--muted')
   context.font = `12px ${FONT}`
   context.textBaseline = 'alphabetic'
+  const calibrated = calibratedBands(plan).includes(band)
   const footer = wrap(
     context,
-    'Predicted with a simplified model by SignalPlan, signalplan.pages.dev',
+    calibrated
+      ? 'Predicted with a simplified model, calibrated to this home’s survey, by SignalPlan, signalplan.pages.dev'
+      : 'Predicted with a simplified model by SignalPlan, signalplan.pages.dev',
     SIDEBAR,
   )
   footer.forEach((line, i) => {

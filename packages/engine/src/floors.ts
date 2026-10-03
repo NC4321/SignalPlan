@@ -4,6 +4,7 @@ import {
   pointInPolygon,
   stackedFloors,
   type Band,
+  type BandCalibration,
   type Floor,
   type FloorMaterial,
   type Plan,
@@ -17,7 +18,6 @@ import {
   type PreparedWalls,
   type WallIndex,
 } from './crossings.ts'
-import type { BandCalibration } from './calibration.ts'
 import {
   floorLossAtDb,
   floorLossTable,
@@ -95,12 +95,13 @@ export function slabLossTable(
 /**
  * The plan's floors in one band, from the lowest up. Floors at the same
  * elevation keep the plan's order. Calibrated losses replace the defaults
- * where given (D75).
+ * where given (D75): the plan's own (D76) unless others are passed, and `{}`
+ * gives the defaults.
  */
 export function prepareStack(
   plan: Plan,
   band: Band,
-  calibration?: BandCalibration,
+  calibration: BandCalibration | undefined = plan.calibration?.[band],
 ): Storey[] {
   const wallLosses = { ...MATERIAL_LOSS_DB[band], ...calibration?.wallLossDb }
   const floors = stackedFloors(plan.floors)

@@ -7,6 +7,10 @@ import {
 import type { AccessPoint, Band, Plan, SurveySpot } from '@signalplan/floorplan'
 import type { Rgb } from '../mapView.ts'
 import { useEditor } from './context.ts'
+import { formatErrorDb } from './coverageText.ts'
+import { withModelCalibration } from './modelCalibration.ts'
+
+export { formatErrorDb }
 
 /**
  * Survey pins coloured by predicted − measured (D73). The steps are for
@@ -47,15 +51,6 @@ export function errorStep(db: number): number {
   const size = Math.abs(rounded)
   const away = ERROR_STEPS_DB.filter((step) => size >= step).length
   return rounded > 0 ? 3 - away : 3 + away
-}
-
-/** "+4.2 dB", "−6 dB" or "0 dB", with a true minus sign. */
-export function formatErrorDb(db: number, digits = 1): string {
-  const value = Number(db.toFixed(digits)) || 0
-  const text = Math.abs(value).toFixed(digits)
-  if (value > 0) return `+${text} dB`
-  if (value < 0) return `−${text} dB`
-  return `${text} dB`
 }
 
 /** A dBm value with a true minus sign, to 0.1 dB. */
@@ -103,9 +98,26 @@ export function surveyErrors(plan: Plan): SurveyErrors {
 /** Worked out once per plan, however many components ask. */
 const cache = new WeakMap<Plan, SurveyErrors>()
 
-/** Every reading's prediction and error, worked out again when the plan changes. */
+/** The plan with a waiting calibration applied, once per plan and fit. */
+const previews = new WeakMap<object, { plan: Plan; shown: Plan }>()
+
+/**
+ * Every reading's prediction and error, worked out again when the plan
+ * changes. While a calibration waits for Apply, the pins and report show
+ * it, as the heatmap does (D76).
+ */
 export function useSurveyErrors(): SurveyErrors {
-  const plan = useEditor((s) => s.plan)
+  const saved = useEditor((s) => s.plan)
+  const calibration = useEditor((s) => s.modelCalibration)
+  let plan = saved
+  if (calibration) {
+    let preview = previews.get(calibration)
+    if (preview?.plan !== saved) {
+      preview = { plan: saved, shown: withModelCalibration(saved, calibration) }
+      previews.set(calibration, preview)
+    }
+    plan = preview.shown
+  }
   let errors = cache.get(plan)
   if (!errors) {
     errors = surveyErrors(plan)

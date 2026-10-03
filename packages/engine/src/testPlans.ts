@@ -395,3 +395,44 @@ export function surveyedTwoStorey(): Plan {
     })),
   }
 }
+
+/**
+ * The survey in surveyed-home.json (D76): the sample bungalow with 11 spots
+ * across its 7 rooms, each read from the router on every band. Its readings
+ * are the model under `SURVEYED_HOME_TRUTH`, a phone reading 5 dB low and
+ * 2 dB of noise, to 0.1 dB.
+ */
+export function surveyedHomeSpots(plan: Plan): SurveySpot[] {
+  const at: [number, number][] = [
+    [2.45, 1.95],
+    [1.4, 1.2],
+    [7.95, 4.95],
+    [6.5, 2.5],
+    [9.5, 7.5],
+    [12.95, 1.95],
+    [13.8, 1.2],
+    [2.45, 4.95],
+    [12.95, 5.45],
+    [2.45, 7.95],
+    [12.95, 8.45],
+  ]
+  return at.map(([x, y], i) => ({
+    id: `spot${i + 1}`,
+    x,
+    y,
+    readings: plan.accessPoints.flatMap((a) =>
+      a.radios.map((radio) => ({ apId: a.id, band: radio.band, dbm: -60 })),
+    ),
+  }))
+}
+
+export const SURVEYED_HOME_TRUTH = {
+  calibration: {
+    '2.4GHz': { pathLossExponent: 2.25 },
+    '5GHz': { pathLossExponent: 2.25 },
+    '6GHz': { pathLossExponent: 2.25 },
+  } satisfies Calibration,
+  offsetDb: -5,
+  sigmaDb: 2,
+  seed: 7,
+}

@@ -1,0 +1,631 @@
+{
+  "schemaVersion": 1,
+  "name": "Surveyed bungalow",
+  "floors": [
+    {
+      "id": "main",
+      "name": "Main floor",
+      "elevationM": 0,
+      "heightM": 2.4,
+      "nodes": [
+        {
+          "id": "n1",
+          "x": 0,
+          "y": 0
+        },
+        {
+          "id": "n2",
+          "x": 5,
+          "y": 0
+        },
+        {
+          "id": "n3",
+          "x": 11,
+          "y": 0
+        },
+        {
+          "id": "n4",
+          "x": 15,
+          "y": 0
+        },
+        {
+          "id": "n5",
+          "x": 15,
+          "y": 4
+        },
+        {
+          "id": "n6",
+          "x": 15,
+          "y": 7
+        },
+        {
+          "id": "n7",
+          "x": 15,
+          "y": 10
+        },
+        {
+          "id": "n8",
+          "x": 11,
+          "y": 10
+        },
+        {
+          "id": "n9",
+          "x": 5,
+          "y": 10
+        },
+        {
+          "id": "n10",
+          "x": 0,
+          "y": 10
+        },
+        {
+          "id": "n11",
+          "x": 0,
+          "y": 6
+        },
+        {
+          "id": "n12",
+          "x": 0,
+          "y": 4
+        },
+        {
+          "id": "n13",
+          "x": 5,
+          "y": 4
+        },
+        {
+          "id": "n14",
+          "x": 5,
+          "y": 6
+        },
+        {
+          "id": "n15",
+          "x": 11,
+          "y": 4
+        },
+        {
+          "id": "n16",
+          "x": 11,
+          "y": 7
+        }
+      ],
+      "walls": [
+        {
+          "id": "ext-top-bed1",
+          "from": "n1",
+          "to": "n2",
+          "material": "brick"
+        },
+        {
+          "id": "ext-top-living",
+          "from": "n2",
+          "to": "n3",
+          "material": "brick"
+        },
+        {
+          "id": "ext-top-office",
+          "from": "n3",
+          "to": "n4",
+          "material": "brick"
+        },
+        {
+          "id": "ext-right-office",
+          "from": "n4",
+          "to": "n5",
+          "material": "brick"
+        },
+        {
+          "id": "ext-right-utility",
+          "from": "n5",
+          "to": "n6",
+          "material": "brick"
+        },
+        {
+          "id": "ext-right-primary",
+          "from": "n6",
+          "to": "n7",
+          "material": "brick"
+        },
+        {
+          "id": "ext-bottom-primary",
+          "from": "n7",
+          "to": "n8",
+          "material": "brick"
+        },
+        {
+          "id": "ext-bottom-kitchen",
+          "from": "n8",
+          "to": "n9",
+          "material": "brick"
+        },
+        {
+          "id": "ext-bottom-bed2",
+          "from": "n9",
+          "to": "n10",
+          "material": "brick"
+        },
+        {
+          "id": "ext-left-bed2",
+          "from": "n10",
+          "to": "n11",
+          "material": "brick"
+        },
+        {
+          "id": "ext-left-bath",
+          "from": "n11",
+          "to": "n12",
+          "material": "brick"
+        },
+        {
+          "id": "ext-left-bed1",
+          "from": "n12",
+          "to": "n1",
+          "material": "brick"
+        },
+        {
+          "id": "living-bed1",
+          "from": "n2",
+          "to": "n13",
+          "material": "drywall"
+        },
+        {
+          "id": "living-bath",
+          "from": "n13",
+          "to": "n14",
+          "material": "drywall"
+        },
+        {
+          "id": "living-bed2",
+          "from": "n14",
+          "to": "n9",
+          "material": "drywall"
+        },
+        {
+          "id": "bed1-bath",
+          "from": "n12",
+          "to": "n13",
+          "material": "drywall"
+        },
+        {
+          "id": "bath-bed2",
+          "from": "n11",
+          "to": "n14",
+          "material": "drywall"
+        },
+        {
+          "id": "living-office",
+          "from": "n3",
+          "to": "n15",
+          "material": "drywall"
+        },
+        {
+          "id": "living-utility",
+          "from": "n15",
+          "to": "n16",
+          "material": "concrete"
+        },
+        {
+          "id": "kitchen-primary",
+          "from": "n16",
+          "to": "n8",
+          "material": "drywall"
+        },
+        {
+          "id": "office-utility",
+          "from": "n15",
+          "to": "n5",
+          "material": "concrete"
+        },
+        {
+          "id": "utility-primary",
+          "from": "n16",
+          "to": "n6",
+          "material": "concrete"
+        }
+      ],
+      "openings": [
+        {
+          "id": "front-door",
+          "wallId": "ext-top-living",
+          "kind": "door",
+          "offsetM": 1.5,
+          "widthM": 0.9,
+          "material": "wood"
+        },
+        {
+          "id": "living-window",
+          "wallId": "ext-top-living",
+          "kind": "window",
+          "offsetM": 3.5,
+          "widthM": 2,
+          "material": "low-e-glass"
+        },
+        {
+          "id": "bed1-window",
+          "wallId": "ext-top-bed1",
+          "kind": "window",
+          "offsetM": 1.5,
+          "widthM": 1.5,
+          "material": "low-e-glass"
+        },
+        {
+          "id": "office-window",
+          "wallId": "ext-top-office",
+          "kind": "window",
+          "offsetM": 1.2,
+          "widthM": 1.5,
+          "material": "low-e-glass"
+        },
+        {
+          "id": "office-side-window",
+          "wallId": "ext-right-office",
+          "kind": "window",
+          "offsetM": 1.2,
+          "widthM": 1.5,
+          "material": "low-e-glass"
+        },
+        {
+          "id": "primary-side-window",
+          "wallId": "ext-right-primary",
+          "kind": "window",
+          "offsetM": 0.8,
+          "widthM": 1.4,
+          "material": "low-e-glass"
+        },
+        {
+          "id": "primary-window",
+          "wallId": "ext-bottom-primary",
+          "kind": "window",
+          "offsetM": 1.2,
+          "widthM": 1.5,
+          "material": "low-e-glass"
+        },
+        {
+          "id": "kitchen-window",
+          "wallId": "ext-bottom-kitchen",
+          "kind": "window",
+          "offsetM": 1,
+          "widthM": 1.8,
+          "material": "low-e-glass"
+        },
+        {
+          "id": "patio-door",
+          "wallId": "ext-bottom-kitchen",
+          "kind": "door",
+          "offsetM": 3.6,
+          "widthM": 1.6,
+          "material": "low-e-glass"
+        },
+        {
+          "id": "bed2-window",
+          "wallId": "ext-bottom-bed2",
+          "kind": "window",
+          "offsetM": 1.5,
+          "widthM": 1.5,
+          "material": "low-e-glass"
+        },
+        {
+          "id": "bath-window",
+          "wallId": "ext-left-bath",
+          "kind": "window",
+          "offsetM": 0.7,
+          "widthM": 0.6,
+          "material": "low-e-glass"
+        },
+        {
+          "id": "bed1-door",
+          "wallId": "living-bed1",
+          "kind": "door",
+          "offsetM": 2.9,
+          "widthM": 0.8,
+          "material": "wood"
+        },
+        {
+          "id": "bath-door",
+          "wallId": "living-bath",
+          "kind": "door",
+          "offsetM": 0.6,
+          "widthM": 0.8,
+          "material": "wood"
+        },
+        {
+          "id": "bed2-door",
+          "wallId": "living-bed2",
+          "kind": "door",
+          "offsetM": 0.3,
+          "widthM": 0.8,
+          "material": "wood"
+        },
+        {
+          "id": "office-door",
+          "wallId": "living-office",
+          "kind": "door",
+          "offsetM": 2.9,
+          "widthM": 0.8,
+          "material": "wood"
+        },
+        {
+          "id": "utility-door",
+          "wallId": "living-utility",
+          "kind": "door",
+          "offsetM": 1,
+          "widthM": 0.9,
+          "material": "metal"
+        },
+        {
+          "id": "primary-door",
+          "wallId": "kitchen-primary",
+          "kind": "door",
+          "offsetM": 0.3,
+          "widthM": 0.8,
+          "material": "wood"
+        }
+      ],
+      "surveySpots": [
+        {
+          "id": "spot1",
+          "x": 2.45,
+          "y": 1.95,
+          "readings": [
+            {
+              "apId": "router",
+              "band": "2.4GHz",
+              "dbm": -39.3
+            },
+            {
+              "apId": "router",
+              "band": "5GHz",
+              "dbm": -44.9
+            },
+            {
+              "apId": "router",
+              "band": "6GHz",
+              "dbm": -50.7
+            }
+          ]
+        },
+        {
+          "id": "spot2",
+          "x": 1.4,
+          "y": 1.2,
+          "readings": [
+            {
+              "apId": "router",
+              "band": "2.4GHz",
+              "dbm": -42
+            },
+            {
+              "apId": "router",
+              "band": "5GHz",
+              "dbm": -46.1
+            },
+            {
+              "apId": "router",
+              "band": "6GHz",
+              "dbm": -50.3
+            }
+          ]
+        },
+        {
+          "id": "spot3",
+          "x": 7.95,
+          "y": 4.95,
+          "readings": [
+            {
+              "apId": "router",
+              "band": "2.4GHz",
+              "dbm": -43.1
+            },
+            {
+              "apId": "router",
+              "band": "5GHz",
+              "dbm": -44.7
+            },
+            {
+              "apId": "router",
+              "band": "6GHz",
+              "dbm": -51.9
+            }
+          ]
+        },
+        {
+          "id": "spot4",
+          "x": 6.5,
+          "y": 2.5,
+          "readings": [
+            {
+              "apId": "router",
+              "band": "2.4GHz",
+              "dbm": -28
+            },
+            {
+              "apId": "router",
+              "band": "5GHz",
+              "dbm": -32.7
+            },
+            {
+              "apId": "router",
+              "band": "6GHz",
+              "dbm": -39.4
+            }
+          ]
+        },
+        {
+          "id": "spot5",
+          "x": 9.5,
+          "y": 7.5,
+          "readings": [
+            {
+              "apId": "router",
+              "band": "2.4GHz",
+              "dbm": -45.1
+            },
+            {
+              "apId": "router",
+              "band": "5GHz",
+              "dbm": -48.7
+            },
+            {
+              "apId": "router",
+              "band": "6GHz",
+              "dbm": -54.6
+            }
+          ]
+        },
+        {
+          "id": "spot6",
+          "x": 12.95,
+          "y": 1.95,
+          "readings": [
+            {
+              "apId": "router",
+              "band": "2.4GHz",
+              "dbm": -49.5
+            },
+            {
+              "apId": "router",
+              "band": "5GHz",
+              "dbm": -48.3
+            },
+            {
+              "apId": "router",
+              "band": "6GHz",
+              "dbm": -54.2
+            }
+          ]
+        },
+        {
+          "id": "spot7",
+          "x": 13.8,
+          "y": 1.2,
+          "readings": [
+            {
+              "apId": "router",
+              "band": "2.4GHz",
+              "dbm": -45
+            },
+            {
+              "apId": "router",
+              "band": "5GHz",
+              "dbm": -53
+            },
+            {
+              "apId": "router",
+              "band": "6GHz",
+              "dbm": -55.6
+            }
+          ]
+        },
+        {
+          "id": "spot8",
+          "x": 2.45,
+          "y": 4.95,
+          "readings": [
+            {
+              "apId": "router",
+              "band": "2.4GHz",
+              "dbm": -46.4
+            },
+            {
+              "apId": "router",
+              "band": "5GHz",
+              "dbm": -51.4
+            },
+            {
+              "apId": "router",
+              "band": "6GHz",
+              "dbm": -52
+            }
+          ]
+        },
+        {
+          "id": "spot9",
+          "x": 12.95,
+          "y": 5.45,
+          "readings": [
+            {
+              "apId": "router",
+              "band": "2.4GHz",
+              "dbm": -62
+            },
+            {
+              "apId": "router",
+              "band": "5GHz",
+              "dbm": -77.8
+            },
+            {
+              "apId": "router",
+              "band": "6GHz",
+              "dbm": -85.8
+            }
+          ]
+        },
+        {
+          "id": "spot10",
+          "x": 2.45,
+          "y": 7.95,
+          "readings": [
+            {
+              "apId": "router",
+              "band": "2.4GHz",
+              "dbm": -55.4
+            },
+            {
+              "apId": "router",
+              "band": "5GHz",
+              "dbm": -57
+            },
+            {
+              "apId": "router",
+              "band": "6GHz",
+              "dbm": -57.9
+            }
+          ]
+        },
+        {
+          "id": "spot11",
+          "x": 12.95,
+          "y": 8.45,
+          "readings": [
+            {
+              "apId": "router",
+              "band": "2.4GHz",
+              "dbm": -74.8
+            },
+            {
+              "apId": "router",
+              "band": "5GHz",
+              "dbm": -103.9
+            },
+            {
+              "apId": "router",
+              "band": "6GHz",
+              "dbm": -115.8
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "accessPoints": [
+    {
+      "id": "router",
+      "name": "Wi-Fi 6E router",
+      "floorId": "main",
+      "x": 5.6,
+      "y": 1.2,
+      "heightM": 1,
+      "radios": [
+        {
+          "band": "2.4GHz"
+        },
+        {
+          "band": "5GHz"
+        },
+        {
+          "band": "6GHz"
+        }
+      ]
+    }
+  ]
+}

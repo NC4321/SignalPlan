@@ -41,3 +41,12 @@ export function settledAnnouncement(
 ): string {
   return inGesture ? announced : message
 }
+
+/** "+4.2 dB", "−6 dB" or "0 dB", with a true minus sign. */
+export function formatErrorDb(db: number, digits = 1): string {
+  const value = Number(db.toFixed(digits)) || 0
+  const text = Math.abs(value).toFixed(digits)
+  if (value > 0) return `+${text} dB`
+  if (value < 0) return `−${text} dB`
+  return `${text} dB`
+}
