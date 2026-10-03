@@ -104,19 +104,19 @@ Home-guest,a6:2b:b0:12:34:56,-53,5180,3.5,4,Main floor
 
 A scan is what a computer or phone sees of the Wi-Fi around it: each BSSID with its network name, band, channel, often its width, and its signal. `parseScan` in `scanImport.ts` reads the output of the commands in Scan your network, pasted or saved to a file, trying each format by its shape (D77, [D79](DECISIONS.md#d79-reading-scans--2026-10-03)):
 
-| Format                    | Command                                                 | Signal         | Width                           | Checked on a real capture |
-| ------------------------- | ------------------------------------------------------- | -------------- | ------------------------------- | ------------------------- |
-| SignalPlan's scan scripts | (#141)                                                  | dBm            | yes                             | its own format            |
-| Windows                   | `netsh wlan show networks mode=bssid`                   | %, approximate | no                              | not yet                   |
-| macOS                     | `system_profiler SPAirPortDataType -json`               | dBm            | yes                             | not yet                   |
-| Linux                     | `nmcli -t -f BSSID,SSID,CHAN,FREQ,SIGNAL dev wifi list` | %, approximate | with a sixth field, `BANDWIDTH` | not yet                   |
-| Linux                     | `sudo iw dev <interface> scan`                          | dBm            | yes                             | not yet                   |
-| Android                   | WiFi Analyzer's export                                  | dBm            | yes                             | not yet                   |
+| Format                    | Command                                                 | Signal         | Width                           | Checked on a real capture       |
+| ------------------------- | ------------------------------------------------------- | -------------- | ------------------------------- | ------------------------------- |
+| SignalPlan's scan scripts | Copy script, on Windows and macOS (D81)                 | dBm            | yes                             | not yet run on a real PC or Mac |
+| Windows                   | `netsh wlan show networks mode=bssid`                   | %, approximate | no                              | not yet                         |
+| macOS                     | `system_profiler SPAirPortDataType -json`               | dBm            | yes                             | not yet                         |
+| Linux                     | `nmcli -t -f BSSID,SSID,CHAN,FREQ,SIGNAL dev wifi list` | %, approximate | with a sixth field, `BANDWIDTH` | not yet                         |
+| Linux                     | `sudo iw dev <interface> scan`                          | dBm            | yes                             | not yet                         |
+| Android                   | WiFi Analyzer's export                                  | dBm            | yes                             | not yet                         |
 
 - **netsh** is translated with Windows, so it's read by its layout: an unindented `… n : name` line starts a network, an indented line whose value is a MAC address starts a BSSID, and under it the first value ending in % is the signal, a value such as `5 GHz` the band (Windows 11), and the first whole number after the signal the channel. Without a band line, channels 1–14 are 2.4 GHz and 32–177 are 5 GHz.
 - **Percentages** become dBm with each tool's own mapping, and the entry is marked `approximate`. Windows documents 0 % as −100 dBm and 100 % as −50 dBm, linear between (`WLAN_AVAILABLE_NETWORK`); NetworkManager maps −100 to −40 dBm onto 0–100 %, truncating (`nm_wifi_utils_level_to_quality`), so a percentage from 1 to 99 becomes the middle of its 0.6 dB step. Both clip: 100 % can be any stronger signal.
 - **iw** gives the width from the VHT operation element (80 or 160 MHz), or else the HT operation element (40 MHz with a secondary channel, otherwise 20). WiFi Analyzer's export is a header line and a row per BSSID, separated by `|`, commas, semicolons or tabs. macOS leaves out a network's BSSID unless the app reading it has Location permission; such networks are skipped and listed.
-- **SignalPlan's scripts** write `{ "signalplanScan": 1, "networks": [{ "bssid", "ssid", "frequencyMHz", "widthMHz", "dbm" }] }`.
+- **SignalPlan's scripts** ([D81](DECISIONS.md#d81-scan-scripts-for-windows-and-macos--2026-10-03), in `apps/web/src/editor/scanScripts`) write `{ "signalplanScan": 1, "networks": [{ "bssid", "ssid", "frequencyMHz", "widthMHz", "dbm" }] }`, or `channel` and `band` (`"2.4"`, `"5"` or `"6"`) in place of `frequencyMHz`.
 
 Every entry gets its band from the frequency where the tool gives one, and its channel from the frequency, else as given. A BSSID on a band SignalPlan doesn't model, such as 60 GHz, is skipped and listed; a BSSID without a signal, or with one outside −120 to 0 dBm, fails the scan with its line. Several sightings of one BSSID become one, at their mean power in mW, as for readings. `groupScanDevices` groups BSSIDs that look like one device: MAC addresses that differ only in the last octet, or also in the first octet's locally administered bit, which devices set for extra networks such as a guest one. It's a guess, so the dialog lets a group be split. Samples of each format are in [`fixtures/scans`](../packages/floorplan/fixtures/scans); until real captures replace them, they're written by hand from each tool's documented or reported output.
 

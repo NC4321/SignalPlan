@@ -545,7 +545,9 @@ function readSystemProfiler(data: unknown, out: Collected) {
 
 /**
  * The JSON SignalPlan's own scan scripts write: `{ "signalplanScan": 1,
- * "networks": [{ "bssid", "ssid", "frequencyMHz", "widthMHz", "dbm" }] }`.
+ * "networks": [{ "bssid", "ssid", "frequencyMHz", "widthMHz", "dbm" }] }`,
+ * or `channel` and `band` (`"2.4"`, `"5"` or `"6"`) in place of the
+ * frequency (D81).
  */
 function readSignalplan(data: Record<string, unknown>, out: Collected) {
   if (data.signalplanScan !== 1) {
@@ -579,12 +581,19 @@ function readSignalplan(data: Record<string, unknown>, out: Collected) {
         ? network[key]
         : undefined
     const mhz = number('frequencyMHz')
+    // Without a frequency, a channel and band (as CoreWLAN gives them).
+    const band =
+      mhz === undefined
+        ? typeof network.band === 'string'
+          ? bandOfText(`${network.band} GHz`)
+          : undefined
+        : bandOfScanFrequency(mhz)
     out.add({
       where,
       bssid,
       ssid: typeof network.ssid === 'string' ? network.ssid : '',
-      band: mhz === undefined ? undefined : bandOfScanFrequency(mhz),
-      channel: mhz === undefined ? undefined : channelOfFrequency(mhz),
+      band,
+      channel: mhz === undefined ? number('channel') : channelOfFrequency(mhz),
       widthMHz: widthOf(number('widthMHz')),
       dbm: number('dbm'),
     })

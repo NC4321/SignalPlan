@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { guessPlatform, scanSummaryText, scanTuning } from './scan.ts'
+import {
+  guessPlatform,
+  MAC_SCRIPT_PASTE,
+  SCAN_PLATFORMS,
+  scanSummaryText,
+  scanTuning,
+} from './scan.ts'
 
 describe('guessPlatform', () => {
   it('reads the platform from the user agent', () => {
@@ -60,5 +66,19 @@ describe('scanSummaryText', () => {
         bssidsIgnored: 0,
       }),
     ).toBe('Scan imported: nothing new.')
+  })
+})
+
+describe('scan scripts (D81)', () => {
+  it('writes SignalPlan’s scan format and copies it', () => {
+    const windows = SCAN_PLATFORMS.windows.script!.text
+    expect(windows).toContain('\\"signalplanScan\\":1')
+    expect(windows).toContain('Set-Clipboard')
+    // Pasting it twice in one PowerShell session mustn't redefine the type.
+    expect(windows).toContain("if (-not ('SignalPlanScan' -as [type]))")
+    expect(MAC_SCRIPT_PASTE).toContain('"signalplanScan": 1')
+    expect(MAC_SCRIPT_PASTE).toMatch(
+      /\nSIGNALPLAN\nswift \/tmp\/signalplan-scan.swift \| pbcopy/,
+    )
   })
 })
