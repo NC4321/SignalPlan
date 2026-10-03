@@ -223,11 +223,11 @@ The main constraint is that web browsers cannot read Wi-Fi signal strength, and 
 
 **Deliverables**
 
-- [ ] Survey mode: tap a spot on the plan and enter or import a reading for each AP
-- [ ] Import format for readings (CSV or JSON), with the AP identified by network name or MAC address
-- [ ] Error report: predicted versus measured at each spot, with an overall error figure
-- [ ] Fitting: adjust material losses and the path loss exponent to reduce the error, within sensible limits
-- [ ] Before and after accuracy shown to the user
+- [x] Survey mode: tap a spot on the plan and enter or import a reading for each AP (D71)
+- [x] Import format for readings (CSV or JSON), with the AP identified by network name or MAC address (D72; by BSSID, since a network name can't tell mesh points apart)
+- [x] Error report: predicted versus measured at each spot, with an overall error figure (D73)
+- [x] Fitting: adjust material losses and the path loss exponent to reduce the error, within sensible limits (D75)
+- [x] Before and after accuracy shown to the user (D76, D78)
 
 **Decide at this phase**
 
