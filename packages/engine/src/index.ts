@@ -205,3 +205,11 @@ export {
   viewShares,
   type ViewSettings,
 } from './views.ts'
+export {
+  LOCATE_SEARCH_MARGIN_M,
+  locateTransmitter,
+  MIN_LOCATE_SPOTS,
+  type LocateOptions,
+  type LocateReading,
+  type Location,
+} from './locate.ts'

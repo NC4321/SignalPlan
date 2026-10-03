@@ -546,6 +546,35 @@ Loss per crossing: default (limits), dB:
 
 **What calibration can't do.** It fits a handful of numbers per band, so it corrects the model's overall level and how fast signal fades, and the loss of materials the readings cross, but not one particular wall: every wall of a material shares its value. A material the survey doesn't cross enough stays at its default, so a part of the home with no spots behind its walls is predicted as before. The values only hold within their limits, which come from published measurements; a home whose walls are lossier than anything measured (foil-backed insulation, say) will stop at a limit and stay off. The device offset is for the phone that surveyed, and a second phone may read differently. And the heatmap stays an ideal receiver, so a phone that reads 5 dB low will still read about 5 dB below the heatmap after calibrating.
 
+## Locating transmitters
+
+From scans at three spots or more, the engine estimates where a transmitter is and how much power it sends (`locate.ts`, [D83](DECISIONS.md#d83-locating-transmitters-the-fit--2026-10-03)): a neighbour's network, or one of your own access points whose place on the plan is in doubt. It uses the same model as the heatmap and the [error report](#survey-readings), calibrated if the plan is.
+
+**The fit.** The transmitter is taken to be 1 m above one of the plan's floors, as a new access point is, and each reading 1 m above its spot's floor. For a trial position, each reading i has a path gain g_i from the model for a 0 dBm EIRP (distance, walls, and from another floor the slabs and each storey's walls), plus the calibration's device offset, since readings are what the phone showed. With m_i the measured signal, the best power at that position is the mean of m_i − g_i, held at 40 dBm at most (the highest EIRP a radio can be set to in SignalPlan), and the fit's error is the sum of squares of what's left:
+
+```math
+\mathrm{SSE}(x, y, \text{floor}) = \sum_i \left(m_i - g_i - \widehat{\mathrm{EIRP}}\right)^2
+```
+
+The position with the least error is found on a 1.5 m grid over every floor, covering the home and 20 m beyond it, then refined from the five best trials: a 0.1 m grid half a cell either way, then a pattern search down to 1 cm. The refinement starts with a dense grid because a path's loss jumps where it starts or stops crossing a wall or a window, so the error surface has ridges that trap a search that only steps downhill. A neighbour's own walls aren't on the plan, so they lower its fitted power rather than move it.
+
+**Uncertainty.** Positions on the fitted floor whose error is within χ²₂(95%)·σ² = 5.99·σ² of the best are "nearly as good", and the uncertainty is the furthest of them from the fit, measured on a grid of at most 20 steps each way around it. σ is how far off a reading typically is: the fit's own residual with three parameters spent (x, y and power), or the model's error on that band (such as the error report's RMS error for your own access points), whichever is larger. With exactly three readings and no model error given, three readings can be fitted exactly, so the uncertainty is reported as unknown. The result also lists the other floors with a position nearly as good, whether the fit is outside the floor's walls, the distance to the nearest wall, and whether a position nearly as good reaches the edge of the search (the transmitter may be further away still).
+
+**Validation.** `locate.test.ts` checks that without noise a transmitter inside the home, one 6 m outside it and one upstairs in the two-storey house are recovered to within 0.05 m and 0.05 dB of power, and that the device offset is taken off the power. `locateValidation.test.ts` locates four transmitters on each of two homes, ten surveys each with Gaussian noise, the noise level given as the model's error:
+
+| Home, noise                       | Median distance, inside | Median distance, outside | 90th percentile, inside | Median uncertainty | Truth within uncertainty |
+| --------------------------------- | ----------------------- | ------------------------ | ----------------------- | ------------------ | ------------------------ |
+| Surveyed bungalow, 11 spots, 2 dB | 0.4 m                   | 1.0 m                    | 0.7 m                   | 1.3 m              | 100%                     |
+| Surveyed bungalow, 11 spots, 3 dB | 0.5 m                   | 1.0 m                    | 4.8 m                   | 2.1 m              | 100%                     |
+| Big house, 25 spots, 2 dB         | 0.5 m                   | 0.9 m                    | 1.3 m                   | 1.6 m              | 95%                      |
+| Big house, 25 spots, 3 dB         | 0.8 m                   | 1.8 m                    | 2.7 m                   | 2.6 m              | 95%                      |
+
+The transmitters are two inside each home and two outside, 5–6 m beyond a side wall and 6–9 m beyond the far end. Outside, distance and power trade off (a further, stronger transmitter reads much the same), so neighbours are located less precisely than access points inside, and the uncertainty grows to say so. The 95% region holds the truth about as often as it should.
+
+**Speed.** One transmitter takes about 40 ms for the big house's 25 spots and 150 ms for the two-storey house's 50 on the desktop (`locate.speed.ts`, budget 200 ms, CI at 1.5×). Locating runs in a worker, once per network.
+
+**What it can't do.** The model is straight-line only (D24), so a transmitter behind a strong wall that signal reaches around is placed nearer or weaker than it is. A transmitter's height is taken as 1 m above a floor; one on a high shelf or in a neighbour's loft is placed as if lower. Positions near walls are uncertain, since a small move changes which walls a path crosses. And three readings say little: a spread of spots around the home matters more than their number.
+
 ## Known limits
 
 - **The channel planner trusts the model's signal between access points.** Reflections that carry signal around a wall, which the model ignores (D24), can let two access points hear each other when the planner thinks they don't. Neighbours' networks count as heard everywhere at the one strength typed in ([D68](DECISIONS.md#d68-channel-planner--2026-09-29)).
