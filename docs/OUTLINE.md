@@ -33,7 +33,7 @@ All requested features are in scope. They ship in four milestones so there is al
 | M1: Single-floor MVP | Wall drawing to scale, wall materials, AP placement with band, heatmap | 0 to 3 | Draw a flat, drop an AP, see coverage |
 | M2: Smart placement | Placement optimizer, multi-AP and mesh suggestions | 4 | Tool suggests the best spot |
 | M3: Whole home | Multiple floors, floor attenuation, 3D stacked view | 5 | Rotate a two-storey house in 3D |
-| M4: Pro features | Overlap and roaming view, channel planning, phone calibration, launch polish | 6 to 8 | Compare prediction to real readings |
+| M4: Pro features | Overlap and roaming view, channel planning, phone calibration, network scans, launch polish | 6 to 9 | Compare prediction to real readings |
 
 Out of scope unless you add them later: commercial or enterprise sites, outdoor coverage, importing CAD files, and user accounts. Each is noted in the open questions register.
 
@@ -238,7 +238,26 @@ The main constraint is that web browsers cannot read Wi-Fi signal strength, and 
 
 **Exit gate:** on your own home, calibration measurably lowers the average prediction error, and the report makes that visible.
 
-## Phase 8: Polish, documentation and launch
+## Phase 8: Scan your network
+
+Goal: users run one copied command (or export a scan on Android), import what their computer or phone sees, mark which networks are theirs and which are the neighbours', and the tool plans from the real network around them (D77).
+
+**Deliverables**
+
+- [ ] The scan command for each platform, ready to copy, and an import of its raw output (Windows, macOS, Linux, Android) (#141)
+- [ ] Mark each BSSID as mine or a neighbour's, grouped by device; your radios' channels and the neighbours' networks fill in from the scan (#141)
+- [ ] A scan placed at a survey spot becomes that spot's readings, signal percentages converted and marked approximate (#142)
+- [ ] From scans at several spots, estimate where neighbours' and unplaced access points are, and predict neighbours' interference room by room (#143)
+
+**Decide at this phase**
+
+- Settled by D77: a new phase after Phase 7, percentages converted and flagged, locating access points included.
+- How the BSSID dialog groups one device's BSSIDs, and how it handles a scan with dozens of neighbours.
+- What uncertainty the located positions must reach before they're shown.
+
+**Exit gate:** on your own home, scans import from a laptop and a phone, your networks and the neighbours' are marked, and the channel plan accounts for the neighbours you actually hear (#144).
+
+## Phase 9: Polish, documentation and launch
 
 Goal: turn the working tool into something that looks and reads like a professional product. This completes milestone M4.
 
@@ -322,5 +341,5 @@ This is the running list of decisions, ordered by when they're needed. Only the 
 | DFS channels and neighbours' networks? | Phase 6 | Realism of the channel plan |
 | How are phone readings captured? | Phase 7 | Platform limits on reading signal strength |
 | Shared calibration data? | Phase 7 | Needs a backend and a privacy policy |
-| Accounts, cloud saves, paid tier? | Phase 8 | The start of the product-second path |
+| Accounts, cloud saves, paid tier? | Phase 9 | The start of the product-second path |
 | Out of scope for now: offices, outdoor, CAD import | Revisit after M4 | Possible later growth |
