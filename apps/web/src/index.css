@@ -1290,6 +1290,17 @@ h4.survey-report {
   border-radius: 0.35rem;
 }
 
+.scan-script pre {
+  max-height: 12rem;
+  margin: 0.35rem 0 0;
+  padding: 0.5rem;
+  overflow: auto;
+  font-size: 0.7rem;
+  background: var(--canvas);
+  border: 1px solid var(--border);
+  border-radius: 0.35rem;
+}
+
 .scan-output {
   box-sizing: border-box;
   width: 100%;

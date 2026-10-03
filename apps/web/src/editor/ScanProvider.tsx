@@ -283,6 +283,15 @@ function ReadStep({
           <li key={step}>{step}</li>
         ))}
       </ol>
+      {help.script && (
+        <>
+          <ScriptBlock script={help.script.text} name={help.name} />
+          <p className="hint">{help.script.note}</p>
+        </>
+      )}
+      {help.command && help.commandLabel && (
+        <p className="hint">{help.commandLabel}</p>
+      )}
       {help.command && <CommandLine command={help.command} />}
       {help.alternative && (
         <>
@@ -311,6 +320,40 @@ function ReadStep({
         </div>
       )}
     </>
+  )
+}
+
+/** A script to copy whole, which can be read before running it. */
+function ScriptBlock({ script, name }: { script: string; name: string }) {
+  const [copied, setCopied] = useState(false)
+  return (
+    <div className="scan-script">
+      <div className="scan-command">
+        <span>SignalPlan’s scan script for {name}</span>
+        <button
+          type="button"
+          className="primary"
+          onClick={() => {
+            void navigator.clipboard?.writeText(script).then(
+              () => setCopied(true),
+              () => setCopied(false),
+            )
+          }}
+        >
+          Copy script
+        </button>
+        <span className="hint" aria-live="polite">
+          {copied ? 'Copied' : ''}
+        </span>
+      </div>
+      <details>
+        <summary>Show the script</summary>
+        {/* Scrollable, so it takes focus to scroll from the keyboard. */}
+        <pre tabIndex={0} aria-label={`Scan script for ${name}`}>
+          <code>{script}</code>
+        </pre>
+      </details>
+    </div>
   )
 }
 

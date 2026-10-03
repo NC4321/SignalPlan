@@ -1,4 +1,6 @@
 import { channelAtWidth, radioTuning } from '@signalplan/engine'
+import windowsScript from './scanScripts/signalplan-scan.ps1?raw'
+import macScript from './scanScripts/signalplan-scan.swift?raw'
 import {
   radioKey,
   type Plan,
@@ -14,10 +16,27 @@ import {
 
 export type ScanPlatform = 'windows' | 'mac' | 'linux' | 'android' | 'iphone'
 
+/**
+ * The Mac script as one paste for Terminal: it's saved to a temporary file,
+ * run with `swift`, and its output copied (D81).
+ */
+export const MAC_SCRIPT_PASTE = `cat > /tmp/signalplan-scan.swift <<'SIGNALPLAN'
+${macScript.trimEnd()}
+SIGNALPLAN
+swift /tmp/signalplan-scan.swift | pbcopy && echo "Copied the scan. Paste it into SignalPlan."
+`
+
 export interface PlatformHelp {
   name: string
+  /**
+   * SignalPlan's own scan script (D81), which gives signal in dBm and
+   * channel widths, to copy and paste whole.
+   */
+  script?: { text: string; note: string }
   /** The command to copy, when the platform has one. */
   command?: string
+  /** What to call the command when there's also a script. */
+  commandLabel?: string
   /** A second command that gives more, with when to use it. */
   alternative?: { label: string; command: string }
   /** What to do, in order. */
@@ -29,22 +48,32 @@ export interface PlatformHelp {
 export const SCAN_PLATFORMS: Record<ScanPlatform, PlatformHelp> = {
   windows: {
     name: 'Windows',
+    script: {
+      text: windowsScript,
+      note: 'The script asks Windows’ Wi-Fi service directly, for signal in dBm and channel widths, and sends nothing anywhere. It’s new and hasn’t been run on a real PC yet: if it fails, use the built-in command below.',
+    },
     command: 'netsh wlan show networks mode=bssid',
+    commandLabel:
+      'Or Windows’ built-in command (signal as a percentage, so approximate, and no widths): paste it the same way, then copy everything it prints.',
     steps: [
-      'On Windows 11, turn on Location in Settings › Privacy & security › Location, or the command lists no networks.',
-      'Open Terminal or PowerShell (right-click the Start button), paste the command and press Enter.',
-      'Copy everything it prints and paste it below.',
+      'Turn on Location in Settings › Privacy & security › Location, with Let desktop apps access your location, or Windows lists no networks.',
+      'Open PowerShell or Terminal (right-click the Start button), paste the script and press Enter. After about 5 seconds it copies the scan.',
+      'Paste it below.',
     ],
-    note: 'Windows shows signal as a percentage, so readings are approximate (≈), and it doesn’t say channel widths.',
   },
   mac: {
     name: 'macOS',
+    script: {
+      text: MAC_SCRIPT_PASTE,
+      note: 'The script asks macOS’s Wi-Fi framework directly, for signal in dBm and channel widths, and sends nothing anywhere. It needs the command-line developer tools (macOS offers to install them the first time) and Location allowed for Terminal, or macOS hides BSSIDs. It’s new and hasn’t been run on a real Mac yet: if it fails, use the built-in command below.',
+    },
     command: 'system_profiler SPAirPortDataType -json',
+    commandLabel:
+      'Or macOS’s built-in command (networks whose BSSID macOS hides are skipped): paste it the same way, then copy everything it prints.',
     steps: [
-      'Open Terminal (Applications › Utilities), paste the command and press Enter. It takes a few seconds.',
-      'Copy everything it prints and paste it below.',
+      'Open Terminal (Applications › Utilities), paste the script and press Enter. After a few seconds it copies the scan.',
+      'Paste it below.',
     ],
-    note: 'macOS hides each network’s BSSID unless the app running the command has Location permission, and networks without one are skipped. This hasn’t been checked on a real Mac yet.',
   },
   linux: {
     name: 'Linux',

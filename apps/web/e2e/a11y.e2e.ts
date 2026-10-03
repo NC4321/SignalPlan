@@ -79,6 +79,14 @@ test.describe('axe-core finds no serious problems', () => {
     await expect(scan).toBeVisible()
     await expectNoSeriousViolations(page)
     await scan
+      .getByRole('combobox', { name: 'Your device' })
+      .selectOption('windows')
+    await scan.getByText('Show the script').click()
+    await expect(
+      scan.getByRole('button', { name: 'Copy script' }),
+    ).toBeVisible()
+    await expectNoSeriousViolations(page)
+    await scan
       .getByRole('textbox', { name: 'What it printed' })
       .fill('A4\\:2B\\:B0\\:12\\:34\\:56:HomeNet:36:5180 MHz:86')
     await scan.getByRole('button', { name: 'Read scan' }).click()

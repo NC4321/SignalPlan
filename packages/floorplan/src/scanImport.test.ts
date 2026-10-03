@@ -261,6 +261,34 @@ describe('parseScan', () => {
     })
   })
 
+  it('takes a channel and band in its own format, as the Mac script writes (D81)', () => {
+    const result = parseScan(
+      JSON.stringify({
+        signalplanScan: 1,
+        source: 'macos-corewlan',
+        networks: [
+          {
+            bssid: HOME_5,
+            ssid: 'HomeNet',
+            channel: 36,
+            band: '5',
+            widthMHz: 80,
+            dbm: -56,
+          },
+          { bssid: HOME_24, channel: 6, band: '2.4', widthMHz: 20, dbm: -41 },
+          { bssid: NEXT_DOOR, channel: 5, band: '6', widthMHz: 160, dbm: -80 },
+        ],
+      }),
+    )
+    expect(entries(result).map((e) => [e.band, e.channel, e.widthMHz])).toEqual(
+      [
+        ['5GHz', 36, 80],
+        ['2.4GHz', 6, 20],
+        ['6GHz', 5, 160],
+      ],
+    )
+  })
+
   it('refuses a later version of its own format', () => {
     const result = parseScan('{ "signalplanScan": 2, "networks": [] }')
     expect(result.ok).toBe(false)
