@@ -259,6 +259,49 @@ export const neighbourNetworkSchema = z.object({
     .max(NEIGHBOUR_STRENGTH_RANGE_DBM.max),
 })
 
+/**
+ * Loose bounds for calibrated values (D76), to keep out nonsense. The fit's
+ * own limits are tighter and live in the engine with their sources (D75).
+ */
+export const CALIBRATED_LOSS_RANGE_DB = { min: 0, max: 100 } as const
+export const CALIBRATED_EXPONENT_RANGE = { min: 1, max: 6 } as const
+export const DEVICE_OFFSET_RANGE_DB = { min: -60, max: 60 } as const
+
+const calibratedLossDb = z
+  .number()
+  .min(CALIBRATED_LOSS_RANGE_DB.min)
+  .max(CALIBRATED_LOSS_RANGE_DB.max)
+
+/**
+ * Values fitted to a home's survey on one band (D75, D76). Each replaces the
+ * engine's default where given: a wall material's loss per crossing, a
+ * floor's head-on loss (its loss at other angles scales with it), and the
+ * path loss exponent. `deviceOffsetDb` is how much more the phone that took
+ * the readings shows than the model's receiver; it's added only when
+ * comparing with survey readings, never to the heatmap.
+ */
+export const bandCalibrationSchema = z.object({
+  wallLossDb: z.partialRecord(wallMaterialSchema, calibratedLossDb).optional(),
+  floorLossDb: z
+    .partialRecord(z.enum(FLOOR_MATERIALS), calibratedLossDb)
+    .optional(),
+  pathLossExponent: z
+    .number()
+    .min(CALIBRATED_EXPONENT_RANGE.min)
+    .max(CALIBRATED_EXPONENT_RANGE.max)
+    .optional(),
+  deviceOffsetDb: z
+    .number()
+    .min(DEVICE_OFFSET_RANGE_DB.min)
+    .max(DEVICE_OFFSET_RANGE_DB.max)
+    .optional(),
+})
+
+export const calibrationSchema = z.partialRecord(
+  bandSchema,
+  bandCalibrationSchema,
+)
+
 export const planSchema = z.object({
   schemaVersion: z.literal(SCHEMA_VERSION),
   name: z.string().max(200),
@@ -296,6 +339,11 @@ export const planSchema = z.object({
    * skip them without asking. Omitted means none.
    */
   ignoredBssids: z.array(bssidSchema).min(1).optional(),
+  /**
+   * The model fitted to this home's survey, by band (D76). Omitted means
+   * the engine's defaults everywhere.
+   */
+  calibration: calibrationSchema.optional(),
 })
 
 export type WallMaterial = z.infer<typeof wallMaterialSchema>
@@ -315,5 +363,7 @@ export type Floor = z.infer<typeof floorSchema>
 export type Radio = z.infer<typeof radioSchema>
 export type AccessPoint = z.infer<typeof accessPointSchema>
 export type NeighbourNetwork = z.infer<typeof neighbourNetworkSchema>
+export type BandCalibration = z.infer<typeof bandCalibrationSchema>
+export type Calibration = z.infer<typeof calibrationSchema>
 export type CoverageTarget = (typeof COVERAGE_TARGETS)[number]
 export type Plan = z.infer<typeof planSchema>

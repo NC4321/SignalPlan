@@ -1289,3 +1289,38 @@ h4.survey-report {
 .neighbour .reading-prediction {
   margin-top: 0.3rem;
 }
+
+.calibrate h3 {
+  margin-top: 1rem;
+}
+
+.properties .calibrate-band {
+  padding-top: 0;
+}
+
+.properties .calibrate-band + .calibrate-band {
+  margin-top: 0.4rem;
+  border-top: 0;
+}
+
+.calibrate-band h4 {
+  margin: 0.6rem 0 0.2rem;
+  font-size: 0.85rem;
+}
+
+.calibrate-band .hint {
+  margin: 0 0 0.3rem;
+}
+
+.calibrate-table th[scope='row'] {
+  font-weight: normal;
+}
+
+.calibrate-table .field-note {
+  display: block;
+}
+
+.calibrate-table td {
+  white-space: nowrap;
+  vertical-align: top;
+}

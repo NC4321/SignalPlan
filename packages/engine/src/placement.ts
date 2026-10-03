@@ -110,6 +110,7 @@ export function createScorer(problem: PlacementProblem): Scorer | undefined {
   const { plan, band, minDbm, fixed, template } = problem
   const cellM = problem.cellM ?? SEARCH_CELL_M
   const stack = prepareStack(plan, band)
+  const exponent = plan.calibration?.[band]?.pathLossExponent
   const storeyOf = new Map(stack.map((storey, i) => [storey.floor.id, i]))
 
   // Candidates lie inside the walls, so the walls alone set each grid.
@@ -173,7 +174,7 @@ export function createScorer(problem: PlacementProblem): Scorer | undefined {
           const x = cellX[k]!
           const y = cellY[k]!
           const loss = indexedWallLoss(walls, ap.x, ap.y, x, y)
-          out[k] = signalDbm(ap, radio, x, y, loss)
+          out[k] = signalDbm(ap, radio, x, y, loss, undefined, exponent)
         }
         continue
       }
@@ -190,7 +191,7 @@ export function createScorer(problem: PlacementProblem): Scorer | undefined {
         const x = cellX[k]!
         const y = cellY[k]!
         const loss = crossingLossDb(crossing, ap.x, ap.y, x, y)
-        out[k] = signalDbm(ap, radio, x, y, loss, dz)
+        out[k] = signalDbm(ap, radio, x, y, loss, dz, exponent)
       }
     }
     return out

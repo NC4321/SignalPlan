@@ -4,6 +4,7 @@ import {
   materialSegments,
   WALL_MATERIALS,
   type Band,
+  type BandCalibration,
   type FloorMaterial,
   type MaterialSegment,
   type Plan,
@@ -29,19 +30,10 @@ import {
 } from './materials.ts'
 
 /**
- * Calibrated values for one band (D75). Each replaces the model's default
- * where given: a wall material's loss per crossing, a floor's head-on loss
- * (its loss at other angles scales with it), and the path loss exponent.
- * The device offset isn't here: it belongs to the phone that took the
- * readings, not to the home.
+ * Calibrated values live in the plan (D76), so everything that reads the
+ * plan follows them.
  */
-export interface BandCalibration {
-  wallLossDb?: Partial<Record<WallMaterial, number>>
-  floorLossDb?: Partial<Record<FloorMaterial, number>>
-  pathLossExponent?: number
-}
-
-export type Calibration = Partial<Record<Band, BandCalibration>>
+export type { BandCalibration, Calibration } from '@signalplan/floorplan'
 
 /** Fitting is offered from this many spots with readings on the band (D75). */
 export const MIN_SPOTS = 10
@@ -89,7 +81,9 @@ export interface SurveyPath {
  * another floor the slabs and each storey's walls along its stretch.
  */
 export function surveyPaths(plan: Plan, band: Band): SurveyPath[] {
-  const stack = prepareStack(plan, band)
+  // Only the geometry is used, but the fit always starts from the defaults,
+  // whatever the plan is calibrated to.
+  const stack = prepareStack(plan, band, {})
   const storeyOf = new Map(stack.map((storey, i) => [storey.floor.id, i]))
   const segments = stack.map((storey) => materialSegments(storey.floor))
   const aps = new Map(plan.accessPoints.map((ap) => [ap.id, ap]))
@@ -643,7 +637,10 @@ export function calibrateBand(plan: Plan, band: Band): BandCalibrationResult {
     ]
   })
 
-  const calibration: BandCalibration = { pathLossExponent: values.exponent }
+  const calibration: BandCalibration = {
+    pathLossExponent: values.exponent,
+    deviceOffsetDb: values.offsetDb,
+  }
   if (fitPlan.walls.length > 0) {
     calibration.wallLossDb = Object.fromEntries(
       fitPlan.walls.map((m) => [m, values.wallLossDb[m]]),

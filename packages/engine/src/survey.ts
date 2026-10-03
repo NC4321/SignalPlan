@@ -30,17 +30,20 @@ export interface ReadingError {
  * another floor the slabs and each storey's walls along the path. The value
  * is at the spot itself, not at the centre of the grid cell it falls in.
  * A reading from an access point with that band turned off is left out.
- * Calibrated values replace the defaults where given (D75).
+ * Calibrated values replace the defaults where given (D75): the plan's own
+ * unless others are passed, and `{}` gives the defaults. A calibration's
+ * device offset is added here, to compare with what the phone showed, but
+ * never to the heatmap (D76).
  */
 export function predictReadings(
   plan: Plan,
-  calibration?: Calibration,
+  calibration: Calibration = plan.calibration ?? {},
 ): ReadingError[] {
   const stacks = new Map<Band, Storey[]>()
   const stackFor = (band: Band) => {
     let stack = stacks.get(band)
     if (!stack) {
-      stack = prepareStack(plan, band, calibration?.[band])
+      stack = prepareStack(plan, band, calibration[band] ?? {})
       stacks.set(band, stack)
     }
     return stack
@@ -75,15 +78,17 @@ export function predictReadings(
           loss = crossingLossDb(crossing, ap.x, ap.y, spot.x, spot.y)
           dz = apZ - receiverZ
         }
-        const predictedDbm = signalDbm(
-          ap,
-          radio,
-          spot.x,
-          spot.y,
-          loss,
-          dz,
-          calibration?.[reading.band]?.pathLossExponent,
-        )
+        const bandCalibration = calibration[reading.band]
+        const predictedDbm =
+          signalDbm(
+            ap,
+            radio,
+            spot.x,
+            spot.y,
+            loss,
+            dz,
+            bandCalibration?.pathLossExponent,
+          ) + (bandCalibration?.deviceOffsetDb ?? 0)
         errors.push({
           spotId: spot.id,
           floorId: floor.id,

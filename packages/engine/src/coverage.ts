@@ -139,7 +139,8 @@ export function signalDbm(
  * signal from any access point with a radio in the band, on this floor or
  * another (D51). From another floor the distance is 3D, between the access
  * point and a receiver 1 m above this floor, and the path pays the slabs it
- * crosses and each floor's walls along its stretch in that storey.
+ * crosses and each floor's walls along its stretch in that storey. The
+ * plan's calibrated values replace the defaults where it has them (D76).
  */
 export function evaluateCoverage(
   plan: Plan,
@@ -164,6 +165,7 @@ export function evaluateCoverage(
   // another floor splits into stretches that depend only on its two heights,
   // so each source works them out once.
   const stack = prepareStack(plan, band)
+  const exponent = plan.calibration?.[band]?.pathLossExponent
   const storeyOf = new Map(stack.map((storey, i) => [storey.floor.id, i]))
   const here = storeyOf.get(floorId)!
   const receiverZ = floor.elevationM + RECEIVER_HEIGHT_M
@@ -193,7 +195,7 @@ export function evaluateCoverage(
         const loss = crossing
           ? crossingLossDb(crossing, ap.x, ap.y, x, y)
           : indexedWallLoss(sorted!, ap.x, ap.y, x, y)
-        const value = signalDbm(ap, radio, x, y, loss, dz)
+        const value = signalDbm(ap, radio, x, y, loss, dz, exponent)
         sourceDbm[offset + i] = value
         if (value > dbm[i]!) {
           dbm[i] = value
