@@ -140,7 +140,7 @@ export function spotCardLines(
     if (reading.band !== band) return []
     const name =
       accessPoints.find((a) => a.id === reading.apId)?.name ?? 'Removed'
-    const measured = formatDbm(reading.dbm)
+    const measured = `${reading.approximate ? '≈' : ''}${formatDbm(reading.dbm)}`
     const error = readings.find(
       (e) => e.spotId === spot.id && e.index === index,
     )

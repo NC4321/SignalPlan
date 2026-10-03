@@ -113,6 +113,11 @@ export const floorOpeningSchema = z.object({
   points: z.array(z.object({ x: metres, y: metres })).min(3),
 })
 
+/** A BSSID, stored lower case with colons, such as `a4:2b:b0:12:34:56`. */
+export const bssidSchema = z
+  .string()
+  .regex(/^[0-9a-f]{2}(:[0-9a-f]{2}){5}$/, 'Not a BSSID like a4:2b:b0:12:34:56')
+
 /**
  * A signal reading taken at a survey spot (D70, D71): one access point's
  * radio on one band, in dBm, as a phone or analyser shows it.
@@ -129,6 +134,27 @@ export const surveyReadingSchema = z.object({
    * dBm, so only roughly right (D77). Omitted means read in dBm.
    */
   approximate: z.literal(true).optional(),
+  /**
+   * How many scans at the spot it's the mean power of (D82), so a later
+   * scan is averaged in with the right weight. Omitted means one reading.
+   */
+  scans: z.number().int().min(2).optional(),
+})
+
+/**
+ * A BSSID that isn't yours, heard by a scan at a survey spot (D82): a
+ * neighbour's network, kept so its strength can be the strongest it was
+ * heard at, and to locate it later (#143).
+ */
+export const neighbourReadingSchema = z.object({
+  bssid: bssidSchema,
+  band: bandSchema,
+  dbm: z
+    .number()
+    .min(SURVEY_READING_RANGE_DBM.min)
+    .max(SURVEY_READING_RANGE_DBM.max),
+  approximate: z.literal(true).optional(),
+  scans: z.number().int().min(2).optional(),
 })
 
 /**
@@ -140,13 +166,10 @@ export const surveySpotSchema = z.object({
   x: metres,
   y: metres,
   readings: z.array(surveyReadingSchema),
+  /** Neighbours' BSSIDs heard here by scans (D82), one entry per BSSID. */
+  neighbourReadings: z.array(neighbourReadingSchema).optional(),
   note: z.string().max(500).optional(),
 })
-
-/** A BSSID, stored lower case with colons, such as `a4:2b:b0:12:34:56`. */
-export const bssidSchema = z
-  .string()
-  .regex(/^[0-9a-f]{2}(:[0-9a-f]{2}){5}$/, 'Not a BSSID like a4:2b:b0:12:34:56')
 
 /**
  * A floor plan image to trace over (D22). In the browser the image is kept
@@ -367,6 +390,7 @@ export type Wall = z.infer<typeof wallSchema>
 export type Opening = z.infer<typeof openingSchema>
 export type FloorOpening = z.infer<typeof floorOpeningSchema>
 export type SurveyReading = z.infer<typeof surveyReadingSchema>
+export type NeighbourReading = z.infer<typeof neighbourReadingSchema>
 export type SurveySpot = z.infer<typeof surveySpotSchema>
 export type Background = z.infer<typeof backgroundSchema>
 export type Floor = z.infer<typeof floorSchema>

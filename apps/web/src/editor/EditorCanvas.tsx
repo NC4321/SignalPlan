@@ -124,6 +124,7 @@ export function EditorCanvas({
   const showHeatmap = useEditor(heatmapShown)
   const fadeHeatmap = useEditor(heatmapFaded)
   const tool = useEditor((s) => s.tool)
+  const placingScan = useEditor((s) => s.placeScan !== undefined)
   const chain = useEditor((s) => s.chain)
   const outline = useEditor((s) => s.outline)
   const wallMaterial = useEditor((s) => s.wallMaterial)
@@ -391,7 +392,9 @@ export function EditorCanvas({
       surveyCard,
       emptyRooms,
       surveyPreview:
-        tool === 'survey' && cursor === 'default' ? pointer : undefined,
+        (tool === 'survey' || placingScan) && cursor === 'default'
+          ? pointer
+          : undefined,
       suggestions: suggestedHere?.map((move) => ({
         apId: move.apId,
         from: move.from,
@@ -428,6 +431,7 @@ export function EditorCanvas({
     floor.floorOpenings,
     outline,
     tool,
+    placingScan,
     cursor,
     preview,
     anchor,
@@ -664,19 +668,21 @@ export function EditorCanvas({
         role="application"
         aria-roledescription="floor plan editor"
         aria-label={
-          openingTool
-            ? `Floor plan, ${openingTool} tool`
-            : tool === 'wall'
-              ? 'Floor plan, wall tool'
-              : tool === 'floorOpening'
-                ? 'Floor plan, floor opening tool'
-                : tool === 'accessPoint'
-                  ? 'Floor plan, access point tool'
-                  : tool === 'survey'
-                    ? 'Floor plan, survey tool'
-                    : tool === 'calibrate'
-                      ? 'Floor plan, calibrating: click two points on the image'
-                      : 'Floor plan'
+          placingScan
+            ? 'Floor plan: click where the scan was taken'
+            : openingTool
+              ? `Floor plan, ${openingTool} tool`
+              : tool === 'wall'
+                ? 'Floor plan, wall tool'
+                : tool === 'floorOpening'
+                  ? 'Floor plan, floor opening tool'
+                  : tool === 'accessPoint'
+                    ? 'Floor plan, access point tool'
+                    : tool === 'survey'
+                      ? 'Floor plan, survey tool'
+                      : tool === 'calibrate'
+                        ? 'Floor plan, calibrating: click two points on the image'
+                        : 'Floor plan'
         }
         aria-describedby={hintId}
         onDoubleClick={(event) => {
@@ -729,6 +735,12 @@ export function EditorCanvas({
             return
           }
           if (event.button !== 0 || !camera) return
+
+          // Scan your network waits for where the scan was taken (D82).
+          if (state.placeScan) {
+            state.placeScan(toPlan(camera, at))
+            return
+          }
 
           // Between chains, a press on an access point grabs it (D38).
           if (tool === 'wall' && !grabsAccessPoint(at, event.altKey)) {

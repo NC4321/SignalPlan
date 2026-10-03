@@ -169,8 +169,13 @@ export function setReadingDbm(
     SURVEY_READING_RANGE_DBM.max,
     Math.max(SURVEY_READING_RANGE_DBM.min, dbm),
   )
-  if (reading.dbm === clamped) return false
+  if (reading.dbm === clamped && !reading.approximate && !reading.scans) {
+    return false
+  }
+  // A value typed in is one reading in dBm, whatever it replaced (D82).
   reading.dbm = clamped
+  delete reading.approximate
+  delete reading.scans
   return true
 }
 

@@ -8,7 +8,7 @@ import { EditorCanvas } from './editor/EditorCanvas.tsx'
 import { FloorStack } from './editor/FloorStack.tsx'
 import { useSaveStatus } from './editor/autosave.ts'
 import { CalibrationBar } from './editor/CalibrationBar.tsx'
-import { ScanProvider } from './editor/ScanProvider.tsx'
+import { ScanPlacementBar, ScanProvider } from './editor/ScanProvider.tsx'
 import { SurveyImportProvider } from './editor/SurveyImportProvider.tsx'
 import { TracingProvider } from './editor/TracingProvider.tsx'
 import { Dialog, PlanIssues } from './editor/Dialog.tsx'
@@ -210,8 +210,12 @@ function App({
       } else if (key === 'escape') {
         // Esc finishes the chain; pressed again, it returns to Select (D16).
         // It also stops a search or dismisses a suggestion (D44), and drops a
-        // floor opening being drawn (D54).
-        if (state.chain) state.endChain()
+        // floor opening being drawn (D54), or a scan waiting to be placed
+        // (D82).
+        if (state.placeScan) {
+          state.setPlaceScan(undefined)
+          state.setNotice('Scan not imported.')
+        } else if (state.chain) state.endChain()
         else if (state.outline) state.cancelOutline()
         else if (state.optimizer) state.setOptimizer(undefined)
         else if (state.tool !== 'select') state.setTool('select')
@@ -223,6 +227,7 @@ function App({
   }, [store])
 
   const tool = useEditor((s) => s.tool)
+  const placingScan = useEditor((s) => s.placeScan !== undefined)
 
   return (
     <TracingProvider>
@@ -257,6 +262,7 @@ function App({
                     <>
                       <EditorCanvas coverage={shown} map={map} />
                       {tool === 'calibrate' && <CalibrationBar />}
+                      {placingScan && <ScanPlacementBar />}
                       <FloorStack />
                     </>
                   )}

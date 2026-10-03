@@ -223,6 +223,7 @@ describe('planScan and applyScan (D80)', () => {
       neighbours: [],
       ignored: [],
       noRadio: [{ bssid: HOME_24.bssid, apId: 'router', band: '2.4GHz' }],
+      neighbourEntries: [],
     })
   })
 

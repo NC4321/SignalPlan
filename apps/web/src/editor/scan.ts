@@ -3,10 +3,12 @@ import windowsScript from './scanScripts/signalplan-scan.ps1?raw'
 import macScript from './scanScripts/signalplan-scan.swift?raw'
 import {
   radioKey,
+  surveySpotName,
   type Plan,
   type ScanChanges,
   type ScanSummary,
   type ScanTuning,
+  type SpotScanSummary,
 } from '@signalplan/floorplan'
 
 /**
@@ -140,8 +142,11 @@ export function tunesRadios(
 const plural = (n: number, one: string, many = `${one}s`) =>
   `${n} ${n === 1 ? one : many}`
 
-/** What applying a scan did, for the status bar. */
-export function scanSummaryText(summary: ScanSummary): string {
+/** What applying a scan did, for the status bar, with what it did at a spot (D82). */
+export function scanSummaryText(
+  summary: ScanSummary,
+  atSpot?: SpotScanSummary,
+): string {
   const {
     bssidsMapped,
     radiosTuned,
@@ -158,6 +163,18 @@ export function scanSummaryText(summary: ScanSummary): string {
     neighboursUpdated > 0 && `updated ${neighboursUpdated}`,
     bssidsIgnored > 0 && `ignored ${plural(bssidsIgnored, 'BSSID')}`,
   ].filter((p): p is string => typeof p === 'string')
+  if (atSpot) {
+    const name = surveySpotName(atSpot.spotId)
+    const { readingsAdded, readingsAveraged } = atSpot
+    parts.unshift(
+      ...[
+        atSpot.spotAdded && `added ${name}`,
+        readingsAdded > 0 && `${plural(readingsAdded, 'reading')} at ${name}`,
+        readingsAveraged > 0 &&
+          `${plural(readingsAveraged, 'reading')} averaged with earlier scans`,
+      ].filter((p): p is string => typeof p === 'string'),
+    )
+  }
   if (parts.length === 0) return 'Scan imported: nothing new.'
   return `Scan imported: ${parts.join(', ')}.`
 }

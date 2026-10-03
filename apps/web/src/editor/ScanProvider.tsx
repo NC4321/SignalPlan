@@ -1,10 +1,13 @@
 import {
   applyScan,
+  applyScanAtSpot,
+  findSurveySpot,
   groupScanDevices,
   parseScan,
   planScan,
   radioKey,
   SCAN_FORMAT_NAMES,
+  surveySpotName,
   unknownScanEntries,
   type Plan,
   type PlanIssue,
@@ -13,8 +16,10 @@ import {
   type ScanDevice,
   type ScanEntry,
   type ScanFormat,
+  type ScanPlace,
   type ScanSummary,
   type SkippedEntry,
+  type SpotScanSummary,
 } from '@signalplan/floorplan'
 import { useId, useRef, useState, type ReactNode } from 'react'
 import { BAND_LABELS } from './coverageText.ts'
@@ -40,6 +45,12 @@ interface ReadScan {
   entries: ScanEntry[]
   skipped: SkippedEntry[]
 }
+
+/**
+ * Where the scan was taken (D82): the spot selected when the dialog opened,
+ * a click on the plan that adds one, or not at a spot.
+ */
+type PlaceChoice = 'selected' | 'click' | 'none'
 
 /** The answers given so far, by device and, for split devices, by BSSID. */
 interface Answers {
@@ -102,6 +113,20 @@ export function ScanProvider({ children }: { children: ReactNode }) {
   const [platform, setPlatform] = useState<ScanPlatform>(() =>
     guessPlatform(navigator.userAgent),
   )
+  const [selectedSpot, setSelectedSpot] = useState<string>()
+  const [place, setPlace] = useState<PlaceChoice>('none')
+
+  const openScan = () => {
+    const state = store.getState()
+    state.setPlaceScan(undefined)
+    // A spot selected now is where the scan was most likely taken.
+    const [item, ...rest] = state.selection
+    const spot =
+      item?.kind === 'surveySpot' && rest.length === 0 ? item.id : undefined
+    setSelectedSpot(spot)
+    setPlace(spot ? 'selected' : 'none')
+    setOpen(true)
+  }
 
   const close = () => {
     setOpen(false)
@@ -124,35 +149,73 @@ export function ScanProvider({ children }: { children: ReactNode }) {
     })
   }
 
-  const apply = () => {
-    if (!scan) return
-    // The plan may have changed while the dialog was open, say by an undo,
-    // so what to change is worked out again from the plan as it is now.
+  /**
+   * Applies the scan, as one undo step, at a spot if it has one. The plan
+   * may have changed since it was read, say by an undo, so what to change
+   * is worked out again from the plan as it is now.
+   */
+  const commit = (
+    read: ReadScan,
+    given: Answers,
+    place: ScanPlace | undefined,
+  ) => {
     const plan = store.getState().plan
-    const devices = groupScanDevices(unknownScanEntries(plan, scan.entries))
+    const devices = groupScanDevices(unknownScanEntries(plan, read.entries))
     const changes = planScan(
       plan,
-      scan.entries,
-      choicesOf(devices, answers),
+      read.entries,
+      choicesOf(devices, given),
       scanTuning(plan),
     )
-    const overwrite = new Set(answers.overwrite)
+    const overwrite = new Set(given.overwrite)
+    const at =
+      place && 'spotId' in place && !findSurveySpot(plan, place.spotId)
+        ? undefined
+        : place
     let summary: ScanSummary | undefined
-    // BSSIDs and neighbours don't change coverage, so a search or suggestion
-    // stays (D71), unless a radio's channel changes, as when set by hand.
+    let atSpot: SpotScanSummary | undefined
+    // BSSIDs, neighbours and readings don't change coverage, so a search or
+    // suggestion stays (D71), unless a radio's channel changes, as when set
+    // by hand.
     store.getState().edit(
       'Import scan',
       (draft) => {
         summary = applyScan(draft, changes, overwrite)
+        if (at) atSpot = applyScanAtSpot(draft, read.entries, changes, at)
       },
       { keepOptimizer: !tunesRadios(changes, overwrite) },
     )
+    if (atSpot) {
+      store.getState().select([{ kind: 'surveySpot', id: atSpot.spotId }])
+    }
+    if (summary) store.getState().setNotice(scanSummaryText(summary, atSpot))
+  }
+
+  const apply = () => {
+    if (!scan) return
+    const read = scan
+    const given = answers
     close()
-    if (summary) store.getState().setNotice(scanSummaryText(summary))
+    if (place === 'click') {
+      // Waits for a click on the plan, on the floor on show (D82).
+      store.getState().setPlaceScan((at) => {
+        const state = store.getState()
+        state.setPlaceScan(undefined)
+        commit(read, given, { floorId: state.floorId, x: at.x, y: at.y })
+      })
+    } else {
+      commit(
+        read,
+        given,
+        place === 'selected' && selectedSpot
+          ? { spotId: selectedSpot }
+          : undefined,
+      )
+    }
   }
 
   return (
-    <ScanContext value={{ openScan: () => setOpen(true) }}>
+    <ScanContext value={{ openScan }}>
       {children}
       <Dialog
         open={open}
@@ -166,6 +229,7 @@ export function ScanProvider({ children }: { children: ReactNode }) {
               onBack={() => setScan(undefined)}
               onCancel={close}
               onApply={apply}
+              applyLabel={place === 'click' ? 'Apply, then click…' : 'Apply'}
             />
           ) : (
             <ReadActions
@@ -181,7 +245,14 @@ export function ScanProvider({ children }: { children: ReactNode }) {
         }
       >
         {scan ? (
-          <AnswerStep scan={scan} answers={answers} setAnswers={setAnswers} />
+          <>
+            <AnswerStep scan={scan} answers={answers} setAnswers={setAnswers} />
+            <PlaceField
+              place={place}
+              setPlace={setPlace}
+              selectedSpot={selectedSpot}
+            />
+          </>
         ) : (
           <ReadStep
             platform={platform}
@@ -398,12 +469,14 @@ function AnswerActions({
   onBack,
   onCancel,
   onApply,
+  applyLabel,
 }: {
   scan: ReadScan
   answers: Answers
   onBack: () => void
   onCancel: () => void
   onApply: () => void
+  applyLabel: string
 }) {
   const { unanswered } = useAnswerState(scan, answers)
   return (
@@ -421,7 +494,7 @@ function AnswerActions({
         title={unanswered ? 'Answer for each network first' : undefined}
         onClick={onApply}
       >
-        Apply
+        {applyLabel}
       </button>
     </>
   )
@@ -649,6 +722,82 @@ function AnswerSelect({
       <option value={NEIGHBOUR}>A neighbour’s</option>
       <option value={IGNORE}>Ignore</option>
     </select>
+  )
+}
+
+/**
+ * Where the scan was taken (D82): at a survey spot, your radios' signals
+ * become its readings and the neighbours' strengths the strongest heard.
+ */
+function PlaceField({
+  place,
+  setPlace,
+  selectedSpot,
+}: {
+  place: PlaceChoice
+  setPlace: (place: PlaceChoice) => void
+  selectedSpot: string | undefined
+}) {
+  const options: { value: PlaceChoice; label: string }[] = [
+    ...(selectedSpot
+      ? [
+          {
+            value: 'selected' as const,
+            label: `At ${surveySpotName(selectedSpot)}`,
+          },
+        ]
+      : []),
+    {
+      value: 'click',
+      label: selectedSpot
+        ? 'At a new spot: click the plan after Apply'
+        : 'At a survey spot: click the plan after Apply',
+    },
+    { value: 'none', label: 'Not at a spot' },
+  ]
+  return (
+    <fieldset className="choices">
+      <legend>Where was this scan taken?</legend>
+      {options.map((option) => (
+        <label key={option.value}>
+          <input
+            type="radio"
+            name="scan-place"
+            checked={place === option.value}
+            onChange={() => setPlace(option.value)}
+          />
+          {option.label}
+        </label>
+      ))}
+      <p className="hint">
+        {place === 'none'
+          ? 'Your radios’ BSSIDs and the neighbours’ networks are still saved, but no readings are.'
+          : 'Your access points’ signals become the spot’s readings, for the error report and Calibrate; scans at one spot are averaged. Each neighbour’s strength becomes the strongest it was heard at any spot.'}
+      </p>
+    </fieldset>
+  )
+}
+
+/** Shown while Scan your network waits for a click where the scan was taken (D82). */
+export function ScanPlacementBar() {
+  const store = useEditorStore()
+  return (
+    <div className="calibration-bar" role="region" aria-label="Place the scan">
+      <p>
+        <strong>Where was the scan taken?</strong> Click the plan there, on the
+        floor on show, to add a survey spot with its readings.
+      </p>
+      <button
+        type="button"
+        onClick={() => {
+          const state = store.getState()
+          state.setPlaceScan(undefined)
+          state.setNotice('Scan not imported.')
+        }}
+      >
+        Cancel
+      </button>
+    </div>
   )
 }
 

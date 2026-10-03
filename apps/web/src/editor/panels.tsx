@@ -2798,6 +2798,7 @@ function CalibrateSection() {
               aria-label={`${BAND_LABELS[band]} calibration`}
             >
               <h4>{BAND_LABELS[band]}</h4>
+              <ApproximateNote band={band} />
               {!fit ? (
                 <>
                   <p className="hint">Not enough spots to fit yet.</p>
@@ -2879,6 +2880,24 @@ function CalibrateSection() {
   )
 }
 
+/**
+ * How many of a band's readings Calibrate fits are approximate (D82), with
+ * a word of caution when they're more than half.
+ */
+function ApproximateNote({ band }: { band: Band }) {
+  const errors = useSurveyErrors()
+  const row = summariseErrors(errors.readings).find((r) => r.band === band)
+  if (!row || row.approximate === 0) return null
+  return (
+    <p className="hint">
+      {row.approximate} of {row.count} readings are approximate (≈), converted
+      from a signal percentage.
+      {row.approximate * 2 > row.count &&
+        ' That’s more than half, so this fit is only rough: a scan script’s readings in dBm, or readings typed in from a phone, would fit better.'}
+    </p>
+  )
+}
+
 /** How many of the spots furthest off the report lists (D73). */
 const WORST_SPOT_COUNT = 5
 
@@ -2899,6 +2918,7 @@ function SurveyReport() {
     0,
   )
   const skipped = total - errors.readings.length
+  const approximate = summary.reduce((n, row) => n + row.approximate, 0)
   return (
     <>
       <h3>Predicted versus measured</h3>
@@ -2921,7 +2941,10 @@ function SurveyReport() {
               {summary.map((row) => (
                 <tr key={row.band}>
                   <th scope="row">{BAND_LABELS[row.band]}</th>
-                  <td>{row.count}</td>
+                  <td>
+                    {row.count}
+                    {row.approximate > 0 && ` (${row.approximate} ≈)`}
+                  </td>
                   <td>{formatErrorDb(row.meanDb)}</td>
                   <td>{row.rmsDb.toFixed(1)} dB</td>
                 </tr>
@@ -2933,6 +2956,15 @@ function SurveyReport() {
             expects more signal than you measured; the RMS error is how far off
             a reading typically is, either way.
           </p>
+          {approximate > 0 && (
+            <p className="hint">
+              {approximate === 1
+                ? '1 reading is approximate (≈): it was'
+                : `${approximate} readings are approximate (≈): they were`}{' '}
+              converted from a signal percentage, so{' '}
+              {approximate === 1 ? 'its' : 'their'} errors are only rough.
+            </p>
+          )}
         </>
       )}
       {skipped > 0 && (
@@ -3005,8 +3037,10 @@ function SurveySpotSection({ spot }: { spot: SurveySpot }) {
   const units = useEditor((s) => s.units)
   const plan = useEditor((s) => s.plan)
   const { chooseReadingsFile } = useSurveyImport()
+  const { openScan } = useScan()
   const errors = useSurveyErrors()
   const name = surveySpotName(spot.id)
+  const heard = spot.neighbourReadings?.length ?? 0
   // Readings don't change coverage, so a suggestion stays (D71).
   const edit = (label: string, change: (plan: Draft<Plan>) => void) =>
     store.getState().edit(label, change, { keepOptimizer: true })
@@ -3065,6 +3099,15 @@ function SurveySpotSection({ spot }: { spot: SurveySpot }) {
       </button>
       <p className="hint">
         Rows in the file with no spot or position go to {name}.
+      </p>
+      <button type="button" onClick={openScan}>
+        Scan at this spot…
+      </button>
+      <p className="hint">
+        Scan your network from here: your access points’ signals become
+        readings, averaged with earlier scans here.
+        {heard > 0 &&
+          ` Scans here also heard ${heard === 1 ? '1 neighbour’s BSSID' : `${heard} neighbours’ BSSIDs`}.`}
       </p>
       <TextField
         label="Note"
@@ -3198,6 +3241,17 @@ function ReadingRow({
           }}
         />
       </div>
+      {(reading.approximate || reading.scans) && (
+        <p className="field-note">
+          {[
+            reading.approximate &&
+              '≈ Approximate: converted from a signal percentage.',
+            reading.scans && `The mean of ${reading.scans} scans.`,
+          ]
+            .filter(Boolean)
+            .join(' ')}
+        </p>
+      )}
       {compared && (
         <p className="field-note reading-prediction">
           Predicted {formatDbm(compared.predictedDbm)}, error{' '}
