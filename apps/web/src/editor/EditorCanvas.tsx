@@ -1,4 +1,5 @@
 import type { MapData } from '../mapView.ts'
+import { toolKeysHint } from './shortcuts.ts'
 import { gridForFloor, type Coverage } from '@signalplan/engine'
 import {
   addAccessPoint,
@@ -1105,7 +1106,7 @@ export function EditorCanvas({
                 ? 'Click to add an access point. Esc returns to Select.'
                 : tool === 'survey'
                   ? 'Click to add a survey spot, then type its readings in the panel. Drag a pin to move it. Esc returns to Select.'
-                  : 'Tab and Shift+Tab select walls, doors, windows, corners, floor openings, access points and survey spots. Arrow keys move the selection, Delete removes it. Shortcuts: V select, W wall, D door, N window, O floor opening, A access point, S survey.'}
+                  : `Tab and Shift+Tab select walls, doors, windows, corners, floor openings, access points and survey spots. Arrow keys move the selection, Delete removes it. Shortcuts: ${toolKeysHint()}; ? lists them all.`}
       </p>
       <p className="visually-hidden" aria-live="polite">
         {describeForScreenReader(selection, floor, accessPoints, units, order)}

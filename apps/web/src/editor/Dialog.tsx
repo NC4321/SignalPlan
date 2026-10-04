@@ -28,12 +28,15 @@ export function Dialog({
   onClose,
   actions,
   children,
+  wide = false,
 }: {
   open: boolean
   title: string
   onClose: () => void
   actions: ReactNode
   children: ReactNode
+  /** Twice as wide, for content laid out in columns. */
+  wide?: boolean
 }) {
   const dialog = useRef<HTMLDialogElement>(null)
   const titleId = useId()
@@ -54,7 +57,7 @@ export function Dialog({
   return (
     <dialog
       ref={dialog}
-      className="dialog"
+      className={wide ? 'dialog wide' : 'dialog'}
       aria-labelledby={titleId}
       onClose={() => {
         const target = opener.current

@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ### Added
 
+- Keyboard shortcuts overlay: press ? (or the ? button at the end of the top bar) for every shortcut, grouped into tools, editing, floors and view, and files, with Ctrl or ⌘ as your computer uses (D89).
+
 - Share a plan as a link: File › Share link… gives a link with the plan in it (compressed, in the part of the address that never reaches the server), to copy and send. Opening it opens a copy of the plan that joins My plans when you edit it, so your own plans are never replaced; a link pasted into an open tab works too. Tracing images stay out of the link, and the dialog says so. A damaged or newer link says why it can't be opened (D88).
 
 - Locate neighbours and check your access points: a scanned neighbour's network heard at three survey spots or more has "Locate from scans". It then shows on the plan with a dashed circle of its uncertainty, and its row says which floor it's on, whether it's outside the walls, to within how many metres (rounded up, never finer than the fit), and when a wall is closer than that. "Locate again" and "Clear location" are each one undo step. An access point with readings at three spots or more has "Check its position": it says whether the readings agree with where it is or how far off they put it, shows the spot on the plan, and "Move it there" moves it as one undo step (not when it's locked). Any change to the plan dismisses the check (D85).

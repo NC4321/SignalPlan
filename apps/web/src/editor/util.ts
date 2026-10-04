@@ -7,6 +7,9 @@ const isMac =
 /** The modifier shown in shortcut hints: ⌘ on Apple devices, Ctrl+ elsewhere. */
 export const MOD_KEY = isMac ? '⌘' : 'Ctrl+'
 
+/** The modifier's name on its own, for listing keys: ⌘ or Ctrl. */
+export const MOD_NAME = isMac ? '⌘' : 'Ctrl'
+
 /** Input types that accept typed text, where shortcuts must not fire. */
 const TEXT_INPUTS = new Set([
   'text',
