@@ -148,6 +148,8 @@ import {
   toNeighbourLocation,
 } from './locate.ts'
 import { useScan } from './scanContext.ts'
+import { keyForTool } from './shortcuts.ts'
+import { ShortcutsHelp } from './ShortcutsHelp.tsx'
 import { useSurveyImport } from './surveyImportContext.ts'
 import {
   errorLegendRows,
@@ -270,6 +272,8 @@ export function TopBar({
         Heatmap
       </label>
 
+      <ShortcutsHelp />
+
       <button
         type="button"
         className="panel-toggle"
@@ -320,18 +324,36 @@ const TOOLS = [
     tool: 'select',
     name: 'Select',
     icon: '↖',
-    key: 'V',
+    key: keyForTool('select'),
     title: 'Select and move',
   },
-  { tool: 'wall', name: 'Wall', icon: '▭', key: 'W', title: 'Draw walls' },
-  { tool: 'door', name: 'Door', icon: '⌷', key: 'D', title: 'Add doors' },
-  { tool: 'window', name: 'Window', icon: '▤', key: 'N', title: 'Add windows' },
+  {
+    tool: 'wall',
+    name: 'Wall',
+    icon: '▭',
+    key: keyForTool('wall'),
+    title: 'Draw walls',
+  },
+  {
+    tool: 'door',
+    name: 'Door',
+    icon: '⌷',
+    key: keyForTool('door'),
+    title: 'Add doors',
+  },
+  {
+    tool: 'window',
+    name: 'Window',
+    icon: '▤',
+    key: keyForTool('window'),
+    title: 'Add windows',
+  },
   {
     tool: 'floorOpening',
     name: 'Opening',
     label: 'Floor opening',
     icon: '▨',
-    key: 'O',
+    key: keyForTool('floorOpening'),
     title: 'Add stairwells and atriums: openings in the floor',
   },
   {
@@ -339,14 +361,14 @@ const TOOLS = [
     name: 'AP',
     label: 'Access point',
     icon: '◉',
-    key: 'A',
+    key: keyForTool('accessPoint'),
     title: 'Add access points',
   },
   {
     tool: 'survey',
     name: 'Survey',
     icon: '⌖',
-    key: 'S',
+    key: keyForTool('survey'),
     title: 'Record signal readings at spots',
   },
 ] as const

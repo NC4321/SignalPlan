@@ -77,6 +77,12 @@ test.describe('axe-core finds no serious problems', () => {
     await expectNoSeriousViolations(page)
     await share.getByRole('button', { name: 'Close' }).click()
 
+    await page.getByRole('button', { name: 'Keyboard shortcuts' }).click()
+    const shortcuts = page.getByRole('dialog', { name: 'Keyboard shortcuts' })
+    await expect(shortcuts).toBeVisible()
+    await expectNoSeriousViolations(page)
+    await shortcuts.getByRole('button', { name: 'Done' }).click()
+
     await page.getByText('File', { exact: true }).click()
     await page
       .getByRole('banner')

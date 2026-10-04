@@ -28,6 +28,7 @@ import {
   onlySurveySpots,
 } from './editor/selectTool.ts'
 import { isTyping } from './editor/util.ts'
+import { toolForKey } from './editor/shortcuts.ts'
 import {
   createOptimizer,
   withSuggestion,
@@ -158,6 +159,7 @@ function App({
       const mod = event.ctrlKey || event.metaKey
       const key = event.key.toLowerCase()
       const state = store.getState()
+      const picked = toolForKey(key)
       if (mod && key === 'z') {
         event.preventDefault()
         if (event.shiftKey) state.redo()
@@ -168,24 +170,12 @@ function App({
       } else if (
         state.view === '3d' &&
         !mod &&
-        (/^[vwdnoas]$/.test(key) || key === 'delete' || key === 'backspace')
+        (picked || key === 'delete' || key === 'backspace')
       ) {
         // The 3D view is for looking: tools and deleting are in 2D (D57).
         return
-      } else if (!mod && !event.altKey && key === 'v') {
-        state.setTool('select')
-      } else if (!mod && !event.altKey && key === 'w') {
-        state.setTool('wall')
-      } else if (!mod && !event.altKey && key === 'd') {
-        state.setTool('door')
-      } else if (!mod && !event.altKey && key === 'n') {
-        state.setTool('window')
-      } else if (!mod && !event.altKey && key === 'o') {
-        state.setTool('floorOpening')
-      } else if (!mod && !event.altKey && key === 'a') {
-        state.setTool('accessPoint')
-      } else if (!mod && !event.altKey && key === 's') {
-        state.setTool('survey')
+      } else if (!mod && !event.altKey && picked) {
+        state.setTool(picked)
       } else if (
         (event.key === 'PageUp' || event.key === 'PageDown') &&
         !mod &&

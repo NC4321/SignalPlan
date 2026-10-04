@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ### Added
 
+- Keyboard shortcuts overlay: press ? (or the ? button at the end of the top bar) for every shortcut, grouped into tools, editing, floors and view, and files, with Ctrl or ⌘ as your computer uses (D89).
+
 - Share a plan as a link: File › Share link… gives a link with the plan in it (compressed, in the part of the address that never reaches the server), to copy and send. Opening it opens a copy of the plan that joins My plans when you edit it, so your own plans are never replaced; a link pasted into an open tab works too. Tracing images stay out of the link, and the dialog says so. A damaged or newer link says why it can't be opened (D88).
 
 - Phase 8 exit gate, automated part: the three-AP home scanned at 48 spots through the whole Scan your network path, with two neighbours just outside its walls. Each is located on the right floor within its stated uncertainty, and with them located the channel planner gives the plan it would with the neighbours at their true positions, with no clash, where counting their strongest strength everywhere leaves a clash at every access point (the channels it picks then are a tie-break, so they aren't compared). Real captures and scanning a real home complete the gate (D86).

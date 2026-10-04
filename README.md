@@ -80,7 +80,7 @@ Free · Runs in your browser · No account · Plans stay on your device
 - **Save and open** `.signalplan.json` files.
 - **Share a link** with the plan in it; nothing is uploaded.
 - **Export a PNG** of the floor with its heatmap, legend, coverage summary and scale bar.
-- **Keyboard and screen-reader support**, and a layout that works on phones.
+- **Keyboard and screen-reader support**, with every shortcut a ? away, and a layout that works on phones.
 
 ## Built on published measurements
 
