@@ -546,6 +546,42 @@ Loss per crossing: default (limits), dB:
 
 **What calibration can't do.** It fits a handful of numbers per band, so it corrects the model's overall level and how fast signal fades, and the loss of materials the readings cross, but not one particular wall: every wall of a material shares its value. A material the survey doesn't cross enough stays at its default, so a part of the home with no spots behind its walls is predicted as before. The values only hold within their limits, which come from published measurements; a home whose walls are lossier than anything measured (foil-backed insulation, say) will stop at a limit and stay off. The device offset is for the phone that surveyed, and a second phone may read differently. And the heatmap stays an ideal receiver, so a phone that reads 5 dB low will still read about 5 dB below the heatmap after calibrating.
 
+## Locating access points
+
+From the signal of one radio at three or more survey spots, the engine estimates where it is and how much power it sends ([D83](DECISIONS.md#d83-locating-access-points-from-readings--2026-10-04), `locate.ts`). It's for a neighbour's network heard by scans at several spots (D82), and for an access point of your own whose position you aren't sure of. It's in the engine only for now; the editor will use it next (#143).
+
+**What's fitted.** The reading at spot i is predicted as for the [error report](#survey-readings), with the source at (x, y) on some floor, a mounting height h above it (1 m unless given, as for a new access point) and an unknown EIRP:
+
+```math
+P_i = \mathrm{EIRP} - PL(1\,\mathrm{m}) - 10\,n\,\log_{10} d_i - L_i + o
+```
+
+with the walls and slabs L_i crossed between, the plan's calibrated n, losses and device offset o where it has them, and the 3D distance d_i. For any position, the best EIRP is the mean of the readings less the rest of the prediction, held between 0 dBm and the region's limit for the band ([Channels and regions](#channels-and-regions)), so only the position is searched: every floor on a 1 m grid, the best three separate minima (2 m apart, or on different floors) refined by a pattern search down to 1 mm, keeping the best. The squared error is in dB, as in calibration. A neighbour may be outside: its grid reaches 10 m past the floor's walls and the spots. Your own access point is searched inside the walls first. The result gives the floor, position, EIRP (and whether it hit a limit), the RMS error, whether it's outside the walls and how far the nearest wall is.
+
+**Uncertainty.** The position comes with a radius: the furthest a position on its floor that is nearly as good lies from it, measured on a 0.1 m grid over the area the first pass found, so it's never finer than that grid. Other floors with positions nearly as good are listed. A position is nearly as good if either test lets it in:
+
+- **Close to the best:** a squared error within χ²₂(95 %)·σ² = 5.99σ² of the best, the 95 % joint region for x and y with the power profiled out. σ is the model's own scatter, 3 dB: the held-out error that calibrating the synthetic homes of the Phase 7 gate leaves (2.7–3.4 dB, [D78](DECISIONS.md#d78-phase-7-exit-gate--2026-10-03)). Readings can't be trusted to agree more closely than the model predicts them, so a perfect fit still has a radius. When the readings scatter more than that, their own scatter σ̂ (on n − 3 degrees of freedom) is used, with 2·F(2, n − 3; 95 %) in place of χ²₂ to allow for the estimate's error.
+- **Not ruled out:** a squared error below χ²ₙ₋₁(95 %)·σ², what the model's scatter explains at the 95 % level, n − 1 since the power is fitted (Wilson and Hilferty's approximation to the χ² quantile, within 1 % from 2 degrees of freedom).
+
+The second test is there because the first alone wasn't enough. Walls with doors and windows in them make the error jump from place to place, so the best position can fit the noise far better than the true one: for a neighbour outside the big house's brick walls with 25 spots and 3 dB of noise, the best fits left a squared error of 106–155 dB², where the truth's was 180–263 dB² (25 spots × 9 dB² ≈ 200 expected), and the first test alone kept the truth inside the radius in 92 of 100 surveys.
+
+**Validation.** Synthetic surveys with a hidden access point (EIRP 21 dBm on 5 GHz) and readings from the model itself (`locate.test.ts`). Without noise the position comes back to within 1 cm, and the EIRP to 0.05 dB, on one floor, upstairs and down in the two-storey house, outside the walls, and with a calibrated n and device offset. With 3 dB of Gaussian noise, 100 surveys of each case, from the validation run for D83:
+
+| Case                                        | Spots | Truth inside the radius | Error, median (max) | Radius, median (max) | Floor right |
+| ------------------------------------------- | ----- | ----------------------- | ------------------- | -------------------- | ----------- |
+| Big house, inside, (13.1, 4.4)              | 25    | 100 / 100               | 0.6 m (2.0)         | 2.6 m (4.0)          | 100         |
+| Big house, inside                           | 6     | 100 / 100               | 1.1 m (5.9)         | 4.8 m (10.4)         | 100         |
+| Big house, neighbour 4.2 m outside          | 25    | 100 / 100               | 0.9 m (7.3)         | 8.4 m (12.9)         | 100         |
+| Big house, neighbour 4.2 m outside          | 6     | 100 / 100               | 3.4 m (8.5)         | 13.8 m (23.1)        | 100         |
+| Two-storey house, upstairs                  | 50    | 100 / 100               | 0.2 m (1.0)         | 1.2 m (2.1)          | 100         |
+| Two-storey house, upstairs, outside allowed | 50    | 100 / 100               | 0.2 m (1.0)         | 1.2 m (4.8)          | 100         |
+
+So the radius is conservative: the truth was inside it in all 600 surveys, and it's typically 2–9 times the actual error. A few spots near the source narrow it most; spots on one side of a neighbour leave it long in the other direction, which the single radius doesn't show. The unit tests check none of 20 noisy surveys misses, and that the radius stays under 5 m inside the big house and 15 m for the neighbour.
+
+**Speed.** One source takes 18 ms with 10 spots and 84 ms with 50 in the two-storey house with outside allowed, the largest search (`locate.speed.ts`, budget 200 ms, CI at 1.5×; median in the development container, 2026-10-04). The first pass and refinement work each path out from the spot rather than the source, sorting the spot's walls by direction once (D56); a path's loss is the same either way. The final figures are then worked out from the source, exactly as the error report does.
+
+**What it can't do.** It inherits the model's limits: reflections and diffraction are ignored, so a source behind a lossy wall reads stronger than predicted and is placed nearer, and every wall of a material shares its loss. The power and the distance trade off, as n and the offset do in calibration: a weak source nearby and a strong one further off can fit alike, which shows as a long radius. A directional antenna, or a neighbour on a floor above or below the plan's, is placed somewhere on the plan's floors that fits as well as it can. Readings converted from a percentage (D77) count like any other, so a survey of mostly approximate readings gives a looser fit than its radius says.
+
 ## Known limits
 
 - **The channel planner trusts the model's signal between access points.** Reflections that carry signal around a wall, which the model ignores (D24), can let two access points hear each other when the planner thinks they don't. Neighbours' networks count as heard everywhere at the one strength typed in ([D68](DECISIONS.md#d68-channel-planner--2026-09-29)).
@@ -553,7 +589,7 @@ Loss per crossing: default (limits), dB:
 - **Normal incidence.** Wall loss is computed for a wave meeting the wall head on. The slab code supports angles, but using them moved 90% of cells by at most about 3 dB in the test plans, and not always downwards, so it was left out ([D30](DECISIONS.md#d30-wall-loss-stays-at-normal-incidence--2026-09-27)).
 - **Omnidirectional access points.** Antenna patterns are ignored ([D24](DECISIONS.md#d24-propagation-scope-for-m1-omnidirectional-direct-path-only--2026-09-27)).
 - **Typical constructions.** A real wall may differ from its construction above: metal studs, foil-backed insulation, tile or plaster lath all add loss.
-- **No furniture or people.** Neighbours' networks are only a typed-in strength that counts everywhere in the home ([D67](DECISIONS.md#d67-neighbours-networks--2026-09-29)).
+- **No furniture or people.** Neighbours' networks are only a typed-in strength that counts everywhere in the home ([D67](DECISIONS.md#d67-neighbours-networks--2026-09-29)); the engine can now [locate](#locating-access-points) them from scans, but they don't interfere from that position yet.
 - **Receiver losses aren't modelled.** A phone's antenna is less efficient than the 0 dBi assumed, and a hand or body near it absorbs signal, so a phone may read several dB below the prediction.
 - **Calibration is per home and only as good as the survey.** Calibrate fits the model to a home's readings ([Calibration](#calibration)), but no real home has been surveyed and calibrated yet (#132), and an uncalibrated plan uses the defaults above.
 
