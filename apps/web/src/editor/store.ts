@@ -42,6 +42,7 @@ import {
   type CoverageGoal,
   type OptimizerState,
 } from './optimizer.ts'
+import { checkPosition, type PositionCheck } from './locate.ts'
 import type { Units } from './units.ts'
 
 enablePatches()
@@ -170,6 +171,11 @@ export interface EditorState {
    */
   channelPlan: BandChannelPlan[] | undefined
   /**
+   * Where an access point's readings put it (D85), waiting for Apply or
+   * Dismiss. Any change to the plan drops it.
+   */
+  positionCheck: PositionCheck | undefined
+  /**
    * Calibrate's fit of every band with readings (D76), while it runs and
    * then waiting for Apply or Dismiss. Any change to the plan drops it.
    */
@@ -253,6 +259,11 @@ export interface EditorState {
   /** Sets the suggested channels and widths as one edit. */
   applyChannelPlan: () => void
   dismissChannelPlan: () => void
+  /** Checks an access point's position against its readings (D85). */
+  checkPosition: (apId: string) => void
+  /** Moves the access point to where its readings put it, as one edit. */
+  applyPositionCheck: () => void
+  dismissPositionCheck: () => void
   setModelCalibration: (state: ModelCalibrationState | undefined) => void
   /** Saves the fitted values of every band that improves, as one edit. */
   applyModelCalibration: () => void
@@ -324,6 +335,16 @@ function dropChannelPlan(state: EditorState): Partial<EditorState> {
     ? {
         channelPlan: undefined,
         notice: 'Channel plan dismissed: the plan changed.',
+      }
+    : {}
+}
+
+/** A position check is for the plan as it was, so a change drops it (D85). */
+function dropPositionCheck(state: EditorState): Partial<EditorState> {
+  return state.positionCheck
+    ? {
+        positionCheck: undefined,
+        notice: 'Position check dismissed: the plan changed.',
       }
     : {}
 }
@@ -441,6 +462,7 @@ export function createEditorStore(
     notice: undefined,
     optimizer: undefined,
     channelPlan: undefined,
+    positionCheck: undefined,
     modelCalibration: undefined,
     coverageGoal: DEFAULT_COVERAGE_GOAL,
 
@@ -459,6 +481,7 @@ export function createEditorStore(
           ? {}
           : dropOptimizer(state.optimizer, 'the plan changed')),
         ...dropChannelPlan(state),
+        ...dropPositionCheck(state),
         ...dropModelCalibration(state),
       }))
     },
@@ -484,6 +507,7 @@ export function createEditorStore(
           ? {}
           : dropOptimizer(state.optimizer, 'the plan changed')),
         ...dropChannelPlan(state),
+        ...dropPositionCheck(state),
         ...dropModelCalibration(state),
       }))
     },
@@ -531,6 +555,7 @@ export function createEditorStore(
         future: [...state.future, entry],
         ...dropOptimizer(state.optimizer, 'the plan changed'),
         ...dropChannelPlan(state),
+        ...dropPositionCheck(state),
         ...dropModelCalibration(state),
       }))
     },
@@ -547,6 +572,7 @@ export function createEditorStore(
         future: state.future.slice(0, -1),
         ...dropOptimizer(state.optimizer, 'the plan changed'),
         ...dropChannelPlan(state),
+        ...dropPositionCheck(state),
         ...dropModelCalibration(state),
       }))
     },
@@ -566,6 +592,7 @@ export function createEditorStore(
         outline: undefined,
         optimizer: undefined,
         channelPlan: undefined,
+        positionCheck: undefined,
         modelCalibration: undefined,
       })
     },
@@ -759,6 +786,29 @@ export function createEditorStore(
       get().edit('Apply the channel plan', channelPlanRecipe(channelPlan))
     },
     dismissChannelPlan: () => set({ channelPlan: undefined }),
+    checkPosition: (apId) => {
+      const check = checkPosition(get().plan, apId)
+      set({
+        positionCheck: check,
+        notice: check
+          ? undefined
+          : 'Its readings are too few to check its position: it needs them at 3 spots on one band.',
+      })
+    },
+    applyPositionCheck: () => {
+      const { positionCheck } = get()
+      if (!positionCheck) return
+      const { apId, location } = positionCheck
+      set({ positionCheck: undefined })
+      get().edit('Move access point to its readings', (plan) => {
+        const ap = plan.accessPoints.find((a) => a.id === apId)
+        if (!ap || ap.locked) return
+        ap.floorId = location.floorId
+        ap.x = Math.round(location.x * 100) / 100
+        ap.y = Math.round(location.y * 100) / 100
+      })
+    },
+    dismissPositionCheck: () => set({ positionCheck: undefined }),
     setModelCalibration: (modelCalibration) =>
       set({ modelCalibration, notice: undefined }),
     applyModelCalibration: () => {

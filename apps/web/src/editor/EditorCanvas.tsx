@@ -147,6 +147,46 @@ export function EditorCanvas({
     () => suggestion?.moves.filter((move) => move.to.floorId === floorId),
     [suggestion, floorId],
   )
+  const positionCheck = useEditor((s) => s.positionCheck)
+  // Located neighbours on this floor, and where a position check puts an
+  // access point, each with its uncertainty (D84, D85).
+  const located = useMemo(() => {
+    const neighbours = (plan.neighbourNetworks ?? []).flatMap((n, i) =>
+      n.location?.floorId === floorId
+        ? [
+            {
+              x: n.location.x,
+              y: n.location.y,
+              radiusM: n.location.uncertaintyM,
+              label: n.name ?? `Network ${i + 1}`,
+            },
+          ]
+        : [],
+    )
+    const check =
+      positionCheck?.location.floorId === floorId
+        ? [
+            {
+              x: positionCheck.location.x,
+              y: positionCheck.location.y,
+              radiusM: positionCheck.location.uncertaintyM,
+              label: undefined,
+            },
+          ]
+        : []
+    return [...neighbours, ...check]
+  }, [plan.neighbourNetworks, positionCheck, floorId])
+  const checkedHere = useMemo(() => {
+    if (positionCheck?.location.floorId !== floorId) return undefined
+    const ap = plan.accessPoints.find((a) => a.id === positionCheck.apId)
+    if (!ap) return undefined
+    return {
+      apId: ap.id,
+      from: ap.floorId === floorId ? { x: ap.x, y: ap.y } : undefined,
+      to: { x: positionCheck.location.x, y: positionCheck.location.y },
+      label: `${ap.name}, by its readings`,
+    }
+  }, [positionCheck, plan.accessPoints, floorId])
   const { library } = useServices()
   const anchor =
     tool === 'floorOpening' ? outline?.at(-1) : chain?.at(-1)?.point
@@ -395,12 +435,16 @@ export function EditorCanvas({
         (tool === 'survey' || placingScan) && cursor === 'default'
           ? pointer
           : undefined,
-      suggestions: suggestedHere?.map((move) => ({
-        apId: move.apId,
-        from: move.from,
-        to: move.to,
-        label: move.apId === undefined ? `New: ${move.name}` : 'Suggested',
-      })),
+      suggestions: [
+        ...(suggestedHere?.map((move) => ({
+          apId: move.apId,
+          from: move.from,
+          to: move.to,
+          label: move.apId === undefined ? `New: ${move.name}` : 'Suggested',
+        })) ?? []),
+        ...(checkedHere ? [checkedHere] : []),
+      ],
+      located,
       corners: floor.nodes,
       drawing:
         tool === 'wall' && preview
@@ -437,6 +481,8 @@ export function EditorCanvas({
     anchor,
     wallMaterial,
     suggestedHere,
+    checkedHere,
+    located,
     ghostScene,
     surveySpots,
     surveyCard,

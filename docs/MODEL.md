@@ -550,7 +550,7 @@ Loss per crossing: default (limits), dB:
 
 ## Locating access points
 
-From the signal of one radio at three or more survey spots, the engine estimates where it is and how much power it sends ([D83](DECISIONS.md#d83-locating-access-points-from-readings--2026-10-04), `locate.ts`). It's for a neighbour's network heard by scans at several spots (D82), and for an access point of your own whose position you aren't sure of. A neighbour's network can keep the result as its location, and then interferes cell by cell ([Interference](#interference), D84); the editor will offer to locate them next (#143).
+From the signal of one radio at three or more survey spots, the engine estimates where it is and how much power it sends ([D83](DECISIONS.md#d83-locating-access-points-from-readings--2026-10-04), `locate.ts`). It's for a neighbour's network heard by scans at several spots (D82), and for an access point of your own whose position you aren't sure of. A neighbour's network can keep the result as its location, and then interferes cell by cell ([Interference](#interference), D84); the editor locates them from their scans, and checks your own access points against their readings (D85).
 
 **What's fitted.** The reading at spot i is predicted as for the [error report](#survey-readings), with the source at (x, y) on some floor, a mounting height h above it (1 m unless given, as for a new access point) and an unknown EIRP:
 
