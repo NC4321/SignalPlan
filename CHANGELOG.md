@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ### Added
 
+- Empty states that say what to do next: a plan with no walls, no access points on the floor, no survey spots, no readings or no neighbours’ networks now says so in a sentence, with the button that does it right there (Draw your first wall, Place an access point, Add survey spots, Add readings at a spot). Calibrate says it needs readings first, and the coverage summary says to add an access point when there is none (D92).
+
 - Guided first run: a first visit gets four short steps over the sample home (what the colours mean, drag an access point, draw a wall, where to start your own), each moving on when you do it. Skip ends it, it's shown once, and "Show the guide again" in the shortcuts dialog (?) replays it (D90).
 
 - Keyboard shortcuts overlay: press ? (or the ? button at the end of the top bar) for every shortcut, grouped into tools, editing, floors and view, and files, with Ctrl or ⌘ as your computer uses (D89).

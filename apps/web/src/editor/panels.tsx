@@ -636,6 +636,7 @@ function LegendSwatch({ swatch }: { swatch: Swatch }) {
 function CoverageSummary({ message }: { message: string }) {
   const store = useEditorStore()
   const target = useEditor((s) => s.plan.coverageTarget ?? DEFAULT_TARGET)
+  const noAccessPoints = useEditor((s) => s.plan.accessPoints.length === 0)
   const id = useId()
 
   return (
@@ -662,7 +663,10 @@ function CoverageSummary({ message }: { message: string }) {
         </select>
       </div>
       {/* Announced from the status bar, where it is always visible (D37). */}
-      <p className="coverage-share">{message}</p>
+      <p className="coverage-share">
+        {message ||
+          (noAccessPoints ? 'Add an access point to see coverage.' : '')}
+      </p>
     </div>
   )
 }
@@ -1555,6 +1559,31 @@ function MultipleSection() {
   )
 }
 
+/**
+ * An empty list or section (D92): one plain sentence on what to do next, with
+ * the button that does it, in the hint style.
+ */
+function EmptyState({
+  children,
+  action,
+  onAction,
+  className,
+}: {
+  children: ReactNode
+  action: string
+  onAction: () => void
+  className?: string
+}) {
+  return (
+    <div className={className ? `empty-state ${className}` : 'empty-state'}>
+      <p className="hint">{children}</p>
+      <button type="button" onClick={onAction}>
+        {action}
+      </button>
+    </div>
+  )
+}
+
 function PlanSection() {
   const store = useEditorStore()
   const plan = useEditor((s) => s.plan)
@@ -1583,18 +1612,43 @@ function PlanSection() {
           <p className="hint">Add more with the Survey tool (S).</p>
         </>
       ) : (
-        // Reset stays in reach after the spots are gone (D76).
-        plan.calibration && <CalibrateSection />
+        <>
+          <h3>Survey spots</h3>
+          <EmptyState
+            className="survey-empty"
+            action="Add survey spots"
+            onAction={() => store.getState().setTool('survey')}
+          >
+            No survey spots yet. Measure signal in a few rooms to check the
+            model against your home.
+          </EmptyState>
+          {/* Reset stays in reach after the spots are gone (D76). */}
+          {plan.calibration && <CalibrateSection />}
+        </>
       )}
       <ViewSettingsFields />
       {floor?.walls.length === 0 && (
-        <p className="hint start-hint">
+        <EmptyState
+          className="start-hint"
+          action="Draw your first wall"
+          onAction={() => store.getState().setTool('wall')}
+        >
           To start, pick <strong>Wall</strong> (W) and click to place each
           corner; click the first corner again to close a room. Drag an access
           point to move it.
-        </p>
+        </EmptyState>
       )}
       <h3>Access points</h3>
+      {!plan.accessPoints.some((a) => a.floorId === floorId) && (
+        <EmptyState
+          className="access-points-empty"
+          action="Place an access point"
+          onAction={() => store.getState().setTool('accessPoint')}
+        >
+          No access points on this floor yet. Place one where your router or
+          access point is.
+        </EmptyState>
+      )}
       <ul className="object-list">
         {plan.accessPoints
           .filter((a) => a.floorId === floorId)
@@ -1702,11 +1756,19 @@ function ChannelPlanSection() {
               Plan channels
             </button>
           </div>
-          <p className="hint">
-            {plan.accessPoints.length === 0
-              ? 'Add an access point first.'
-              : 'Suggests a channel and width for each radio left on Auto, so access points that hear each other don’t share one.'}
-          </p>
+          {plan.accessPoints.length === 0 ? (
+            <EmptyState
+              action="Place an access point"
+              onAction={() => store.getState().setTool('accessPoint')}
+            >
+              Add an access point first: there are no radios to plan yet.
+            </EmptyState>
+          ) : (
+            <p className="hint">
+              Suggests a channel and width for each radio left on Auto, so
+              access points that hear each other don’t share one.
+            </p>
+          )}
         </>
       ) : (
         <>
@@ -1781,6 +1843,12 @@ function NeighbourFields() {
         Settings. Its signal counts everywhere in the home, unless scans at
         three survey spots or more have located it.
       </p>
+      {(networks?.length ?? 0) === 0 && (
+        <p className="hint">
+          No neighbours’ networks yet. Add the ones you can see, and channels
+          are planned around them.
+        </p>
+      )}
       {networks?.map((network, i) => (
         <NeighbourRow
           key={network.id}
@@ -2818,7 +2886,9 @@ function SurveyList() {
     <>
       <h3>Survey spots</h3>
       {withSpots.length === 0 && (
-        <p className="hint">No spots yet on any floor.</p>
+        <p className="hint">
+          No spots yet on any floor. Click the plan where you measured signal.
+        </p>
       )}
       {withSpots.map((floor) => (
         <div key={floor.id} className="survey-floor">
@@ -2909,6 +2979,9 @@ function CalibrateSection() {
     }
   }, [state])
   const fitting = state?.status === 'fitting'
+  const noReadings = !plan.floors.some((f) =>
+    (f.surveySpots ?? []).some((spot) => spot.readings.length > 0),
+  )
   return (
     <div
       className="calibrate"
@@ -2920,7 +2993,9 @@ function CalibrateSection() {
         <>
           <p className="hint">
             {note ??
-              'Fits the walls’ and floors’ losses and how fast signal fades to your readings, band by band, within published limits.'}
+              (noReadings
+                ? 'Needs readings first: add some to a survey spot, then Calibrate fits the model to them.'
+                : 'Fits the walls’ and floors’ losses and how fast signal fades to your readings, band by band, within published limits.')}
           </p>
           <div className="actions">
             <button
@@ -3080,14 +3155,34 @@ function SurveyReport() {
     0,
   )
   const skipped = total - errors.readings.length
+  const firstSpot = floors
+    .flatMap((f) =>
+      (f.surveySpots ?? []).map((spot) => ({ spot, floorId: f.id })),
+    )
+    .at(0)!
   const approximate = summary.reduce((n, row) => n + row.approximate, 0)
   return (
     <>
       <h3>Predicted versus measured</h3>
       {summary.length === 0 ? (
-        <p className="hint">
-          Add readings to see how far the model is from what you measured.
-        </p>
+        total === 0 ? (
+          <EmptyState
+            className="report-empty"
+            action={`Add readings at ${surveySpotName(firstSpot.spot.id)}`}
+            onAction={() => {
+              const state = store.getState()
+              state.setFloor(firstSpot.floorId)
+              state.select([{ kind: 'surveySpot', id: firstSpot.spot.id }])
+            }}
+          >
+            No readings yet. Add some to see how far the model is from what you
+            measured.
+          </EmptyState>
+        ) : (
+          <p className="hint">
+            Add readings to see how far the model is from what you measured.
+          </p>
+        )
       ) : (
         <>
           <table className="error-table">
@@ -3226,6 +3321,15 @@ function SurveySpotSection({ spot }: { spot: SurveySpot }) {
           No readings yet. Add one for each access point and band you measured
           here.
         </p>
+      )}
+      {plan.accessPoints.length === 0 && (
+        <EmptyState
+          className="readings-empty"
+          action="Place an access point"
+          onAction={() => store.getState().setTool('accessPoint')}
+        >
+          A reading is from an access point, and this plan has none yet.
+        </EmptyState>
       )}
       {spot.readings.map((_, i) => (
         <ReadingRow
