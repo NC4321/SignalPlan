@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 680 340" width="680" height="340" font-family="system-ui, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="14">
+  <title>Signal strength falls by the same number of dB each time the distance doubles</title>
+  <desc>A chart of predicted signal in dBm against distance in metres on a log scale, for a 23 dBm radio on 5 GHz. With the default exponent 2 the signal falls from -24.3 dBm at 1 m to -48.4 dBm at 16 m, a straight line losing about 6 dB per doubling. With exponent 3 it falls to -60.4 dBm.</desc>
+  <rect width="680" height="340" rx="8" fill="#f6f8fa" stroke="#d0d7de"/>
+  <text x="20" y="28" font-size="15" font-weight="600" fill="#1f2328">Signal against distance (5 GHz, 23 dBm radio, nothing in the way)</text>
+  <g stroke="#d0d7de" stroke-width="1">
+    <line x1="80" y1="100" x2="600" y2="100"/>
+    <line x1="80" y1="150" x2="600" y2="150"/>
+    <line x1="80" y1="200" x2="600" y2="200"/>
+    <line x1="80" y1="250" x2="600" y2="250"/>
+  </g>
+  <g fill="#57606a" text-anchor="end" font-size="13">
+    <text x="72" y="105">−30</text>
+    <text x="72" y="155">−40</text>
+    <text x="72" y="205">−50</text>
+    <text x="72" y="255">−60</text>
+  </g>
+  <text x="20" y="62" fill="#57606a" font-size="13">dBm</text>
+  <line x1="80" y1="275" x2="600" y2="275" stroke="#57606a" stroke-width="1.5"/>
+  <line x1="80" y1="50" x2="80" y2="275" stroke="#57606a" stroke-width="1.5"/>
+  <g fill="#57606a" text-anchor="middle" font-size="13">
+    <text x="80" y="296">1 m</text>
+    <text x="210" y="296">2 m</text>
+    <text x="340" y="296">4 m</text>
+    <text x="470" y="296">8 m</text>
+    <text x="600" y="296">16 m</text>
+    <text x="340" y="320">distance from the access point (each step doubles it)</text>
+  </g>
+  <g stroke="#57606a" stroke-width="1.5">
+    <line x1="80" y1="275" x2="80" y2="280"/><line x1="210" y1="275" x2="210" y2="280"/>
+    <line x1="340" y1="275" x2="340" y2="280"/><line x1="470" y1="275" x2="470" y2="280"/>
+    <line x1="600" y1="275" x2="600" y2="280"/>
+  </g>
+  <line x1="80" y1="71.5" x2="600" y2="252" stroke="#bc4c00" stroke-width="2.5" stroke-dasharray="7 5"/>
+  <line x1="80" y1="71.5" x2="600" y2="192" stroke="#0969da" stroke-width="3"/>
+  <g fill="#0969da"><circle cx="80" cy="71.5" r="4"/><circle cx="210" cy="101.5" r="4"/><circle cx="340" cy="131.7" r="4"/><circle cx="470" cy="161.9" r="4"/><circle cx="600" cy="192" r="4"/></g>
+  <text x="610" y="190" fill="#0969da" font-weight="600">n = 2</text>
+  <text x="610" y="208" fill="#0969da" font-size="12">−48.4</text>
+  <text x="610" y="250" fill="#bc4c00" font-weight="600">n = 3</text>
+  <text x="610" y="268" fill="#bc4c00" font-size="12">−60.4</text>
+  <text x="92" y="64" fill="#0969da" font-size="13">−24.3 dBm at 1 m</text>
+  <text x="380" y="120" fill="#0969da" font-size="13">each doubling costs 6 dB</text>
+  <text x="380" y="266" fill="#bc4c00" font-size="13">with n = 3, 9 dB</text>
+</svg>

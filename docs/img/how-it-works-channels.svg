@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 680 430" width="680" height="430" font-family="system-ui, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="14">
+  <title>Wi-Fi channels as slices of the radio spectrum, and where they overlap</title>
+  <desc>Top: 5 GHz channels on a frequency axis from 5170 to 5250 MHz. Four 20 MHz channels, 36, 40, 44 and 48, sit side by side. Two 40 MHz channels, 38 and 46, each cover two of them. One 80 MHz channel, 42, covers all four. Bottom: on 2.4 GHz, channels 1 and 3 overlap by half, while 1 and 6 do not overlap.</desc>
+  <rect width="680" height="430" rx="8" fill="#f6f8fa" stroke="#d0d7de"/>
+  <text x="20" y="28" font-size="15" font-weight="600" fill="#1f2328">Channels are slices of spectrum. Wider slices overlap more.</text>
+  <text x="20" y="54" font-size="13" font-weight="600" fill="#57606a">5 GHz (US), 5170 to 5250 MHz</text>
+  <g font-size="13" font-weight="600" text-anchor="middle" fill="#1f2328">
+    <rect x="60" y="66" width="600" height="30" rx="4" fill="#1a7f37" fill-opacity="0.35" stroke="#1a7f37" stroke-width="2"/>
+    <text x="360" y="86">80 MHz: channel 42</text>
+    <rect x="60" y="102" width="296" height="30" rx="4" fill="#0969da" fill-opacity="0.35" stroke="#0969da" stroke-width="2"/>
+    <text x="208" y="122">40 MHz: channel 38</text>
+    <rect x="364" y="102" width="296" height="30" rx="4" fill="#0969da" fill-opacity="0.35" stroke="#0969da" stroke-width="2"/>
+    <text x="512" y="122">40 MHz: channel 46</text>
+    <rect x="60" y="138" width="141" height="30" rx="4" fill="#bc4c00" fill-opacity="0.35" stroke="#bc4c00" stroke-width="2"/>
+    <text x="130" y="158">20: ch 36</text>
+    <rect x="219" y="138" width="141" height="30" rx="4" fill="#bc4c00" fill-opacity="0.35" stroke="#bc4c00" stroke-width="2"/>
+    <text x="289" y="158">20: ch 40</text>
+    <rect x="360" y="138" width="141" height="30" rx="4" fill="#bc4c00" fill-opacity="0.35" stroke="#bc4c00" stroke-width="2"/>
+    <text x="430" y="158">20: ch 44</text>
+    <rect x="519" y="138" width="141" height="30" rx="4" fill="#bc4c00" fill-opacity="0.35" stroke="#bc4c00" stroke-width="2"/>
+    <text x="589" y="158">20: ch 48</text>
+  </g>
+  <line x1="60" y1="176" x2="660" y2="176" stroke="#57606a" stroke-width="1.5"/>
+  <g fill="#57606a" font-size="12" text-anchor="middle">
+    <text x="60" y="194">5170</text><text x="210" y="194">5190</text><text x="360" y="194">5210</text><text x="510" y="194">5230</text><text x="660" y="194">5250</text>
+  </g>
+  <text x="20" y="226" font-size="13" fill="#1f2328">36 and 44 do not overlap at 20 MHz. At 80 MHz both sit inside channel 42, so they do.</text>
+  <line x1="20" y1="244" x2="660" y2="244" stroke="#d0d7de"/>
+  <text x="20" y="270" font-size="13" font-weight="600" fill="#57606a">2.4 GHz, 2400 to 2450 MHz, 20 MHz channels</text>
+  <g font-size="13" font-weight="600" text-anchor="middle" fill="#1f2328">
+    <rect x="84" y="282" width="240" height="30" rx="4" fill="#0969da" fill-opacity="0.35" stroke="#0969da" stroke-width="2"/>
+    <text x="144" y="302">channel 1</text>
+    <rect x="204" y="318" width="240" height="30" rx="4" fill="#bc4c00" fill-opacity="0.35" stroke="#bc4c00" stroke-width="2"/>
+    <text x="384" y="338">channel 3</text>
+    <rect x="384" y="282" width="240" height="30" rx="4" fill="#1a7f37" fill-opacity="0.35" stroke="#1a7f37" stroke-width="2"/>
+    <text x="504" y="302">channel 6</text>
+  </g>
+  <rect x="204" y="282" width="120" height="66" fill="none" stroke="#cf222e" stroke-width="2" stroke-dasharray="5 4"/>
+  <text x="264" y="366" text-anchor="middle" fill="#cf222e" font-size="13" font-weight="600">shared: 10 of 20 MHz</text>
+  <line x1="60" y1="378" x2="660" y2="378" stroke="#57606a" stroke-width="1.5"/>
+  <g fill="#57606a" font-size="12" text-anchor="middle">
+    <text x="84" y="396">2402</text><text x="204" y="396">2412</text><text x="324" y="396">2422</text><text x="444" y="396">2432</text><text x="564" y="396">2442</text>
+  </g>
+  <text x="20" y="418" font-size="13" fill="#1f2328">Channels 1 and 6 do not overlap, which is why 1, 6 and 11 are the usual choice.</text>
+</svg>

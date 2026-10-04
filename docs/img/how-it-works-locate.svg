@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 680 290" width="680" height="290" font-family="system-ui, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="14">
+  <title>A neighbour's access point placed outside the house, with its uncertainty circle</title>
+  <desc>Plan view of a 15 by 10 metre house with survey spots marked inside it. A cross marks where the fit puts a neighbour's access point, 4.2 m outside the right-hand wall. A dashed circle of radius 8.4 m around it shows how far from that point the true position could plausibly be, reaching back into the house.</desc>
+  <rect width="680" height="290" rx="8" fill="#f6f8fa" stroke="#d0d7de"/>
+  <text x="20" y="28" font-size="15" font-weight="600" fill="#1f2328">Where is the neighbour's access point? A best guess and a circle</text>
+  <circle cx="309" cy="150" r="118" fill="#cf222e" fill-opacity="0.08" stroke="#cf222e" stroke-width="2.5" stroke-dasharray="8 5"/>
+  <rect x="40" y="80" width="210" height="140" fill="#f6f8fa" fill-opacity="0.6" stroke="#57606a" stroke-width="4"/>
+  <line x1="145" y1="80" x2="145" y2="150" stroke="#8c959f" stroke-width="2.5"/>
+  <line x1="145" y1="190" x2="145" y2="220" stroke="#8c959f" stroke-width="2.5"/>
+  <line x1="40" y1="150" x2="145" y2="150" stroke="#8c959f" stroke-width="2.5"/>
+  <g fill="#0969da">
+    <circle cx="70" cy="110" r="5"/><circle cx="105" cy="190" r="5"/><circle cx="180" cy="105" r="5"/>
+    <circle cx="215" cy="185" r="5"/><circle cx="225" cy="130" r="5"/><circle cx="75" cy="200" r="5"/>
+  </g>
+  <text x="40" y="242" fill="#0969da" font-size="13">blue dots: survey spots</text>
+  <path d="M 300 141 L 318 159 M 318 141 L 300 159" stroke="#cf222e" stroke-width="4" stroke-linecap="round"/>
+  <text x="309" y="178" text-anchor="middle" fill="#cf222e" font-weight="600" font-size="13">best fit</text>
+  <line x1="309" y1="150" x2="413" y2="98" stroke="#cf222e" stroke-width="1.5"/>
+  <text x="418" y="94" fill="#cf222e" font-size="13" font-weight="600">radius 8.4 m</text>
+  <g font-size="13" fill="#1f2328">
+    <text x="450" y="150">The circle is where the</text>
+    <text x="450" y="168">true position could be.</text>
+    <text x="450" y="196" fill="#57606a">Example: 25 spots, 3 dB of</text>
+    <text x="450" y="214" fill="#57606a">noise, neighbour 4.2 m out.</text>
+  </g>
+  <line x1="40" y1="262" x2="110" y2="262" stroke="#57606a" stroke-width="2"/>
+  <text x="120" y="266" fill="#57606a" font-size="13">5 m</text>
+</svg>

@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 680 300" width="680" height="300" font-family="system-ui, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="14">
+  <title>A signal path crossing a drywall wall and a brick wall, with what each costs</title>
+  <desc>Plan view of a straight line from an access point to a phone 8 m away. It crosses one drywall wall, which costs 2.4 dB, and one brick wall, which costs 9.0 dB, on 5 GHz. Distance alone gives -42.4 dBm; after the walls the phone sees -53.8 dBm.</desc>
+  <rect width="680" height="300" rx="8" fill="#f6f8fa" stroke="#d0d7de"/>
+  <text x="20" y="28" font-size="15" font-weight="600" fill="#1f2328">One straight line, walls counted one by one (5 GHz)</text>
+  <rect x="20" y="44" width="640" height="136" fill="none" stroke="#d0d7de" stroke-dasharray="2 4"/>
+  <rect x="233" y="80" width="12" height="100" fill="#8c959f"/>
+  <rect x="455" y="80" width="16" height="100" fill="#bc4c00"/>
+  <line x1="70" y1="120" x2="610" y2="120" stroke="#0969da" stroke-width="3"/>
+  <circle cx="70" cy="120" r="12" fill="#0969da"/>
+  <circle cx="70" cy="120" r="20" fill="none" stroke="#0969da" stroke-width="1.5"/>
+  <rect x="598" y="108" width="24" height="24" rx="5" fill="#1a7f37"/>
+  <g text-anchor="middle" fill="#1f2328" font-size="13">
+    <text x="70" y="156">access point</text>
+    <text x="70" y="172" fill="#57606a" font-size="12">23 dBm</text>
+    <text x="610" y="156">phone</text>
+    <text x="239" y="68" font-weight="600">drywall</text>
+    <text x="463" y="68" font-weight="600" fill="#bc4c00">brick</text>
+  </g>
+  <g font-size="14" font-weight="600">
+    <text x="253" y="104" fill="#1f2328">−2.4 dB</text>
+    <text x="479" y="104" fill="#bc4c00">−9.0 dB</text>
+  </g>
+  <text x="340" y="146" text-anchor="middle" fill="#57606a" font-size="13">8 m apart</text>
+  <g font-size="14" fill="#1f2328">
+    <text x="40" y="206">Distance alone, 8 m</text><text x="330" y="206" text-anchor="end">−42.4 dBm</text>
+    <text x="40" y="230">One drywall wall</text><text x="330" y="230" text-anchor="end">− 2.4 dB</text>
+    <text x="40" y="254">One brick wall</text><text x="330" y="254" text-anchor="end">− 9.0 dB</text>
+    <line x1="40" y1="263" x2="330" y2="263" stroke="#57606a"/>
+    <text x="40" y="284" font-weight="600">At the phone</text><text x="330" y="284" text-anchor="end" font-weight="600">−53.8 dBm</text>
+  </g>
+  <g font-size="13" fill="#57606a">
+    <text x="380" y="206">Loss per wall crossing at 5 GHz:</text>
+    <text x="380" y="228">drywall 2.4 · wood door 1.8 · brick 9.0</text>
+    <text x="380" y="248">glass 6.1 · concrete 26.5 · low-E glass 29.9</text>
+    <text x="380" y="272">Each wall costs its head-on loss.</text>
+  </g>
+</svg>
