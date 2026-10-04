@@ -1,13 +1,16 @@
 import { Fragment, useEffect, useState } from 'react'
+import { useEditorStore } from './context.ts'
 import { Dialog } from './Dialog.tsx'
 import { shortcutGroups, type Shortcut } from './shortcuts.ts'
 import { isTyping, MOD_NAME } from './util.ts'
 
 /**
  * The keyboard shortcuts overlay (D89): the top bar's "?" button, or the ?
- * key anywhere text isn't being typed, lists every shortcut by group.
+ * key anywhere text isn't being typed, lists every shortcut by group, and
+ * can show the guided first run again (D90).
  */
 export function ShortcutsHelp() {
+  const store = useEditorStore()
   const [open, setOpen] = useState(false)
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -37,13 +40,24 @@ export function ShortcutsHelp() {
         wide
         onClose={() => setOpen(false)}
         actions={
-          <button
-            type="button"
-            className="primary"
-            onClick={() => setOpen(false)}
-          >
-            Done
-          </button>
+          <>
+            <button
+              type="button"
+              onClick={() => {
+                setOpen(false)
+                store.getState().setGuide(true)
+              }}
+            >
+              Show the guide again
+            </button>
+            <button
+              type="button"
+              className="primary"
+              onClick={() => setOpen(false)}
+            >
+              Done
+            </button>
+          </>
         }
       >
         {/* Scrollable on small screens, so it takes focus first: the list

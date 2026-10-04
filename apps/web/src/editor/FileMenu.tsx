@@ -160,7 +160,9 @@ export function FileMenu() {
           }
         }}
       >
-        <summary ref={summary}>File</summary>
+        <summary ref={summary} data-guide="file-menu">
+          File
+        </summary>
         <div className="menu-items">
           <button type="button" onClick={() => void startFresh(blankPlan())}>
             New plan

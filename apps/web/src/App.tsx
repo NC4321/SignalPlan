@@ -13,6 +13,7 @@ import { SurveyImportProvider } from './editor/SurveyImportProvider.tsx'
 import { TracingProvider } from './editor/TracingProvider.tsx'
 import { Dialog, PlanIssues } from './editor/Dialog.tsx'
 import { SharedLinkOpener } from './editor/SharedLinkOpener.tsx'
+import { Guide } from './editor/Guide.tsx'
 import { rescuePlan } from './editor/persistence.ts'
 import { useServices } from './editor/services.ts'
 import {
@@ -275,6 +276,7 @@ function App({
                   {error && (
                     <p className="notice">Couldn’t compute coverage: {error}</p>
                   )}
+                  <Guide />
                 </main>
                 <PropertiesPanel
                   open={panelOpen}
