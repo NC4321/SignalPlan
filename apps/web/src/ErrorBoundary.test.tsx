@@ -4,6 +4,7 @@ import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ErrorBoundary } from './ErrorBoundary.tsx'
 import { blankPlan, planToFile } from './editor/persistence.ts'
+import { takeReloadAfterCrash } from './rescue.ts'
 
 ;(
   globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
@@ -47,8 +48,14 @@ describe('ErrorBoundary (D91)', () => {
         </ErrorBoundary>,
       ),
     )
+    expect(container.querySelector('h1')?.textContent).toBe(
+      'SignalPlan stopped working',
+    )
+    // The alert is the first sentence; the page itself isn't one.
     const alert = container.querySelector('[role="alert"]')!
-    expect(alert.textContent).toContain('SignalPlan stopped working')
+    expect(alert.tagName).toBe('P')
+    expect(alert.textContent).toContain('Something went wrong')
+    expect(document.activeElement).toBe(container.querySelector('h1'))
     const buttons = [...container.querySelectorAll('button')].map(
       (b) => b.textContent,
     )
@@ -56,6 +63,32 @@ describe('ErrorBoundary (D91)', () => {
     const details = container.querySelector('details')!
     expect(details.open).toBe(false)
     expect(details.textContent).toContain('the screen broke')
+  })
+
+  it('stops autosaving when it catches, and marks the reload for the next load', () => {
+    const onCrash = vi.fn()
+    const reload = vi.fn()
+    vi.stubGlobal('location', { ...window.location, reload })
+    act(() =>
+      root.render(
+        <ErrorBoundary
+          getPlan={blankPlan}
+          library={undefined}
+          onCrash={onCrash}
+        >
+          <Broken />
+        </ErrorBoundary>,
+      ),
+    )
+    expect(onCrash).toHaveBeenCalledTimes(1)
+    const reloadButton = [...container.querySelectorAll('button')].find(
+      (b) => b.textContent === 'Reload SignalPlan',
+    )!
+    act(() => reloadButton.click())
+    expect(reload).toHaveBeenCalled()
+    expect(takeReloadAfterCrash()).toBe(true)
+    expect(takeReloadAfterCrash()).toBe(false)
+    vi.unstubAllGlobals()
   })
 
   it('downloads the plan from the store, not from the crashed tree', async () => {

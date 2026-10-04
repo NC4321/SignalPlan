@@ -3,6 +3,7 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import App from './App.tsx'
 import { ErrorBoundary } from './ErrorBoundary.tsx'
+import { takeReloadAfterCrash } from './rescue.ts'
 import { Autosaver } from './editor/autosave.ts'
 import { EditorContext } from './editor/context.ts'
 import { imageIdsIn, PlanLibrary, type Opened } from './editor/library.ts'
@@ -20,17 +21,31 @@ import './index.css'
 // Reopen the last plan edited in this browser; the sample home is for a first
 // visit (D21). A stored plan that no longer loads falls back to the sample.
 const library = await PlanLibrary.open()
+// After a reload from the crash screen the plan that crashed may be the last
+// one, so the sample opens instead; the plan is still in My plans (D91).
+const afterCrash = takeReloadAfterCrash()
 let lastId: string | undefined
 let last: Opened | undefined
-try {
-  await library?.migrateFrom(safeStorage())
-  lastId = await library?.lastPlanId()
-  last = lastId ? await library?.open(lastId) : undefined
-} catch {
-  // A library that opens but can't be read: start from the sample rather than
-  // leave the page blank. Saving will say if it can't work either (D91).
-  lastId = undefined
-  last = undefined
+let startNotice: string | undefined
+if (afterCrash) {
+  startNotice =
+    'SignalPlan reloaded with the sample home after a problem. Your plan is still in My plans.'
+} else {
+  try {
+    await library?.migrateFrom(safeStorage())
+  } catch {
+    // The old single-plan copy stays where it is; the library itself is fine.
+  }
+  try {
+    lastId = await library?.lastPlanId()
+    last = lastId ? await library?.open(lastId) : undefined
+  } catch {
+    // A library that opens but can't be read: start from the sample rather
+    // than a blank page, and say where the plan is (D91).
+    lastId = undefined
+    last = undefined
+    startNotice = 'Couldn’t open your last plan. It’s still in My plans.'
+  }
 }
 
 let problem: { issues: PlanIssue[]; raw: unknown } | undefined
@@ -57,7 +72,10 @@ const store = shared
       })
     : createEditorStore(samplePlan(), { units: readUnits(), pristine: true })
 // A first visit gets the guide over the sample home, once (D90).
-if (!shared && !last && !guideSeen()) store.getState().setGuide(true)
+if (!shared && !last && !startNotice && !guideSeen()) {
+  store.getState().setGuide(true)
+}
+if (startNotice) store.getState().setNotice(startNotice)
 const autosaver = new Autosaver(store, library)
 autosaver.start()
 // Tidy away tracing images that no saved plan uses any more.
@@ -65,7 +83,11 @@ void library?.collectGarbage(imageIdsIn(store.getState().plan)).catch(() => {})
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <ErrorBoundary getPlan={() => store.getState().plan} library={library}>
+    <ErrorBoundary
+      getPlan={() => store.getState().plan}
+      library={library}
+      onCrash={() => autosaver.suspend()}
+    >
       <EditorContext value={store}>
         <ServicesContext value={{ library, autosaver }}>
           <App

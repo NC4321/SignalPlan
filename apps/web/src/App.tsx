@@ -1,12 +1,16 @@
 import { withChannelPlan } from './editor/channelPlan.ts'
 import { viewSettings } from '@signalplan/engine'
-import { mapData } from './mapView.ts'
+import { mapData, type MapData } from './mapView.ts'
 import { adjacentFloorId, type PlanIssue } from '@signalplan/floorplan'
 import { lazy, Suspense, useEffect, useMemo, useState } from 'react'
 import { useEditor, useEditorStore } from './editor/context.ts'
 import { EditorCanvas } from './editor/EditorCanvas.tsx'
 import { FloorStack } from './editor/FloorStack.tsx'
-import { useSaveProblem, useSaveStatus } from './editor/autosave.ts'
+import {
+  useRetryFailed,
+  useSaveProblem,
+  useSaveStatus,
+} from './editor/autosave.ts'
 import { StorageNotice } from './editor/StorageNotice.tsx'
 import { CalibrationBar } from './editor/CalibrationBar.tsx'
 import { ScanPlacementBar, ScanProvider } from './editor/ScanProvider.tsx'
@@ -51,6 +55,22 @@ import { DEFAULT_TARGET } from './quality.ts'
 // three.js loads only when the 3D view first opens (D57).
 const View3D = lazy(() => import('./view3d/View3D.tsx'))
 
+const NO_MAPS = new Map<string, MapData>()
+
+/**
+ * Throws while rendering when the page sets `window.__signalplanCrashOnRender`,
+ * so tests can make the editor crash on purpose. Nothing sets it otherwise.
+ */
+function CrashProbe() {
+  if (
+    (window as { __signalplanCrashOnRender?: boolean })
+      .__signalplanCrashOnRender
+  ) {
+    throw new Error('Crash on render, as asked.')
+  }
+  return null
+}
+
 function App({
   savedPlanProblem,
   linkIssues,
@@ -64,6 +84,7 @@ function App({
   const { autosaver } = useServices()
   const saveStatus = useSaveStatus(autosaver)
   const saveProblem = useSaveProblem(autosaver)
+  const retryFailed = useRetryFailed(autosaver)
   const [problemOpen, setProblemOpen] = useState(savedPlanProblem !== undefined)
   const plan = useEditor((s) => s.plan)
   const floorId = useEditor((s) => s.floorId)
@@ -242,11 +263,16 @@ function App({
           <OptimizerContext value={optimizer}>
             <CalibratorContext value={calibrator}>
               <div className="app">
+                <CrashProbe />
                 <TopBar
                   panelOpen={panelOpen}
                   onTogglePanel={() => setPanelOpen((open) => !open)}
                 />
-                <StorageNotice problem={saveProblem} autosaver={autosaver} />
+                <StorageNotice
+                  problem={saveProblem}
+                  retryFailed={retryFailed}
+                  autosaver={autosaver}
+                />
                 <Toolbar />
                 <main className="stage">
                   <h1 className="visually-hidden">SignalPlan editor</h1>
@@ -256,7 +282,7 @@ function App({
                     >
                       <View3D
                         plan={shownPlan}
-                        maps={floorMaps}
+                        maps={floorsError ? NO_MAPS : floorMaps}
                         hiddenFloors={view3d.hiddenFloors}
                         spreadM={view3d.spreadM}
                         fullWalls={view3d.fullWalls}
@@ -287,15 +313,15 @@ function App({
                   )}
                   {view === '2d' && error && (
                     <CoverageFailure
-                      what="coverage"
-                      reason={error}
+                      what="this plan"
+                      failure={error}
                       onRetry={retryCoverage}
                     />
                   )}
                   {view === '3d' && floorsError && (
                     <CoverageFailure
-                      what="coverage for the 3D view"
-                      reason={floorsError}
+                      what="the 3D view"
+                      failure={floorsError}
                       onRetry={retryFloors}
                     />
                   )}

@@ -47,6 +47,27 @@ describe('rescueFile (D91)', () => {
     expect(file?.name).toBe('Saved copy.signalplan.json')
   })
 
+  it('saves the plan without its images when they take too long', async () => {
+    const plan = { ...samplePlan(), name: 'Slow' }
+    const slow = {
+      image: () => new Promise<undefined>(() => {}),
+      lastPlanId: async () => undefined,
+    } as unknown as PlanLibrary
+    plan.floors[0]!.background = {
+      imageId: 'img-1',
+      x: 0,
+      y: 0,
+      width: 1,
+      height: 1,
+      opacity: 0.5,
+      visible: true,
+      locked: false,
+    } as never
+    const file = await rescueFile(() => plan, slow, 20)
+    expect(file?.name).toBe('Slow.signalplan.json')
+    expect(JSON.parse(file!.text).floors[0].background.imageId).toBe('img-1')
+  })
+
   it('says there’s nothing when neither can be read', async () => {
     const file = await rescueFile(() => {
       throw new Error('store is broken')

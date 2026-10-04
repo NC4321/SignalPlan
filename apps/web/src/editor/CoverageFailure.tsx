@@ -1,26 +1,32 @@
+import { advice, type Failure } from '../workerFailure.ts'
+import { FailureDetails } from './FailureDetails.tsx'
+
 /**
- * Where the heatmap would be, when the worker that works it out has failed
- * (D91): what happened, what to try, and a button to try again. It sits over
- * the plan, so the plan itself stays usable.
+ * Where the heatmap would be, when coverage couldn't be worked out (D91):
+ * what happened, what to try, the raw reason in Details, and, when the worker
+ * itself failed so trying again may work, a Try again button. It sits over
+ * the plan, so the plan stays usable.
  */
 export function CoverageFailure({
   what,
-  reason,
+  failure,
   onRetry,
 }: {
   what: string
-  reason: string
+  failure: Failure
   onRetry: () => void
 }) {
   return (
     <div className="notice coverage-failure" role="alert">
       <p>
-        Couldn’t work out {what}: {reason.replace(/[.\s]+$/, '')}. Try again; if
-        it keeps failing, reload the page. Your plan isn’t affected.
+        Couldn’t work out coverage for {what}. {advice(failure.kind)}
       </p>
-      <button type="button" onClick={onRetry}>
-        Try again
-      </button>
+      {failure.kind === 'worker' && (
+        <button type="button" onClick={onRetry}>
+          Try again
+        </button>
+      )}
+      <FailureDetails details={failure.detail} />
     </div>
   )
 }

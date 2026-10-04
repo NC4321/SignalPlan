@@ -52,8 +52,14 @@ test.describe('a worker fails', () => {
     await breakableWorkers(page, ['engine'])
     await page.goto('/')
     const alert = page.getByRole('alert')
-    await expect(alert).toContainText('Couldn’t work out coverage: boom')
-    await expect(alert).toContainText('Try again')
+    await expect(alert).toContainText(
+      'Couldn’t work out coverage for this plan. Try again; if it keeps failing, reload the page.',
+    )
+    // The raw reason is there, but out of the way.
+    await expect(alert.locator('details')).not.toHaveAttribute('open', '')
+    await expect(alert.locator('pre')).toBeHidden()
+    await alert.getByText('Details').click()
+    await expect(alert.locator('pre')).toHaveText('boom')
     await expect(page.locator('.editor-canvas')).toBeVisible()
 
     await mendWorkers(page)
@@ -69,7 +75,10 @@ test.describe('a worker fails', () => {
       .getByRole('button', { name: 'Find a better spot for Wi-Fi 6E router' })
       .click()
     await expect(panel(page).locator('.optimizer-status')).toHaveText(
-      'Couldn’t search: boom. Try again; if it keeps failing, reload the page.',
+      'Couldn’t search for a spot. Try again; if it keeps failing, reload the page.',
+    )
+    await expect(panel(page).locator('.failure-details')).toContainText(
+      'Details',
     )
 
     await mendWorkers(page)
@@ -100,8 +109,8 @@ test.describe('a worker fails', () => {
     })
     await panel(page).getByRole('button', { name: 'Calibrate' }).click()
     const failure = panel(page).getByRole('alert')
-    await expect(failure).toHaveText(
-      'Couldn’t calibrate: boom. Try again; if it keeps failing, reload the page.',
+    await expect(failure).toContainText(
+      'Couldn’t calibrate. Try again; if it keeps failing, reload the page.',
     )
 
     await mendWorkers(page)
@@ -110,6 +119,34 @@ test.describe('a worker fails', () => {
       panel(page).getByRole('region', { name: '5 GHz calibration' }),
     ).toContainText('RMS error')
     await expect(failure).toHaveCount(0)
+  })
+})
+
+test.describe('a worker can’t load', () => {
+  test('a missing worker script shows the same panel', async ({ page }) => {
+    await page.route('**/engine.worker*', (route) =>
+      route.fulfill({ status: 404, body: 'Not found' }),
+    )
+    await page.goto('/')
+    await expect(page.getByRole('alert')).toContainText(
+      'Couldn’t work out coverage for this plan.',
+    )
+    await expect(page.getByRole('button', { name: 'Try again' })).toBeVisible()
+    await expect(page.locator('.editor-canvas')).toBeVisible()
+  })
+
+  test('a worker script with a syntax error does too', async ({ page }) => {
+    await page.route('**/engine.worker*', (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'text/javascript',
+        body: 'this is not (valid javascript',
+      }),
+    )
+    await page.goto('/')
+    await expect(page.getByRole('alert')).toContainText(
+      'Couldn’t work out coverage for this plan.',
+    )
   })
 })
 
@@ -131,10 +168,9 @@ test.describe('storage', () => {
     await expect(notice).toBeHidden()
 
     await moveRouter(page)
-    await expect(notice).toContainText(
-      'Your changes aren’t being saved in this browser: its storage is full.',
+    await expect(notice).toHaveText(
+      /^Changes aren’t being saved: this browser’s storage is full\. Use File › Save to file\./,
     )
-    await expect(notice).toContainText('File › Save to file')
 
     // More edits don't add or flicker the notice.
     await page.keyboard.press('Shift+ArrowRight')
@@ -152,6 +188,36 @@ test.describe('storage', () => {
     ).toBeVisible()
   })
 
+  test('a later failure says so, says when a retry fails too, and clears', async ({
+    page,
+  }) => {
+    await page.addInitScript(() => {
+      const w = window as unknown as { __broken: boolean }
+      w.__broken = true
+      const put = IDBObjectStore.prototype.put
+      IDBObjectStore.prototype.put = function (...args) {
+        if (w.__broken) throw new DOMException('odd', 'UnknownError')
+        return put.apply(this, args)
+      }
+    })
+    await openEditor(page)
+    const notice = page.locator('.storage-notice')
+    await moveRouter(page)
+    await expect(notice).toHaveText(
+      /^Couldn’t save your last changes in this browser\. Use File › Save to file to keep a copy\./,
+    )
+    await expect(notice).not.toContainText('Still couldn’t save')
+
+    await notice.getByRole('button', { name: 'Try saving again' }).click()
+    await expect(notice).toContainText('Still couldn’t save.')
+
+    await page.evaluate(() => {
+      ;(window as unknown as { __broken: boolean }).__broken = false
+    })
+    await notice.getByRole('button', { name: 'Try saving again' }).click()
+    await expect(notice).toHaveCount(0)
+  })
+
   test('blocked: says so as soon as the app opens', async ({ page }) => {
     await page.addInitScript(() => {
       IDBFactory.prototype.open = () => {
@@ -160,10 +226,9 @@ test.describe('storage', () => {
     })
     await openEditor(page)
     const notice = page.locator('.storage-notice')
-    await expect(notice).toContainText(
-      'it’s blocking storage, as a private window often does.',
+    await expect(notice).toHaveText(
+      'Changes aren’t being saved: this browser is blocking storage. Use File › Save to file.',
     )
-    await expect(notice).toContainText('File › Save to file')
     // Nothing to retry, but the editor works.
     await expect(
       notice.getByRole('button', { name: 'Try saving again' }),
@@ -174,50 +239,62 @@ test.describe('storage', () => {
 })
 
 test.describe('the editor crashes', () => {
-  test('offers the plan as a file before reloading', async ({ page }) => {
-    // Once armed, formatting a length throws, which the status bar does as
-    // soon as the pointer moves over the plan.
-    await page.addInitScript(() => {
-      const w = window as unknown as { __crash: boolean }
-      const toFixed = Number.prototype.toFixed
-      Number.prototype.toFixed = function (this: number, digits?: number) {
-        if (w.__crash) throw new Error('the screen broke')
-        return toFixed.call(this, digits)
-      }
-    })
+  /** Edits the plan once saved, then crashes the next render. */
+  async function crash(page: Page) {
     await openEditor(page)
     await moveRouter(page)
     await expect(
       page.getByRole('status').filter({ hasText: 'Saved in this browser' }),
     ).toBeVisible()
     await page.evaluate(() => {
-      ;(window as unknown as { __crash: boolean }).__crash = true
+      ;(
+        window as unknown as { __signalplanCrashOnRender: boolean }
+      ).__signalplanCrashOnRender = true
     })
-    const canvas = (await page.locator('.editor-canvas').boundingBox())!
-    await page.mouse.move(canvas.x + 200, canvas.y + 200)
-    await page.mouse.move(canvas.x + 240, canvas.y + 230)
+    await page.keyboard.press('Shift+ArrowRight')
+    return page.getByRole('main').filter({ hasText: 'SignalPlan stopped' })
+  }
 
-    const crash = page.getByRole('alert')
-    await expect(crash).toContainText('SignalPlan stopped working')
+  test('offers the plan as a file before reloading', async ({ page }) => {
+    const crashed = await crash(page)
+    await expect(
+      crashed.getByRole('heading', { name: 'SignalPlan stopped working' }),
+    ).toBeFocused()
+    await expect(crashed.getByRole('alert')).toContainText(
+      'Something went wrong while drawing the screen',
+    )
     await expect(page.locator('.editor-canvas')).toHaveCount(0)
-    await expect(crash.locator('details')).not.toHaveAttribute('open', '')
-    await crash.getByText('What went wrong').click()
-    await expect(crash.locator('pre')).toHaveText('the screen broke')
+    await expect(crashed.locator('details')).not.toHaveAttribute('open', '')
+    await crashed.getByText('What went wrong').click()
+    await expect(crashed.locator('pre')).toHaveText(
+      'Crash on render, as asked.',
+    )
 
     const download = page.waitForEvent('download')
-    await crash.getByRole('button', { name: 'Download your plan' }).click()
+    await crashed.getByRole('button', { name: 'Download your plan' }).click()
     const file = await download
     expect(file.suggestedFilename()).toBe('Sample bungalow.signalplan.json')
-    const path = await file.path()
-    const plan = JSON.parse(readFileSync(path, 'utf8'))
-    // The plan as it was when the editor stopped, router moved included.
-    expect(plan.accessPoints[0].x).toBeCloseTo(6.1, 5)
-    await expect(crash).toContainText('Your plan was saved as a file')
+    const plan = JSON.parse(readFileSync((await file.path())!, 'utf8'))
+    // The plan as it was when the editor stopped, with both moves in it.
+    expect(plan.accessPoints[0].x).toBeCloseTo(6.6, 5)
+    await expect(crashed).toContainText('Your plan was saved as a file')
+  })
 
-    await page.evaluate(() => {
-      ;(window as unknown as { __crash: boolean }).__crash = false
-    })
-    await crash.getByRole('button', { name: 'Reload SignalPlan' }).click()
-    await expect(page.locator('.editor-canvas[data-scale]')).toBeVisible()
+  test('reload opens the sample, and the plan is still in My plans', async ({
+    page,
+  }) => {
+    const crashed = await crash(page)
+    // Longer than the autosave delay: nothing may save the crashing plan.
+    await page.waitForTimeout(800)
+    await crashed.getByRole('button', { name: 'Reload SignalPlan' }).click()
+    await page.locator('.editor-canvas[data-scale]').waitFor()
+    await expect(page.locator('.status-notice')).toHaveText(
+      'SignalPlan reloaded with the sample home after a problem. Your plan is still in My plans.',
+    )
+    await page.getByText('File', { exact: true }).click()
+    await page.getByRole('button', { name: 'My plans…' }).click()
+    const dialog = page.getByRole('dialog', { name: 'My plans' })
+    await expect(dialog.getByText('Sample bungalow')).toBeVisible()
+    await expect(dialog.locator('.plan-list li')).toHaveCount(1)
   })
 })

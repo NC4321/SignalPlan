@@ -138,6 +138,7 @@ import {
   improves,
   readinessLines,
 } from './modelCalibration.ts'
+import { FailureDetails } from './FailureDetails.tsx'
 import {
   checkBand,
   describeNeighbourLocation,
@@ -827,6 +828,9 @@ function OptimizerSection() {
       <p className="optimizer-status" role="status">
         {statusText}
       </p>
+      {state?.status === 'message' && state.details && (
+        <FailureDetails details={state.details} />
+      )}
       {body}
       <p className="hint">
         {plan.floors.length > 1
@@ -2919,9 +2923,10 @@ function CalibrateSection() {
       {state?.status !== 'result' ? (
         <>
           {state?.status === 'failed' && (
-            <p className="calibrate-failure" role="alert">
-              {state.message}
-            </p>
+            <div className="calibrate-failure" role="alert">
+              <p>{state.message}</p>
+              <FailureDetails details={state.details} />
+            </div>
           )}
           <p className="hint">
             {note ??

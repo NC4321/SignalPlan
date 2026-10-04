@@ -8,6 +8,31 @@ import {
 } from './editor/persistence.ts'
 import { embedImages } from './editor/tracing.ts'
 
+/** How long to wait for tracing images before saving the plan without them. */
+export const IMAGE_TIMEOUT_MS = 2000
+
+/** Set by "Reload SignalPlan" on the crash screen, for the next load only. */
+const RELOAD_FLAG = 'signalplan:reload-after-crash'
+
+export function markReloadAfterCrash() {
+  try {
+    sessionStorage.setItem(RELOAD_FLAG, '1')
+  } catch {
+    // Without it the last plan opens as usual.
+  }
+}
+
+/** Whether this load follows a reload from the crash screen (once only). */
+export function takeReloadAfterCrash(): boolean {
+  try {
+    const set = sessionStorage.getItem(RELOAD_FLAG) === '1'
+    sessionStorage.removeItem(RELOAD_FLAG)
+    return set
+  } catch {
+    return false
+  }
+}
+
 /** A plan as a file's name and text, ready to save. */
 export interface RescueFile {
   name: string
@@ -24,12 +49,18 @@ export interface RescueFile {
 export async function rescueFile(
   getPlan: () => Plan,
   library: PlanLibrary | undefined,
+  timeoutMs = IMAGE_TIMEOUT_MS,
 ): Promise<RescueFile | undefined> {
   try {
     const plan = getPlan()
     let whole = plan
     try {
-      whole = await embedImages(plan, library)
+      whole = await Promise.race([
+        embedImages(plan, library),
+        new Promise<Plan>((_, reject) =>
+          setTimeout(() => reject(new Error('timed out')), timeoutMs),
+        ),
+      ])
     } catch {
       // Without its tracing images the plan is still worth having.
     }
@@ -65,8 +96,12 @@ export async function downloadRescue(
   getPlan: () => Plan,
   library: PlanLibrary | undefined,
 ): Promise<boolean> {
-  const file = await rescueFile(getPlan, library)
-  if (!file) return false
-  downloadText(file.text, file.name)
-  return true
+  try {
+    const file = await rescueFile(getPlan, library)
+    if (!file) return false
+    downloadText(file.text, file.name)
+    return true
+  } catch {
+    return false
+  }
 }

@@ -5,7 +5,7 @@ import type {
 } from '@signalplan/engine'
 import type { Band, Plan } from '@signalplan/floorplan'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { workerFailureText } from './workerFailure.ts'
+import { failure, type Failure } from './workerFailure.ts'
 
 type Job = Omit<EngineRequest, 'id'>
 
@@ -22,7 +22,7 @@ export function useCoverage(plan: Plan, floorId: string, band: Band) {
     coverage: Coverage
     floorId: string
   }>()
-  const [error, setError] = useState<string>()
+  const [error, setError] = useState<Failure>()
   const [attempt, setAttempt] = useState(0)
   const submit = useRef<(job: Job) => void>(undefined)
 
@@ -32,8 +32,9 @@ export function useCoverage(plan: Plan, floorId: string, band: Band) {
       worker = new Worker(new URL('./engine.worker.ts', import.meta.url), {
         type: 'module',
       })
-    } catch (failure) {
-      queueMicrotask(() => setError(workerFailureText(failure)))
+    } catch (thrown) {
+      const failed = failure('worker', thrown)
+      queueMicrotask(() => setError(failed))
       return
     }
     let busy = false
@@ -62,15 +63,15 @@ export function useCoverage(plan: Plan, floorId: string, band: Band) {
           setResult({ coverage: response.coverage, floorId: jobFloor })
           setError(undefined)
         } else {
-          setError(response.message)
+          setError(failure('plan', response.message))
         }
         next()
       },
     )
     // The worker threw, or a message couldn't be read: the job it was on
     // will never answer. A newer job waiting behind it still gets its go.
-    const failed = (failure: unknown) => {
-      setError(workerFailureText(failure))
+    const failed = (event: unknown) => {
+      setError(failure('worker', event))
       floorOf.clear()
       next()
     }

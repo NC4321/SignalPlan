@@ -1,13 +1,15 @@
 import type { Plan } from '@signalplan/floorplan'
-import { Component, type ReactNode } from 'react'
+import { Component, createRef, type ReactNode } from 'react'
 import type { PlanLibrary } from './editor/library.ts'
-import { downloadRescue } from './rescue.ts'
+import { downloadRescue, markReloadAfterCrash } from './rescue.ts'
 
 interface Props {
   children: ReactNode
   /** The open plan, read from the editor's store (outside React). */
   getPlan: () => Plan
   library: PlanLibrary | undefined
+  /** Called when the editor crashes, e.g. to stop autosaving. */
+  onCrash?: () => void
 }
 
 interface State {
@@ -31,22 +33,51 @@ export class ErrorBoundary extends Component<Props, State> {
     }
   }
 
+  private readonly heading = createRef<HTMLHeadingElement>()
+
   override componentDidCatch(error: unknown) {
     console.error('SignalPlan stopped after an error:', error)
+    try {
+      this.props.onCrash?.()
+    } catch {
+      // Nothing more to do if stopping the autosaver failed.
+    }
+  }
+
+  override componentDidMount() {
+    // A crash while the app first draws mounts the boundary with its error.
+    if (this.state.error) this.heading.current?.focus()
+  }
+
+  override componentDidUpdate(_: Props, previous: State) {
+    // Screen readers start at the new screen; the alert is its first line.
+    if (this.state.error && !previous.error) this.heading.current?.focus()
   }
 
   private download = async () => {
-    const ok = await downloadRescue(this.props.getPlan, this.props.library)
+    let ok = false
+    try {
+      ok = await downloadRescue(this.props.getPlan, this.props.library)
+    } catch {
+      // Reported below.
+    }
     this.setState({ downloaded: ok })
+  }
+
+  private reload = () => {
+    markReloadAfterCrash()
+    window.location.reload()
   }
 
   override render() {
     const { error, downloaded } = this.state
     if (!error) return this.props.children
     return (
-      <main className="crash" role="alert">
-        <h1>SignalPlan stopped working</h1>
-        <p>
+      <main className="crash">
+        <h1 ref={this.heading} tabIndex={-1}>
+          SignalPlan stopped working
+        </h1>
+        <p role="alert">
           Something went wrong while drawing the screen, so the editor can’t
           carry on. Download your plan first, then reload to start again.
         </p>
@@ -58,7 +89,7 @@ export class ErrorBoundary extends Component<Props, State> {
           >
             Download your plan
           </button>
-          <button type="button" onClick={() => window.location.reload()}>
+          <button type="button" onClick={this.reload}>
             Reload SignalPlan
           </button>
         </div>

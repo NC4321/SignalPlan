@@ -13,7 +13,6 @@ import {
   appliedFits,
   bandsWithReadings,
   calibratedNote,
-  calibrationFailedText,
   createModelCalibrator,
   errorChange,
   fitRows,
@@ -206,7 +205,9 @@ describe('createModelCalibrator', () => {
       worker[hook]?.(new Error('worker crashed'))
       expect(store.getState().modelCalibration).toEqual({
         status: 'failed',
-        message: calibrationFailedText('worker crashed'),
+        message:
+          'Couldn’t calibrate. Try again; if it keeps failing, reload the page.',
+        details: 'worker crashed',
       })
       expect(worker.terminated).toBe(true)
     }
@@ -221,8 +222,8 @@ describe('createModelCalibrator', () => {
     } as MessageEvent<CalibrationMessage>)
     expect(store.getState().modelCalibration).toEqual({
       status: 'failed',
-      message:
-        'Couldn’t calibrate: boom. Try again; if it keeps failing, reload the page.',
+      message: 'Couldn’t calibrate. Undo your last change, or reload the page.',
+      details: 'boom.',
     })
 
     const blocked = createEditorStore(surveyed())

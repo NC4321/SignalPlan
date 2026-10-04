@@ -263,6 +263,61 @@ input:focus-visible + *,
   border-radius: 0.5rem;
 }
 
+/* Coverage could not be worked out (D91): over the middle of the plan, where
+   the heatmap would be. */
+.coverage-failure {
+  inset: 40% 1rem auto;
+  max-width: 30rem;
+  text-align: center;
+}
+
+.coverage-failure p {
+  margin: 0 0 0.5rem;
+}
+
+.calibrate-failure {
+  margin: 0 0 0.5rem;
+  padding: 0.4rem 0.6rem;
+  border-left: 3px solid #d55e00;
+  background: var(--surface);
+}
+
+/* The error boundary's panel (D91): plain, and nothing of the editor in it. */
+.crash {
+  max-width: 36rem;
+  margin: 0 auto;
+  padding: 3rem 1rem;
+}
+
+.crash h1 {
+  margin: 0 0 0.75rem;
+  font-size: 1.4rem;
+}
+
+.crash pre {
+  overflow-x: auto;
+  padding: 0.6rem 0.8rem;
+  border: 1px solid var(--border);
+  border-radius: 0.4rem;
+  background: var(--surface);
+  white-space: pre-wrap;
+}
+
+.calibrate-failure p {
+  margin: 0;
+}
+
+.failure-details {
+  margin-top: 0.5rem;
+  text-align: left;
+}
+
+.failure-details pre {
+  margin: 0.25rem 0 0;
+  overflow-x: auto;
+  white-space: pre-wrap;
+}
+
 /* The floors, top floor at the top, in the canvas corner (D52). */
 .floor-stack {
   position: absolute;
@@ -952,8 +1007,14 @@ button.danger-fill {
 }
 
 .save-status[data-problem] {
-  color: #d55e00;
+  color: #a34000;
   font-weight: 600;
+}
+
+@media (prefers-color-scheme: dark) {
+  .save-status[data-problem] {
+    color: #ff9f5a;
+  }
 }
 
 /* Saving has failed (D91): a steady line under the top bar. */
@@ -1497,44 +1558,4 @@ h4.survey-report {
 .calibrate-table td {
   white-space: nowrap;
   vertical-align: top;
-}
-
-/* Coverage could not be worked out (D91): over the middle of the plan, where
-   the heatmap would be. */
-.coverage-failure {
-  inset: 40% 1rem auto;
-  max-width: 30rem;
-  text-align: center;
-}
-
-.coverage-failure p {
-  margin: 0 0 0.5rem;
-}
-
-.calibrate-failure {
-  margin: 0 0 0.5rem;
-  padding: 0.4rem 0.6rem;
-  border-left: 3px solid #d55e00;
-  background: var(--surface);
-}
-
-/* The error boundary's panel (D91): plain, and nothing of the editor in it. */
-.crash {
-  max-width: 36rem;
-  margin: 0 auto;
-  padding: 3rem 1rem;
-}
-
-.crash h1 {
-  margin: 0 0 0.75rem;
-  font-size: 1.4rem;
-}
-
-.crash pre {
-  overflow-x: auto;
-  padding: 0.6rem 0.8rem;
-  border: 1px solid var(--border);
-  border-radius: 0.4rem;
-  background: var(--surface);
-  white-space: pre-wrap;
 }

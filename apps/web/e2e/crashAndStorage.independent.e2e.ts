@@ -93,6 +93,12 @@ test.describe('top-level error boundary', () => {
     // The edit made just before the crash, so the autosaved copy (saved
     // shortly after an edit) may well not have it yet.
     await renamePlan(page, 'Rescued before the crash')
+    // Saved before the crash, so My plans has it. A change still waiting to
+    // be saved at the crash is not saved, since it may be what crashed the
+    // editor (D91); the download below is how that one is kept.
+    await expect(
+      page.getByRole('status').filter({ hasText: 'Saved in this browser' }),
+    ).toBeVisible()
     await crashNow(page)
 
     // Not a blank page: a heading and an explanation saying what to do.
@@ -122,12 +128,24 @@ test.describe('top-level error boundary', () => {
     expect(file.floors?.[0]?.walls?.length ?? 0).toBeGreaterThan(0)
     expect(download.suggestedFilename()).toMatch(/\.json$/)
 
-    // Reload brings back a working editor, with the edit kept.
+    // Reload opens the sample, not the plan that crashed, and says so. The
+    // plan is still in My plans.
     await page.getByRole('button', { name: /reload/i }).click()
     await canvas(page).waitFor({ state: 'visible' })
     await expect(page.locator('.editor-canvas[data-scale]')).toBeVisible()
-    await expect(planNameField(page)).toHaveValue('Rescued before the crash')
+    await expect(planNameField(page)).toHaveValue('Sample bungalow')
+    await expect(page.locator('.status-notice')).toHaveText(
+      'SignalPlan reloaded with the sample home after a problem. Your plan is still in My plans.',
+    )
     await expect(coverageStatus(page)).toHaveText(/^\d+% of/)
+    await page.getByText('File', { exact: true }).click()
+    await page.getByRole('button', { name: 'My plans…' }).click()
+    const plans = page.getByRole('dialog', { name: 'My plans' })
+    await expect(plans.getByText('Rescued before the crash')).toBeVisible()
+    await plans
+      .getByRole('button', { name: 'Open Rescued before the crash' })
+      .click()
+    await expect(planNameField(page)).toHaveValue('Rescued before the crash')
     // And the editor works: another edit goes through.
     await renamePlan(page, 'Working again')
   })
@@ -404,11 +422,7 @@ test.describe('storage full', () => {
     await expect(planNameField(page)).toHaveValue('Kept by retrying')
   })
 
-  // BUG (D91 storage-full state): the status bar's "Not saved: browser
-  // storage is full. Save to a file." (.save-status[data-problem], #d55e00 on
-  // the status bar) fails axe color-contrast (serious). It shows exactly when
-  // the storage notice does.
-  test.fixme('the storage notice has no serious accessibility problems', async ({
+  test('the storage notice has no serious accessibility problems', async ({
     page,
   }) => {
     await armStorageFull(page)
@@ -438,6 +452,8 @@ test.describe('storage blocked', () => {
     const notice = storageNotice(page, BLOCKED)
     await expect(notice).toBeVisible()
     await expect(notice).toContainText(/save (it )?to (a )?file/i)
+
+    await expectNoSeriousViolations(page)
 
     // Editing still works, and the notice doesn't multiply.
     await renamePlan(page, 'Not kept 1')

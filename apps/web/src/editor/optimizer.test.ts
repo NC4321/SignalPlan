@@ -20,7 +20,6 @@ import {
   type SearchWorker,
   type SuggestedMove,
   type Suggestion,
-  searchFailedText,
 } from './optimizer.ts'
 import { createEditorStore } from './store.ts'
 
@@ -474,7 +473,11 @@ describe('searchOutcome', () => {
     ).toEqual({ status: 'message', text: 'There’s nothing to move or add.' })
     expect(
       searchOutcome({ id: 0, kind: 'error', message: 'boom' }, single),
-    ).toEqual({ status: 'message', text: searchFailedText('boom') })
+    ).toEqual({
+      status: 'message',
+      text: 'Couldn’t search for a spot. Undo your last change, or reload the page.',
+      details: 'boom',
+    })
   })
 })
 
@@ -675,7 +678,8 @@ describe('createOptimizer', () => {
     worker.reply({ id, kind: 'error', message: 'boom' })
     expect(store.getState().optimizer).toEqual({
       status: 'message',
-      text: searchFailedText('boom'),
+      text: 'Couldn’t search for a spot. Undo your last change, or reload the page.',
+      details: 'boom',
     })
     expect(worker.terminated).toBe(true)
   })
@@ -688,7 +692,8 @@ describe('createOptimizer', () => {
       workers[0]![hook]?.(new Error('worker crashed'))
       expect(store.getState().optimizer).toEqual({
         status: 'message',
-        text: searchFailedText('worker crashed'),
+        text: 'Couldn’t search for a spot. Try again; if it keeps failing, reload the page.',
+        details: 'worker crashed',
       })
       expect(workers[0]!.terminated).toBe(true)
     }
@@ -703,7 +708,8 @@ describe('createOptimizer', () => {
     optimizer.start()
     expect(store.getState().optimizer).toEqual({
       status: 'message',
-      text: searchFailedText('no workers here'),
+      text: 'Couldn’t search for a spot. Try again; if it keeps failing, reload the page.',
+      details: 'no workers here',
     })
   })
 
