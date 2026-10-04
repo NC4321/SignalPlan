@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 680 350" width="680" height="350" font-family="system-ui, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15">
+  <title>A neighbour's access point placed outside a house, with its uncertainty circle</title>
+  <desc>Plan view of a 20 by 15 metre house with survey spots marked inside it. A cross marks where the fit puts a neighbour's access point, 4.2 m outside the left-hand wall. A dashed circle of radius 8.4 m around it shows where the true position could be, reaching into the house.</desc>
+  <rect width="680" height="350" rx="8" fill="#f6f8fa" stroke="#d0d7de"/>
+  <text x="20" y="28" font-size="16" font-weight="600" fill="#1f2328">Where is the neighbour's access point? A best guess and a circle</text>
+  <!-- 14 px per metre. House 20 x 15 m at x 309..589, y 60..270. Neighbour 4.2 m left of the wall: x 250, y 165. -->
+  <circle cx="250" cy="165" r="118" fill="#cf222e" fill-opacity="0.08" stroke="#cf222e" stroke-width="2.5" stroke-dasharray="8 5"/>
+  <rect x="309" y="60" width="280" height="210" fill="#f6f8fa" fill-opacity="0.6" stroke="#57606a" stroke-width="4"/>
+  <g stroke="#8c959f" stroke-width="2.5">
+    <line x1="379" y1="60" x2="379" y2="130"/><line x1="379" y1="170" x2="379" y2="270"/>
+    <line x1="449" y1="60" x2="449" y2="150"/><line x1="449" y1="190" x2="449" y2="270"/>
+    <line x1="519" y1="60" x2="519" y2="120"/><line x1="519" y1="160" x2="519" y2="270"/>
+    <line x1="309" y1="165" x2="379" y2="165"/><line x1="449" y1="165" x2="589" y2="165"/>
+  </g>
+  <g fill="#0969da">
+    <circle cx="340" cy="100" r="5"/><circle cx="345" cy="215" r="5"/><circle cx="415" cy="95" r="5"/>
+    <circle cx="410" cy="225" r="5"/><circle cx="485" cy="100" r="5"/><circle cx="480" cy="225" r="5"/>
+    <circle cx="555" cy="95" r="5"/><circle cx="555" cy="220" r="5"/>
+  </g>
+  <path d="M 241 156 L 259 174 M 259 156 L 241 174" stroke="#cf222e" stroke-width="4" stroke-linecap="round"/>
+  <text x="250" y="198" text-anchor="middle" fill="#cf222e" font-weight="600" font-size="14">best fit</text>
+  <line x1="250" y1="165" x2="132" y2="165" stroke="#cf222e" stroke-width="1.5"/>
+  <text x="191" y="157" text-anchor="middle" fill="#cf222e" font-size="14" font-weight="600">8.4 m</text>
+  <g fill="#0969da" font-size="14"><circle cx="40" cy="312" r="5"/><text x="52" y="317">survey spots (a few shown)</text></g>
+  <line x1="320" y1="312" x2="390" y2="312" stroke="#57606a" stroke-width="2"/>
+  <text x="400" y="317" fill="#57606a" font-size="14">5 m</text>
+  <text x="40" y="340" fill="#1f2328" font-size="14">Illustration. In the test with 25 spots, the circle was 8.4 m.</text>
+</svg>

@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ### Added
 
+- How it works, in plain words: `docs/HOW-IT-WORKS.md` retells MODEL.md for someone who isn't an RF engineer, from what the heatmap is to how to check it against your home and where it's known to be wrong, with pictures that read on GitHub's light and dark themes and links to MODEL.md for the maths and sources (D94).
+
 - Failures say what happened and what to try: a crash offers to download your plan before reloading, a failed coverage, optimizer or calibration job says so where its result would be, and a steady notice says when your changes aren't being saved in this browser. Also an audit of every panel, dialog and view in its empty, working and failed states (D91).
 
 - Unreadable files and scans, and the 3D view without WebGL, say what happened and what to try, where you were looking. Open file, Import readings and Scan your network handle empty, too big and unreadable files (and PowerShell's UTF-16 scans); My plans says when a plan or the list can't be read; a file opens with a note when the browser can't keep a copy; a link waits, with Save to file or Open the link anyway, when your open plan can't be saved. The 3D view shows Loading the 3D view…, and when WebGL is off, can't start, is lost or its code won't load, says so with Try again or Reload the page and Back to the 2D view (D93).
