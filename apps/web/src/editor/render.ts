@@ -89,6 +89,19 @@ export interface Scene {
         label: string
       }[]
     | undefined
+  /**
+   * Located sources on this floor (D84, D85): neighbours' networks with
+   * their name, and where a position check puts an access point, each in a
+   * dashed circle of its uncertainty radius.
+   */
+  located?:
+    | readonly {
+        x: number
+        y: number
+        radiusM: number
+        label: string | undefined
+      }[]
+    | undefined
   selection: Selection
   /** Walls as lines between their corners, for selection highlights. */
   wallLines: readonly { id: string; a: Point; b: Point }[]
@@ -334,6 +347,9 @@ export function draw(
     })
     context.restore()
   }
+  for (const source of scene.located ?? []) {
+    drawLocated(context, colour, camera, source)
+  }
   for (const suggestion of scene.suggestions ?? []) {
     drawSuggestion(context, colour, camera, suggestion)
   }
@@ -573,6 +589,55 @@ function drawSuggestion(
   context.strokeText(suggestion.label, x, to.y)
   context.fillStyle = colour('--text')
   context.fillText(suggestion.label, x, to.y)
+  context.restore()
+}
+
+/**
+ * A located source (D84, D85): a dashed circle of its uncertainty radius
+ * and, for a neighbour, a small diamond at its best position with its name.
+ */
+function drawLocated(
+  context: CanvasRenderingContext2D,
+  colour: (name: string) => string,
+  camera: Camera,
+  source: NonNullable<Scene['located']>[number],
+) {
+  const at = toScreen(camera, source)
+  context.save()
+  context.beginPath()
+  context.arc(
+    at.x,
+    at.y,
+    Math.max(source.radiusM * camera.scale, 4),
+    0,
+    Math.PI * 2,
+  )
+  context.setLineDash([5, 4])
+  context.lineWidth = 1.5
+  context.strokeStyle = colour('--muted')
+  context.stroke()
+  context.setLineDash([])
+  if (source.label !== undefined) {
+    const r = 6
+    context.beginPath()
+    context.moveTo(at.x, at.y - r)
+    context.lineTo(at.x + r, at.y)
+    context.lineTo(at.x, at.y + r)
+    context.lineTo(at.x - r, at.y)
+    context.closePath()
+    context.fillStyle = colour('--canvas')
+    context.fill()
+    context.lineWidth = 2
+    context.strokeStyle = colour('--muted')
+    context.stroke()
+    const x = at.x + r + 6
+    context.lineWidth = 4
+    context.lineJoin = 'round'
+    context.strokeStyle = colour('--canvas')
+    context.strokeText(source.label, x, at.y)
+    context.fillStyle = colour('--muted')
+    context.fillText(source.label, x, at.y)
+  }
   context.restore()
 }
 

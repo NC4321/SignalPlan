@@ -6,6 +6,7 @@ import {
   viewSettings,
   channelWidths,
   MAX_ADDED,
+  MIN_LOCATE_SPOTS,
   radioChannelIssue,
   radioTuning,
   summariseErrors,
@@ -36,6 +37,7 @@ import {
   renameNeighbourNetwork,
   setNeighbourBand,
   setNeighbourChannel,
+  setNeighbourLocation,
   setNeighbourStrength,
   setNeighbourWidth,
   type NeighbourNetwork,
@@ -136,6 +138,15 @@ import {
   improves,
   readinessLines,
 } from './modelCalibration.ts'
+import {
+  checkBand,
+  describeNeighbourLocation,
+  describePositionCheck,
+  formatRadius,
+  locateNeighbour,
+  neighbourSpotCount,
+  toNeighbourLocation,
+} from './locate.ts'
 import { useScan } from './scanContext.ts'
 import { useSurveyImport } from './surveyImportContext.ts'
 import {
@@ -1103,6 +1114,7 @@ function AccessPointSection({ ap }: { ap: AccessPoint }) {
         />
         Locked (stays where it is)
       </label>
+      <PositionCheckSection ap={ap} />
       <fieldset className="radios">
         <legend>Bands</legend>
         {BANDS.map((band) => {
@@ -1744,7 +1756,8 @@ function NeighbourFields() {
         Networks next door slow yours down when they share its channels. A free
         Wi-Fi analyser app shows each one’s channel, width and signal in dBm; on
         an iPhone, AirPort Utility’s Wi-Fi Scanner does once it’s turned on in
-        Settings. Its signal counts everywhere in the home.
+        Settings. Its signal counts everywhere in the home, unless scans at
+        three survey spots or more have located it.
       </p>
       {networks?.map((network, i) => (
         <NeighbourRow
@@ -1905,6 +1918,7 @@ function NeighbourRow({
           Pick a channel to count this network.
         </p>
       )}
+      <NeighbourLocationFields network={network} label={label} edit={edit} />
       <button
         type="button"
         className="remove-neighbour"
@@ -1917,6 +1931,131 @@ function NeighbourRow({
         Remove<span className="visually-hidden"> {label}</span>
       </button>
     </fieldset>
+  )
+}
+
+/**
+ * Where a scanned neighbour's network is (D84, D85): located from the scans
+ * heard at survey spots, or how many more spots it needs. Locating is one
+ * edit, so undo takes it back.
+ */
+function NeighbourLocationFields({
+  network,
+  label,
+  edit,
+}: {
+  network: NeighbourNetwork
+  label: string
+  edit: (label: string, change: (plan: Draft<Plan>) => void) => void
+}) {
+  const plan = useEditor((s) => s.plan)
+  const units = useEditor((s) => s.units)
+  const store = useEditorStore()
+  const { id, location } = network
+  if (network.bssid === undefined && !location) return null
+  const spots = neighbourSpotCount(plan, network)
+  const hidden = <span className="visually-hidden"> {label}</span>
+  const locate = () => {
+    const found = locateNeighbour(plan, network)
+    if (!found) return
+    edit('Locate neighbour’s network', (draft) => {
+      setNeighbourLocation(draft, id, toNeighbourLocation(found))
+    })
+    store.setState({
+      notice: `${label}: located to within ${formatRadius(found.uncertaintyM, units)}.`,
+    })
+  }
+  return (
+    <div className="neighbour-location">
+      <p className="field-note">
+        {location
+          ? describeNeighbourLocation(plan, location, units)
+          : spots >= MIN_LOCATE_SPOTS
+            ? `Heard by scans at ${spots} spots, enough to locate it.`
+            : `Heard by scans at ${spots} of the ${MIN_LOCATE_SPOTS} spots needed to locate it. Scan at more spots with Scan your network.`}
+      </p>
+      <div className="actions">
+        {spots >= MIN_LOCATE_SPOTS && (
+          <button type="button" onClick={locate}>
+            {location ? 'Locate again' : 'Locate from scans'}
+            {hidden}
+          </button>
+        )}
+        {location && (
+          <button
+            type="button"
+            onClick={() =>
+              edit('Clear neighbour’s location', (draft) => {
+                setNeighbourLocation(draft, id, undefined)
+              })
+            }
+          >
+            Clear location{hidden}
+          </button>
+        )}
+      </div>
+    </div>
+  )
+}
+
+/**
+ * Checks where an access point is against its survey readings (D85): the
+ * spot they put it at shows on the map with its radius, to move it there
+ * with Apply or keep it with Dismiss, like an optimizer suggestion (D44).
+ */
+function PositionCheckSection({ ap }: { ap: AccessPoint }) {
+  const store = useEditorStore()
+  const plan = useEditor((s) => s.plan)
+  const units = useEditor((s) => s.units)
+  const check = useEditor((s) =>
+    s.positionCheck?.apId === ap.id ? s.positionCheck : undefined,
+  )
+  const band = checkBand(plan, ap.id)
+  if (!band && !check) return null
+  if (!check) {
+    return (
+      <div className="position-check">
+        <div className="actions">
+          <button
+            type="button"
+            onClick={() => store.getState().checkPosition(ap.id)}
+          >
+            Check its position
+          </button>
+        </div>
+        <p className="hint">
+          Finds where its survey readings on {BAND_LABELS[band!]} put it, for
+          when you’re not sure where it is.
+        </p>
+      </div>
+    )
+  }
+  const { text, agrees } = describePositionCheck(plan, check, units)
+  return (
+    <div className="position-check" role="status">
+      <p className="field-note">{text}</p>
+      <div className="actions">
+        {!agrees && (
+          <button
+            type="button"
+            className="primary"
+            disabled={ap.locked === true}
+            onClick={() => store.getState().applyPositionCheck()}
+          >
+            Move it there
+          </button>
+        )}
+        <button
+          type="button"
+          onClick={() => store.getState().dismissPositionCheck()}
+        >
+          {agrees ? 'OK' : 'Dismiss'}
+        </button>
+      </div>
+      {!agrees && ap.locked && (
+        <p className="hint">Locked, so it stays; untick Locked to move it.</p>
+      )}
+    </div>
   )
 }
 

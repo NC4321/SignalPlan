@@ -247,7 +247,7 @@ Goal: users run one copied command (or export a scan on Android), import what th
 - [x] The scan command for each platform, ready to copy, and an import of its raw output (Windows, macOS, Linux, Android) (#141, D79, D80)
 - [x] Mark each BSSID as mine or a neighbour's, grouped by device; your radios' channels and the neighbours' networks fill in from the scan (#141, D79, D80)
 - [x] A scan placed at a survey spot becomes that spot's readings, signal percentages converted and marked approximate (#142)
-- [ ] From scans at several spots, estimate where neighbours' and unplaced access points are, and predict neighbours' interference room by room (#143)
+- [x] From scans at several spots, estimate where neighbours' and unplaced access points are, and predict neighbours' interference room by room (#143, D83–D85)
 
 **Decide at this phase**
 
