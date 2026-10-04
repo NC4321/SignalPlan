@@ -8,6 +8,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 - Unreadable files and scans, and the 3D view without WebGL, say what happened and what to try, where you were looking. Open file, Import readings and Scan your network handle empty, too big and unreadable files (and PowerShell's UTF-16 scans); My plans says when a plan or the list can't be read; a file opens with a note when the browser can't keep a copy; a link waits, with Save to file or Open the link anyway, when your open plan can't be saved. The 3D view shows Loading the 3D view…, and when WebGL is off, can't start, is lost or its code won't load, says so with Try again or Reload the page and Back to the 2D view (D93).
 
+- Empty states that say what to do next: a floor with no walls, no access points, a plan with no survey spots, no readings or no neighbours' networks now says so in a sentence, with the button that does it right there where one is needed (Draw your first wall, Place an access point, Add survey spots, Add readings at a spot). Plan channels and Calibrate say what they need first, and Calibrate is disabled until there are readings to fit (D92).
+
 - Guided first run: a first visit gets four short steps over the sample home (what the colours mean, drag an access point, draw a wall, where to start your own), each moving on when you do it. Skip ends it, it's shown once, and "Show the guide again" in the shortcuts dialog (?) replays it (D90).
 
 - Keyboard shortcuts overlay: press ? (or the ? button at the end of the top bar) for every shortcut, grouped into tools, editing, floors and view, and files, with Ctrl or ⌘ as your computer uses (D89).
