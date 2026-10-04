@@ -31,8 +31,9 @@ import { threeApHome } from './testPlans.ts'
  * Phase 8 exit gate, automated part (D77, D86, #144): the three-AP home
  * with two neighbours at known positions, next door to the downstairs
  * bedroom and to the upstairs access point, scanned at survey spots
- * through the whole Scan your network path: SignalPlan's scan format read by `parseScan`, BSSIDs
- * answered as the dialog would, applied at each spot (D80, D82). The
+ * through the whole Scan your network path: SignalPlan's scan format
+ * read by `parseScan`, BSSIDs answered as the dialog would, applied at
+ * each spot (D80, D82). The
  * scans' neighbour readings then locate each neighbour (D83) within its
  * stated uncertainty, and with the neighbours located (D84) the channel
  * planner sees them as the true neighbours would be seen: strong only for
