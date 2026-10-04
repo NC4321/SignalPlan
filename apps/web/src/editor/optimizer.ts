@@ -18,6 +18,7 @@ import {
 import { produce, type Draft } from 'immer'
 import type { StoreApi } from 'zustand/vanilla'
 import { targetBand } from '../quality.ts'
+import { workerFailureText } from '../workerFailure.ts'
 import { BAND_LABELS } from './coverageText.ts'
 import type { EditorState, Selection } from './store.ts'
 import { formatLength, type Units } from './units.ts'
@@ -357,13 +358,18 @@ export function withSuggestion(plan: Plan, suggestion: Suggestion): Plan {
 /** Closer than this to where it is, an access point is already in place. */
 export const SAME_SPOT_M = 0.1
 
+/** What the panel says when a search fails, and what to try (D91). */
+export function searchFailedText(reason: string): string {
+  return `Couldn’t search: ${reason.replace(/[.\s]+$/, '')}. Try again; if it keeps failing, reload the page.`
+}
+
 /** Turns the worker's answer into what the panel shows. */
 export function searchOutcome(
   message: Exclude<PlacementMessage, { kind: 'progress' }>,
   job: Extract<SearchJob, { kind: 'ready' }>,
 ): OptimizerState {
   if (message.kind === 'error') {
-    return { status: 'message', text: `Couldn’t search: ${message.message}` }
+    return { status: 'message', text: searchFailedText(message.message) }
   }
   const { band, plan, template } = job.request.problem
   const area = areaWord(plan)
@@ -544,6 +550,9 @@ export interface SearchWorker {
   postMessage(request: PlacementRequest): void
   terminate(): void
   onmessage: ((event: MessageEvent<PlacementMessage>) => void) | null
+  /** The worker threw, or a message couldn't be read (D91). */
+  onerror?: ((event: unknown) => void) | null
+  onmessageerror?: ((event: unknown) => void) | null
 }
 
 export interface Optimizer {
@@ -586,8 +595,27 @@ export function createOptimizer(
       }
       const { what } = job
       const id = nextId++
-      const w = makeWorker()
+      let w: SearchWorker
+      try {
+        w = makeWorker()
+      } catch (failure) {
+        setOptimizer({
+          status: 'message',
+          text: searchFailedText(workerFailureText(failure)),
+        })
+        return
+      }
       worker = w
+      const failed = (failure: unknown) => {
+        if (worker !== w) return
+        stop()
+        store.getState().setOptimizer({
+          status: 'message',
+          text: searchFailedText(workerFailureText(failure)),
+        })
+      }
+      w.onerror = failed
+      w.onmessageerror = failed
       w.onmessage = ({ data }) => {
         if (worker !== w || data.id !== id) return
         if (data.kind === 'progress') {

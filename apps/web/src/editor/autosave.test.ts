@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import 'fake-indexeddb/auto'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { Autosaver } from './autosave.ts'
 import { PlanLibrary } from './library.ts'
 import { blankPlan, samplePlan } from './persistence.ts'
@@ -82,6 +82,65 @@ describe('Autosaver', () => {
     store.getState().edit('Move', moveRouter)
     await autosaver.flush()
     expect(autosaver.getStatus()).toBe('unavailable')
+    stop()
+  })
+
+  it('has no problem to report without one (D91)', async () => {
+    const { store, autosaver, stop } = setup()
+    store.getState().edit('Move', moveRouter)
+    await autosaver.flush()
+    expect(autosaver.getProblem()).toBeUndefined()
+    stop()
+  })
+
+  it('reports a blocked browser from the start', () => {
+    const store = createEditorStore(samplePlan())
+    const autosaver = new Autosaver(store, undefined, 0)
+    expect(autosaver.getProblem()).toBe('unavailable')
+    expect(autosaver.canRetry).toBe(false)
+  })
+
+  it('reports a failing save once, keeps it while editing, and clears it when saving works', async () => {
+    const { store, autosaver, stop } = setup()
+    const save = vi.spyOn(library, 'save').mockResolvedValue('full')
+    const seen: unknown[] = []
+    let shown = autosaver.getProblem()
+    autosaver.subscribe(() => {
+      // What the notice would re-render on: only changes of the problem.
+      if (autosaver.getProblem() === shown) return
+      shown = autosaver.getProblem()
+      seen.push(shown)
+    })
+
+    store.getState().edit('Move', moveRouter)
+    await autosaver.flush()
+    expect(autosaver.getProblem()).toBe('full')
+
+    // Keep editing: the problem stays, and listeners hear of it once.
+    for (let i = 0; i < 3; i++) {
+      store.getState().edit('Move', moveRouter)
+      await autosaver.flush()
+    }
+    expect(autosaver.getProblem()).toBe('full')
+    expect(seen).toEqual(['full'])
+    expect(save.mock.calls.length).toBeGreaterThan(1)
+
+    // Storage works again: the next save clears it, with no edit needed when
+    // the person asks for a retry.
+    save.mockRestore()
+    await autosaver.retry()
+    expect(autosaver.getProblem()).toBeUndefined()
+    expect(autosaver.getStatus()).toBe('saved')
+    expect(await library.list()).toHaveLength(1)
+    stop()
+  })
+
+  it('counts a save that throws as a failure', async () => {
+    const { store, autosaver, stop } = setup()
+    vi.spyOn(library, 'save').mockRejectedValue(new Error('disk on fire'))
+    store.getState().edit('Move', moveRouter)
+    await autosaver.flush()
+    expect(autosaver.getProblem()).toBe('unavailable')
     stop()
   })
 })

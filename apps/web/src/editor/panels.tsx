@@ -2918,6 +2918,11 @@ function CalibrateSection() {
       <h3>Calibrate the model</h3>
       {state?.status !== 'result' ? (
         <>
+          {state?.status === 'failed' && (
+            <p className="calibrate-failure" role="alert">
+              {state.message}
+            </p>
+          )}
           <p className="hint">
             {note ??
               'Fits the walls’ and floors’ losses and how fast signal fades to your readings, band by band, within published limits.'}
@@ -2931,9 +2936,11 @@ function CalibrateSection() {
             >
               {fitting
                 ? 'Calibrating…'
-                : note
-                  ? 'Calibrate again'
-                  : 'Calibrate'}
+                : state?.status === 'failed'
+                  ? 'Try again'
+                  : note
+                    ? 'Calibrate again'
+                    : 'Calibrate'}
             </button>
             {note && (
               <button

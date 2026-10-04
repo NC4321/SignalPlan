@@ -1,6 +1,6 @@
 import 'fake-indexeddb/auto'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { LEGACY_PLAN_KEY, PlanLibrary } from './library.ts'
+import { LEGACY_PLAN_KEY, PlanLibrary, saveFailure } from './library.ts'
 import { blankPlan, samplePlan } from './persistence.ts'
 
 let library: PlanLibrary
@@ -122,5 +122,25 @@ describe('PlanLibrary', () => {
     expect(await library.image(used)).toBeDefined()
     expect(await library.image(kept)).toBeDefined()
     expect(await library.image(unused)).toBeUndefined()
+  })
+})
+
+describe('saveFailure (D91)', () => {
+  it('calls a quota error “full”, whatever the browser names it', () => {
+    expect(saveFailure(new DOMException('x', 'QuotaExceededError'))).toBe(
+      'full',
+    )
+    expect(saveFailure({ name: 'NS_ERROR_DOM_QUOTA_REACHED' })).toBe('full')
+    expect(saveFailure({ code: 22 })).toBe('full')
+    expect(saveFailure({ code: 1014 })).toBe('full')
+  })
+
+  it('calls anything else “unavailable”', () => {
+    expect(saveFailure(new DOMException('x', 'SecurityError'))).toBe(
+      'unavailable',
+    )
+    expect(saveFailure(new Error('blocked'))).toBe('unavailable')
+    expect(saveFailure(undefined)).toBe('unavailable')
+    expect(saveFailure(null)).toBe('unavailable')
   })
 })

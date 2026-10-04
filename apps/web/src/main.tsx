@@ -2,9 +2,10 @@ import type { Plan, PlanIssue } from '@signalplan/floorplan'
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import App from './App.tsx'
+import { ErrorBoundary } from './ErrorBoundary.tsx'
 import { Autosaver } from './editor/autosave.ts'
 import { EditorContext } from './editor/context.ts'
-import { imageIdsIn, PlanLibrary } from './editor/library.ts'
+import { imageIdsIn, PlanLibrary, type Opened } from './editor/library.ts'
 import { readUnits, safeStorage, samplePlan } from './editor/persistence.ts'
 import { guideSeen } from './editor/guide.ts'
 import { ServicesContext } from './editor/services.ts'
@@ -19,9 +20,18 @@ import './index.css'
 // Reopen the last plan edited in this browser; the sample home is for a first
 // visit (D21). A stored plan that no longer loads falls back to the sample.
 const library = await PlanLibrary.open()
-await library?.migrateFrom(safeStorage())
-const lastId = await library?.lastPlanId()
-const last = lastId ? await library?.open(lastId) : undefined
+let lastId: string | undefined
+let last: Opened | undefined
+try {
+  await library?.migrateFrom(safeStorage())
+  lastId = await library?.lastPlanId()
+  last = lastId ? await library?.open(lastId) : undefined
+} catch {
+  // A library that opens but can't be read: start from the sample rather than
+  // leave the page blank. Saving will say if it can't work either (D91).
+  lastId = undefined
+  last = undefined
+}
 
 let problem: { issues: PlanIssue[]; raw: unknown } | undefined
 if (last?.kind === 'invalid') problem = { issues: last.issues, raw: last.raw }
@@ -51,17 +61,19 @@ if (!shared && !last && !guideSeen()) store.getState().setGuide(true)
 const autosaver = new Autosaver(store, library)
 autosaver.start()
 // Tidy away tracing images that no saved plan uses any more.
-void library?.collectGarbage(imageIdsIn(store.getState().plan))
+void library?.collectGarbage(imageIdsIn(store.getState().plan)).catch(() => {})
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <EditorContext value={store}>
-      <ServicesContext value={{ library, autosaver }}>
-        <App
-          savedPlanProblem={shared ? undefined : problem}
-          linkIssues={linkIssues}
-        />
-      </ServicesContext>
-    </EditorContext>
+    <ErrorBoundary getPlan={() => store.getState().plan} library={library}>
+      <EditorContext value={store}>
+        <ServicesContext value={{ library, autosaver }}>
+          <App
+            savedPlanProblem={shared ? undefined : problem}
+            linkIssues={linkIssues}
+          />
+        </ServicesContext>
+      </EditorContext>
+    </ErrorBoundary>
   </StrictMode>,
 )

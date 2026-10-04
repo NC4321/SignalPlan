@@ -43,6 +43,21 @@ const LAST_PLAN = 'lastPlanId'
 /** Where the single-plan version (before D21) kept the plan. */
 export const LEGACY_PLAN_KEY = 'signalplan:plan'
 
+/**
+ * Why a save failed: the browser's storage is full (the quota error has
+ * different names and codes between browsers), or it can't be used at all,
+ * such as in a private window that blocks it.
+ */
+export function saveFailure(error: unknown): 'full' | 'unavailable' {
+  const { name, code } = (error ?? {}) as { name?: unknown; code?: unknown }
+  return name === 'QuotaExceededError' ||
+    name === 'NS_ERROR_DOM_QUOTA_REACHED' ||
+    code === 22 ||
+    code === 1014
+    ? 'full'
+    : 'unavailable'
+}
+
 export function newPlanId(): string {
   return crypto.randomUUID()
 }
@@ -106,10 +121,7 @@ export class PlanLibrary {
       await this.db.put('meta', id, LAST_PLAN)
       return 'saved'
     } catch (error) {
-      return error instanceof DOMException &&
-        error.name === 'QuotaExceededError'
-        ? 'full'
-        : 'unavailable'
+      return saveFailure(error)
     }
   }
 

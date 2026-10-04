@@ -6,13 +6,15 @@ import { lazy, Suspense, useEffect, useMemo, useState } from 'react'
 import { useEditor, useEditorStore } from './editor/context.ts'
 import { EditorCanvas } from './editor/EditorCanvas.tsx'
 import { FloorStack } from './editor/FloorStack.tsx'
-import { useSaveStatus } from './editor/autosave.ts'
+import { useSaveProblem, useSaveStatus } from './editor/autosave.ts'
+import { StorageNotice } from './editor/StorageNotice.tsx'
 import { CalibrationBar } from './editor/CalibrationBar.tsx'
 import { ScanPlacementBar, ScanProvider } from './editor/ScanProvider.tsx'
 import { SurveyImportProvider } from './editor/SurveyImportProvider.tsx'
 import { TracingProvider } from './editor/TracingProvider.tsx'
 import { Dialog, PlanIssues } from './editor/Dialog.tsx'
 import { SharedLinkOpener } from './editor/SharedLinkOpener.tsx'
+import { CoverageFailure } from './editor/CoverageFailure.tsx'
 import { Guide } from './editor/Guide.tsx'
 import { rescuePlan } from './editor/persistence.ts'
 import { useServices } from './editor/services.ts'
@@ -61,6 +63,7 @@ function App({
   const store = useEditorStore()
   const { autosaver } = useServices()
   const saveStatus = useSaveStatus(autosaver)
+  const saveProblem = useSaveProblem(autosaver)
   const [problemOpen, setProblemOpen] = useState(savedPlanProblem !== undefined)
   const plan = useEditor((s) => s.plan)
   const floorId = useEditor((s) => s.floorId)
@@ -116,12 +119,20 @@ function App({
   // Signal from other floors counts too (D51, D52).
   const broadcasting = onBand.length > 0
   const broadcastingHere = onBand.some((ap) => ap.floorId === floorId)
-  const { coverage, error } = useCoverage(shownPlan, floorId, band)
+  const {
+    coverage,
+    error,
+    retry: retryCoverage,
+  } = useCoverage(shownPlan, floorId, band)
   const view = useEditor((s) => s.view)
   const view3d = useEditor((s) => s.view3d)
   const showHeatmap = useEditor((s) => s.showHeatmap)
   const units = useEditor((s) => s.units)
-  const floorsCoverage = useFloorsCoverage(shownPlan, band, view === '3d')
+  const {
+    coverages: floorsCoverage,
+    error: floorsError,
+    retry: retryFloors,
+  } = useFloorsCoverage(shownPlan, band, view === '3d')
   const shown = broadcasting ? coverage : undefined
   // What the heatmap shows, worked out from the coverage (D64).
   const show = useEditor((s) => s.show)
@@ -235,6 +246,7 @@ function App({
                   panelOpen={panelOpen}
                   onTogglePanel={() => setPanelOpen((open) => !open)}
                 />
+                <StorageNotice problem={saveProblem} autosaver={autosaver} />
                 <Toolbar />
                 <main className="stage">
                   <h1 className="visually-hidden">SignalPlan editor</h1>
@@ -273,8 +285,19 @@ function App({
                             : ' Add one with the Access point tool.')}
                     </p>
                   )}
-                  {error && (
-                    <p className="notice">Couldn’t compute coverage: {error}</p>
+                  {view === '2d' && error && (
+                    <CoverageFailure
+                      what="coverage"
+                      reason={error}
+                      onRetry={retryCoverage}
+                    />
+                  )}
+                  {view === '3d' && floorsError && (
+                    <CoverageFailure
+                      what="coverage for the 3D view"
+                      reason={floorsError}
+                      onRetry={retryFloors}
+                    />
                   )}
                   <Guide />
                 </main>

@@ -23,6 +23,7 @@ import { listNames } from './channelPlan.ts'
 import { BAND_LABELS, formatErrorDb } from './coverageText.ts'
 import type { EditorState } from './store.ts'
 import { WALL_STYLES } from './wallStyles.ts'
+import { workerFailureText } from '../workerFailure.ts'
 
 /**
  * Calibrate in the editor (D76): fitting every band with readings in a
@@ -32,7 +33,10 @@ import { WALL_STYLES } from './wallStyles.ts'
  */
 
 export type ModelCalibrationState =
-  { status: 'fitting' } | { status: 'result'; results: BandCalibrationResult[] }
+  | { status: 'fitting' }
+  | { status: 'result'; results: BandCalibrationResult[] }
+  /** The fit couldn't be done: what happened, shown where the result would be. */
+  | { status: 'failed'; message: string }
 
 /** Bands with a reading the model can compare, in the order of `BANDS`. */
 export function bandsWithReadings(plan: Plan): Band[] {
@@ -206,10 +210,18 @@ export function errorChange(fit: BandFit): string {
   return `RMS error ${before.rmsDb.toFixed(1)} → ${after.rmsDb.toFixed(1)} dB, mean ${formatErrorDb(before.meanDb)} → ${formatErrorDb(after.meanDb)}, each spot predicted by a fit to the others.`
 }
 
+/** What the panel says when a fit fails, and what to try (D91). */
+export function calibrationFailedText(reason: string): string {
+  return `Couldn’t calibrate: ${reason.replace(/[.\s]+$/, '')}. Try again; if it keeps failing, reload the page.`
+}
+
 export interface CalibrationWorker {
   postMessage(request: CalibrationRequest): void
   terminate(): void
   onmessage: ((event: MessageEvent<CalibrationMessage>) => void) | null
+  /** The worker threw, or a message couldn't be read (D91). */
+  onerror?: ((event: unknown) => void) | null
+  onmessageerror?: ((event: unknown) => void) | null
 }
 
 export interface ModelCalibrator {
@@ -246,16 +258,32 @@ export function createModelCalibrator(
         setModelCalibration({ status: 'result', results: [] })
         return
       }
-      const w = makeWorker()
+      const fail = (reason: string) => {
+        stop()
+        store
+          .getState()
+          .setModelCalibration({ status: 'failed', message: reason })
+      }
+      let w: CalibrationWorker
+      try {
+        w = makeWorker()
+      } catch (failure) {
+        fail(calibrationFailedText(workerFailureText(failure)))
+        return
+      }
       worker = w
+      const failed = (failure: unknown) => {
+        if (worker === w)
+          fail(calibrationFailedText(workerFailureText(failure)))
+      }
+      w.onerror = failed
+      w.onmessageerror = failed
       const ids = new Map(bands.map((band) => [nextId++, band]))
       const results = new Map<Band, BandCalibrationResult>()
       w.onmessage = ({ data }) => {
         if (worker !== w || !ids.has(data.id)) return
         if (data.kind === 'error') {
-          stop()
-          store.getState().setModelCalibration(undefined)
-          store.getState().setNotice(`Couldn’t calibrate: ${data.message}`)
+          fail(calibrationFailedText(data.message))
           return
         }
         results.set(data.result.band, data.result)

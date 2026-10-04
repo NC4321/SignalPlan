@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ### Added
 
+- Failures say what happened and what to try (#159): if SignalPlan crashes while drawing, a plain panel offers “Download your plan” (the same file as File › Save to file, read from the store so it works when the editor is broken) and “Reload SignalPlan”; a worker that fails shows “Couldn’t work out coverage …” over the plan with Try again, and the optimizer and calibration show theirs where their result would be, instead of a blank map or “Calibrating…” for ever; and when the browser's storage is full or blocked, a steady notice under the top bar says changes aren’t being saved and to use File › Save to file, then clears when saving works again. The audit of every panel, dialog and view in its empty, working and failed states is in docs/usability/2026-10-04-states-audit.md (D91).
+
 - Guided first run: a first visit gets four short steps over the sample home (what the colours mean, drag an access point, draw a wall, where to start your own), each moving on when you do it. Skip ends it, it's shown once, and "Show the guide again" in the shortcuts dialog (?) replays it (D90).
 
 - Keyboard shortcuts overlay: press ? (or the ? button at the end of the top bar) for every shortcut, grouped into tools, editing, floors and view, and files, with Ctrl or ⌘ as your computer uses (D89).
