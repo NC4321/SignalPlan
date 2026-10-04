@@ -9,6 +9,9 @@
  *   views      docs/demo-views.gif: the three-AP home upstairs at 80 MHz,
  *              shown as Roaming, Overlap and Interference with the channel
  *              plan without DFS, then with DFS allowed and planned again
+ *   survey     docs/demo-survey.gif: the surveyed bungalow's pins coloured by
+ *              error, a scan placed at a new spot, then Calibrate and Apply,
+ *              which shrink the errors
  *
  * To rerun them:
  *
@@ -35,17 +38,21 @@ const clips = {
   optimizer: 'docs/demo-optimizer.gif',
   '3d': 'docs/demo-3d.gif',
   views: 'docs/demo-views.gif',
+  survey: 'docs/demo-survey.gif',
 }
-// The gallery clips show at a third of the README's width, so they keep only
+// The gallery clips show at half the README's width, so they keep only
 // the tool rail, canvas and status bar, cutting the top bar and panel.
 const galleryCrop = 'crop=1028:754:0:46,'
+let surveyCrop
 const clip = process.argv[2] ?? 'editor'
 if (!(clip in clips)) {
   throw new Error(`Unknown clip "${clip}"; use one of ${Object.keys(clips)}`)
 }
 const url = process.env.DEMO_URL ?? 'http://localhost:4173/'
 const out = process.env.DEMO_OUT ?? join(root, clips[clip])
-const width = 1280
+// The survey clip uses a smaller window, so the plan and its pin labels are
+// drawn larger once cropped to the canvas.
+const width = clip === 'survey' ? 1100 : 1280
 const height = 800
 const gifWidth = clip === 'editor' ? 800 : 640
 const fps = 12
@@ -108,6 +115,15 @@ const browser = await chromium.launch(
 )
 const context = await browser.newContext({ viewport: { width, height } })
 await context.addInitScript(cursorScript)
+// A first visit shows the guide card over the plan; mark it seen, as the e2e
+// tests do, so it isn't in the clip.
+await context.addInitScript(() => {
+  try {
+    localStorage.setItem('signalplan:guide', 'seen')
+  } catch {
+    // No storage: the guide shows, as it would for anyone.
+  }
+})
 const page = await context.newPage()
 const errors = []
 page.on('pageerror', (error) => errors.push(error))
@@ -334,6 +350,103 @@ if (clip === 'editor') {
   })
   await coverage.getByText(/^Upstairs: 0% /).waitFor()
   await page.waitForTimeout(2600)
+} else if (clip === 'survey') {
+  // Set-up: the surveyed bungalow (11 spots read from its router on every
+  // band) with the router's BSSIDs known, so a scan matches them.
+  const home = JSON.parse(
+    readFileSync(
+      join(root, 'packages/floorplan/fixtures/surveyed-home.json'),
+      'utf8',
+    ),
+  )
+  const bssids = {
+    '2.4GHz': 'a4:2b:b0:12:34:51',
+    '5GHz': 'a4:2b:b0:12:34:52',
+    '6GHz': 'a4:2b:b0:12:34:53',
+  }
+  for (const radio of home.accessPoints[0].radios) {
+    radio.bssids = [bssids[radio.band]]
+  }
+  const file = join(frameDir, 'surveyed-home-bssids.json')
+  writeFileSync(file, JSON.stringify(home))
+  await page.getByLabel('Open a plan file').setInputFiles(file)
+  await page.locator('.editor-canvas[data-scale]').waitFor()
+  await page.waitForTimeout(1500)
+  // Crop to the tool rail and canvas (even sizes, for the encoder).
+  const rail = await tools.boundingBox()
+  const map = await canvas.boundingBox()
+  const cropH = Math.floor((map.y + map.height - rail.y) / 2) * 2
+  const cropW = Math.floor((map.x + map.width) / 2) * 2
+  surveyCrop = `crop=${cropW}:${cropH}:0:${Math.floor(rail.y)},`
+  await record()
+
+  // The pins are coloured by how far the model is from each reading.
+  await page.waitForTimeout(900)
+  const pin = await at(7.95, 4.95)
+  await glide(pin.x, pin.y - 14, 700)
+  await page.waitForTimeout(1500)
+
+  // A scan taken at a new spot becomes that spot's readings. (The buttons
+  // are in the panel, which the clip crops away.)
+  await clickLocator(
+    panel.getByRole('button', { name: 'Scan your network…' }).last(),
+    500,
+  )
+  const reader = page.getByRole('dialog', { name: 'Scan your network' })
+  await reader.getByLabel('Your device').selectOption({ label: 'Windows' })
+  await reader.getByRole('textbox', { name: 'What it printed' }).fill(
+    JSON.stringify({
+      signalplanScan: 1,
+      networks: [
+        {
+          bssid: bssids['2.4GHz'],
+          ssid: 'HomeNet',
+          band: '2.4',
+          channel: 6,
+          dbm: -36,
+        },
+        {
+          bssid: bssids['5GHz'],
+          ssid: 'HomeNet',
+          band: '5',
+          channel: 36,
+          dbm: -41,
+        },
+        {
+          bssid: bssids['6GHz'],
+          ssid: 'HomeNet',
+          band: '6',
+          channel: 37,
+          dbm: -47,
+        },
+      ],
+    }),
+  )
+  await page.waitForTimeout(800)
+  await reader.getByRole('button', { name: 'Read scan' }).click()
+  const answers = page.getByRole('dialog', {
+    name: 'Which networks are yours?',
+  })
+  await answers
+    .getByRole('radio', { name: /click the plan after Apply/ })
+    .check()
+  await page.waitForTimeout(1200)
+  await answers.getByRole('button', { name: 'Apply, then click…' }).click()
+  const spot = await at(5, 4)
+  await clickAt(spot.x, spot.y, 600)
+  await page.waitForTimeout(900)
+
+  // Calibrate fits the model to the readings; the map previews the fit, and
+  // Apply keeps it, with the errors on the pins shrinking.
+  await page.keyboard.press('Escape')
+  await clickLocator(panel.getByRole('button', { name: 'Calibrate' }), 450)
+  const apply = panel.getByRole('button', { name: 'Apply' })
+  await apply.waitFor()
+  await page.waitForTimeout(1500)
+  await clickLocator(apply, 450)
+  await coverage.getByText(/^\d+% of/).waitFor()
+  await glide(pin.x + 60, pin.y + 60, 400)
+  await page.waitForTimeout(1800)
 }
 const clipEnd = now()
 await screencast.send('Page.stopScreencast')
@@ -351,7 +464,7 @@ for (let t = clipStart; t <= clipEnd; t += 1 / fps) {
   writeFileSync(join(frameDir, name), Buffer.from(frames[next].data, 'base64'))
 }
 
-const crop = clip === 'editor' ? '' : galleryCrop
+const crop = clip === 'editor' ? '' : (surveyCrop ?? galleryCrop)
 const filters = `${crop}scale=${gifWidth}:-1:flags=lanczos`
 execFileSync(
   'ffmpeg',

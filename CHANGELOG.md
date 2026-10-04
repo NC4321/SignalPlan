@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ### Added
 
+- README: a Check it against your home feature group and gallery clip (a scan placed at a spot, then Calibrate and Apply shrink the errors on the pins), a short model summary linking to HOW-IT-WORKS.md, a roadmap, and an architecture diagram for developers. The main clip is re-recorded against today's editor (D95).
+
 - How it works, in plain words: `docs/HOW-IT-WORKS.md` retells MODEL.md for someone who isn't an RF engineer, from what the heatmap is to how to check it against your home and where it's known to be wrong, with pictures that read on GitHub's light and dark themes and links to MODEL.md for the maths and sources (D94).
 
 - Failures say what happened and what to try: a crash offers to download your plan before reloading, a failed coverage, optimizer or calibration job says so where its result would be, and a steady notice says when your changes aren't being saved in this browser. Also an audit of every panel, dialog and view in its empty, working and failed states (D91).
