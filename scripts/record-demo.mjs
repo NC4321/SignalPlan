@@ -43,13 +43,16 @@ const clips = {
 // The gallery clips show at half the README's width, so they keep only
 // the tool rail, canvas and status bar, cutting the top bar and panel.
 const galleryCrop = 'crop=1028:754:0:46,'
+let surveyCrop
 const clip = process.argv[2] ?? 'editor'
 if (!(clip in clips)) {
   throw new Error(`Unknown clip "${clip}"; use one of ${Object.keys(clips)}`)
 }
 const url = process.env.DEMO_URL ?? 'http://localhost:4173/'
 const out = process.env.DEMO_OUT ?? join(root, clips[clip])
-const width = 1280
+// The survey clip uses a smaller window, so the plan and its pin labels are
+// drawn larger once cropped to the canvas.
+const width = clip === 'survey' ? 1100 : 1280
 const height = 800
 const gifWidth = clip === 'editor' ? 800 : 640
 const fps = 12
@@ -369,6 +372,12 @@ if (clip === 'editor') {
   await page.getByLabel('Open a plan file').setInputFiles(file)
   await page.locator('.editor-canvas[data-scale]').waitFor()
   await page.waitForTimeout(1500)
+  // Crop to the tool rail and canvas (even sizes, for the encoder).
+  const rail = await tools.boundingBox()
+  const map = await canvas.boundingBox()
+  const cropH = Math.floor((map.y + map.height - rail.y) / 2) * 2
+  const cropW = Math.floor((map.x + map.width) / 2) * 2
+  surveyCrop = `crop=${cropW}:${cropH}:0:${Math.floor(rail.y)},`
   await record()
 
   // The pins are coloured by how far the model is from each reading.
@@ -384,6 +393,7 @@ if (clip === 'editor') {
     500,
   )
   const reader = page.getByRole('dialog', { name: 'Scan your network' })
+  await reader.getByLabel('Your device').selectOption({ label: 'Windows' })
   await reader.getByRole('textbox', { name: 'What it printed' }).fill(
     JSON.stringify({
       signalplanScan: 1,
@@ -454,7 +464,7 @@ for (let t = clipStart; t <= clipEnd; t += 1 / fps) {
   writeFileSync(join(frameDir, name), Buffer.from(frames[next].data, 'base64'))
 }
 
-const crop = clip === 'editor' ? '' : galleryCrop
+const crop = clip === 'editor' ? '' : (surveyCrop ?? galleryCrop)
 const filters = `${crop}scale=${gifWidth}:-1:flags=lanczos`
 execFileSync(
   'ffmpeg',
