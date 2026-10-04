@@ -6,7 +6,7 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ### Added
 
-- A plain-language explainer of the model: `docs/HOW-IT-WORKS.md` retells MODEL.md for someone who isn't an RF engineer, in twelve short sections (what the heatmap is, distance, walls, floors, bands, overlap and interference, channels and the planner, checking against your home, scanning, locating, limits, and where the numbers come from), each with a picture and a worked example and a link to the matching part of MODEL.md for the maths and sources. The physics pictures are SVG files in `docs/img/` that read on GitHub's light and dark themes (D94).
+- How it works, in plain words: `docs/HOW-IT-WORKS.md` retells MODEL.md for someone who isn't an RF engineer, from what the heatmap is to how to check it against your home and where it's known to be wrong, with pictures that read on GitHub's light and dark themes and links to MODEL.md for the maths and sources (D94).
 
 - Failures say what happened and what to try: a crash offers to download your plan before reloading, a failed coverage, optimizer or calibration job says so where its result would be, and a steady notice says when your changes aren't being saved in this browser. Also an audit of every panel, dialog and view in its empty, working and failed states (D91).
 

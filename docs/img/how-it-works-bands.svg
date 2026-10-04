@@ -3,14 +3,14 @@
   <desc>A grouped bar chart of the loss in dB for one wall crossing. Drywall: 2.9, 2.4 and 1.4. Brick: 6.6, 9.0 and 9.9. Glass: 0.5, 6.1 and 8.3. Concrete: 14.7, 26.5 and 29.9, at 2.4, 5 and 6 GHz.</desc>
   <rect width="680" height="320" rx="8" fill="#f6f8fa" stroke="#d0d7de"/>
   <text x="20" y="28" font-size="15" font-weight="600" fill="#1f2328">Loss through one wall, in dB, by band</text>
-  <g fill="#1f2328" font-size="12" font-weight="600">
-    <rect x="440" y="14" width="12" height="12" fill="#1a7f37"/><text x="456" y="25">2.4 GHz</text>
-    <rect x="520" y="14" width="12" height="12" fill="#0969da"/><text x="536" y="25">5 GHz</text>
-    <rect x="590" y="14" width="12" height="12" fill="#bc4c00"/><text x="606" y="25">6 GHz</text>
+  <g fill="#1f2328" font-size="14" font-weight="600">
+    <rect x="410" y="14" width="12" height="12" fill="#1a7f37"/><text x="426" y="25">2.4 GHz</text>
+    <rect x="510" y="14" width="12" height="12" fill="#0969da"/><text x="526" y="25">5 GHz</text>
+    <rect x="596" y="14" width="12" height="12" fill="#bc4c00"/><text x="612" y="25">6 GHz</text>
   </g>
   <line x1="40" y1="260" x2="660" y2="260" stroke="#57606a" stroke-width="1.5"/>
   <!-- 5 px per dB; groups start at x=60, 220, 380, 540; bars 36 wide, 4 apart -->
-  <g font-size="12" font-weight="600" text-anchor="middle" fill="#1f2328">
+  <g font-size="14" font-weight="600" text-anchor="middle" fill="#1f2328">
     <rect x="60" y="245.5" width="36" height="14.5" fill="#1a7f37"/><text x="78" y="240">2.9</text>
     <rect x="100" y="248" width="36" height="12" fill="#0969da"/><text x="118" y="243">2.4</text>
     <rect x="140" y="253" width="36" height="7" fill="#bc4c00"/><text x="158" y="248">1.4</text>
@@ -30,5 +30,5 @@
     <text x="438" y="282">glass</text>
     <text x="598" y="282">concrete</text>
   </g>
-  <text x="20" y="308" font-size="12" fill="#57606a">Loss rises with frequency for most walls. Drywall is the exception: its two sheets help each other at 6 GHz.</text>
+  <text x="20" y="308" font-size="14" fill="#57606a">Drywall is the exception: its sheets help each other at 6 GHz.</text>
 </svg>
