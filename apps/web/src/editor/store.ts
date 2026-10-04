@@ -163,6 +163,8 @@ export interface EditorState {
    * didn't move (D43). Cleared by the next edit or selection change.
    */
   notice: string | undefined
+  /** Whether the guided first run is showing (D90). */
+  guide: boolean
   /** The optimizer's search, its suggestion, or why it has none (D44). */
   optimizer: OptimizerState | undefined
   /**
@@ -250,6 +252,7 @@ export interface EditorState {
   setCamera: (camera: Camera | undefined) => void
   setPointer: (pointer: Point | undefined) => void
   setNotice: (notice: string | undefined) => void
+  setGuide: (guide: boolean) => void
   setOptimizer: (optimizer: OptimizerState | undefined) => void
   setCoverageGoal: (goal: CoverageGoal) => void
   /** Moves or adds the suggested access point as one edit, and selects it. */
@@ -460,6 +463,7 @@ export function createEditorStore(
     planId: options.id,
     gesture: undefined,
     notice: undefined,
+    guide: false,
     optimizer: undefined,
     channelPlan: undefined,
     positionCheck: undefined,
@@ -746,6 +750,7 @@ export function createEditorStore(
     setCamera: (camera) => set({ camera }),
     setPointer: (pointer) => set({ pointer }),
     setNotice: (notice) => set({ notice }),
+    setGuide: (guide) => set({ guide }),
     setOptimizer: (optimizer) => set({ optimizer }),
     setCoverageGoal: (coverageGoal) => set({ coverageGoal }),
     applySuggestion: () => {

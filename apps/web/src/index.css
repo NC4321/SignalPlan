@@ -1294,6 +1294,52 @@ h4.survey-report {
   border-radius: 0.35rem;
 }
 
+.guide {
+  position: absolute;
+  inset: auto 1rem 1rem auto;
+  z-index: 2;
+  width: min(22rem, calc(100% - 2rem));
+  padding: 0.75rem 1rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.2);
+}
+
+/* On a phone the floor stack fills the bottom corner; the top is clear. */
+@media (max-width: 48rem) {
+  .guide {
+    inset: 1rem 1rem auto;
+    margin: 0 auto;
+  }
+}
+
+.guide h2 {
+  margin: 0 0 0.35rem;
+  font-size: 1rem;
+}
+
+.guide p {
+  margin: 0 0 0.5rem;
+}
+
+.guide .guide-count {
+  margin: 0 0 0.15rem;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.guide-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
+.guide-target {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
+}
+
 .help-button {
   min-width: 2rem;
   font-weight: 600;

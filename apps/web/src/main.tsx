@@ -6,6 +6,7 @@ import { Autosaver } from './editor/autosave.ts'
 import { EditorContext } from './editor/context.ts'
 import { imageIdsIn, PlanLibrary } from './editor/library.ts'
 import { readUnits, safeStorage, samplePlan } from './editor/persistence.ts'
+import { guideSeen } from './editor/guide.ts'
 import { ServicesContext } from './editor/services.ts'
 import {
   clearShareFragment,
@@ -45,6 +46,8 @@ const store = shared
         ...(lastId ? { id: lastId } : {}),
       })
     : createEditorStore(samplePlan(), { units: readUnits(), pristine: true })
+// A first visit gets the guide over the sample home, once (D90).
+if (!shared && !last && !guideSeen()) store.getState().setGuide(true)
 const autosaver = new Autosaver(store, library)
 autosaver.start()
 // Tidy away tracing images that no saved plan uses any more.
