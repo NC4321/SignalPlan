@@ -8,6 +8,10 @@ import { useServices } from './services.ts'
 import { embedImages } from './tracing.ts'
 import { editedAgo } from './util.ts'
 
+const TRY =
+  'Reload the page and try again, or save the open plan to a file first.'
+const LIST_FAILED = `The list of plans couldn’t be read from this browser. ${TRY}`
+
 /**
  * The plans kept in this browser (D21): open, rename, duplicate or delete
  * them. Deleting asks first, with a chance to download a copy.
@@ -33,18 +37,35 @@ export function PlansDialog({
     raw: unknown
   }>()
 
+  /** Set when the list or a plan couldn't be read from this browser. */
+  const [failure, setFailure] = useState<string>()
+
+  const close = () => {
+    setFailure(undefined)
+    onClose()
+  }
+
   const refresh = async () => {
-    await autosaver.flush()
-    setPlans(await library.list())
+    try {
+      await autosaver.flush()
+      setPlans(await library.list())
+      setFailure(undefined)
+    } catch {
+      setFailure(LIST_FAILED)
+    }
   }
 
   useEffect(() => {
     if (!open) return
     let cancelled = false
     void (async () => {
-      await autosaver.flush()
-      const list = await library.list()
-      if (!cancelled) setPlans(list)
+      try {
+        await autosaver.flush()
+        const list = await library.list()
+        if (!cancelled) setPlans(list)
+      } catch {
+        if (!cancelled) setFailure(LIST_FAILED)
+      }
     })()
     return () => {
       cancelled = true
@@ -52,58 +73,96 @@ export function PlansDialog({
   }, [open, library, autosaver])
 
   const openPlan = async (summary: PlanSummary) => {
-    await autosaver.flush()
-    const opened = await library.open(summary.id)
-    if (opened.kind === 'plan') {
-      store.getState().loadPlan(opened.plan, { id: summary.id })
-      await library.setLastPlanId(summary.id)
-      onClose()
-    } else if (opened.kind === 'invalid') {
-      setBroken({ name: summary.name, issues: opened.issues, raw: opened.raw })
-    } else {
-      await refresh()
-    }
-  }
-
-  const rename = async (id: string, name: string) => {
-    setRenaming(undefined)
-    if (id === currentId) store.getState().renamePlan(name)
-    else await library.rename(id, name)
-    await refresh()
-  }
-
-  const remove = async (summary: PlanSummary) => {
-    setDeleting(undefined)
-    await library.remove(summary.id)
-    if (summary.id === currentId) {
-      // Open the next most recent plan, or the sample if none are left.
-      const [next] = await library.list()
-      const opened = next ? await library.open(next.id) : undefined
-      if (next && opened?.kind === 'plan') {
-        store.getState().loadPlan(opened.plan, { id: next.id })
-        await library.setLastPlanId(next.id)
+    setFailure(undefined)
+    try {
+      await autosaver.flush()
+      const opened = await library.open(summary.id)
+      if (opened.kind === 'plan') {
+        store.getState().loadPlan(opened.plan, { id: summary.id })
+        await library.setLastPlanId(summary.id)
+        close()
+      } else if (opened.kind === 'invalid') {
+        setBroken({
+          name: summary.name,
+          issues: opened.issues,
+          raw: opened.raw,
+        })
       } else {
-        store.getState().loadPlan(samplePlan(), { pristine: true })
+        // Gone since the list was drawn, say deleted in another tab.
+        await refresh()
+        setFailure(`“${summary.name}” is no longer in this browser.`)
       }
+    } catch {
+      setFailure(`“${summary.name}” couldn’t be read from this browser. ${TRY}`)
     }
-    await refresh()
   }
 
-  const downloadCopy = async (id: string) => {
-    const opened = await library.open(id)
-    if (opened.kind === 'plan')
-      downloadPlan(await embedImages(opened.plan, library))
-    else if (opened.kind === 'invalid') rescuePlan(opened.raw)
+  /** Runs a change to the stored plans, and says if the browser refuses. */
+  const attempt = async (what: string, change: () => Promise<void>) => {
+    try {
+      await change()
+    } catch {
+      setFailure(`${what} didn’t work. ${TRY}`)
+    }
   }
+
+  const rename = (id: string, name: string) => {
+    setRenaming(undefined)
+    return attempt('Renaming', async () => {
+      if (id === currentId) store.getState().renamePlan(name)
+      else await library.rename(id, name)
+      await refresh()
+    })
+  }
+
+  const remove = (summary: PlanSummary) => {
+    setDeleting(undefined)
+    return attempt('Deleting', async () => {
+      await library.remove(summary.id)
+      if (summary.id === currentId) {
+        // Open the next most recent plan, or the sample if none are left.
+        const [next] = await library.list()
+        const opened = next ? await library.open(next.id) : undefined
+        if (next && opened?.kind === 'plan') {
+          store.getState().loadPlan(opened.plan, { id: next.id })
+          await library.setLastPlanId(next.id)
+        } else {
+          store.getState().loadPlan(samplePlan(), { pristine: true })
+        }
+      }
+      await refresh()
+    })
+  }
+
+  const duplicate = (id: string) =>
+    attempt('Duplicating', async () => {
+      await autosaver.flush()
+      await library.duplicate(id)
+      await refresh()
+    })
+
+  const downloadCopy = (id: string, name: string) =>
+    attempt('Downloading', async () => {
+      const opened = await library.open(id)
+      if (opened.kind === 'plan') {
+        downloadPlan(await embedImages(opened.plan, library))
+      } else if (opened.kind === 'invalid') {
+        rescuePlan(opened.raw)
+      } else {
+        setDeleting(undefined)
+        await refresh()
+        setFailure(`“${name}” is no longer in this browser.`)
+      }
+    })
 
   return (
     <>
       <Dialog
         open={open}
         title="My plans"
-        onClose={onClose}
+        onClose={close}
         actions={
-          <button type="button" className="primary" onClick={onClose}>
+          <button type="button" className="primary" onClick={close}>
             Done
           </button>
         }
@@ -112,8 +171,15 @@ export function PlansDialog({
           Plans are kept in this browser only. Save to a file to back one up or
           share it.
         </p>
+        {failure && (
+          <p role="alert" className="field-error">
+            {failure}
+          </p>
+        )}
         {plans === undefined ? (
-          <p>Loading…</p>
+          failure ? null : (
+            <p role="status">Loading…</p>
+          )
         ) : plans.length === 0 ? (
           <p>No plans yet. Any plan you change is added here automatically.</p>
         ) : (
@@ -174,11 +240,7 @@ export function PlansDialog({
                   </button>
                   <button
                     type="button"
-                    onClick={async () => {
-                      await autosaver.flush()
-                      await library.duplicate(plan.id)
-                      await refresh()
-                    }}
+                    onClick={() => void duplicate(plan.id)}
                     aria-label={`Duplicate ${plan.name}`}
                   >
                     Duplicate
@@ -209,7 +271,9 @@ export function PlansDialog({
             </button>
             <button
               type="button"
-              onClick={() => deleting && void downloadCopy(deleting.id)}
+              onClick={() =>
+                deleting && void downloadCopy(deleting.id, deleting.name)
+              }
             >
               Download a copy first
             </button>
@@ -245,7 +309,12 @@ export function PlansDialog({
           </>
         }
       >
+        <p>
+          This plan is kept in this browser but doesn’t pass the checks, so it
+          wasn’t opened. Your open plan is unchanged.
+        </p>
         <PlanIssues issues={broken?.issues ?? []} />
+        <p className="hint">Download it to keep what’s in it.</p>
       </Dialog>
     </>
   )
