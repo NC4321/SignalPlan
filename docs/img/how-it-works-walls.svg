@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 680 290" width="680" height="290" font-family="system-ui, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15">
   <title>A signal path crossing a drywall wall and a brick wall, with what each costs</title>
-  <desc>Plan view of a straight line from an access point to a phone 8 m away. It crosses one drywall wall, which costs 2.4 dB, and one brick wall, which costs 9.0 dB, on 5 GHz. Distance alone gives -42.4 dBm; after the walls the phone sees -53.7 dBm.</desc>
+  <desc>Plan view of a straight line from an access point to a phone 8 m away. It crosses one drywall wall, which costs 2.4 dB, and one brick wall, which costs 9.0 dB, on 5 GHz. Distance alone gives -42.4 dBm; after the walls the phone sees -53.7 dBm (the parts are rounded, so they add to -53.8).</desc>
   <rect width="680" height="290" rx="8" fill="#f6f8fa" stroke="#d0d7de"/>
   <text x="20" y="28" font-size="16" font-weight="600" fill="#1f2328">One straight line, walls counted one by one (5 GHz)</text>
   <rect x="20" y="44" width="640" height="136" fill="none" stroke="#d0d7de" stroke-dasharray="2 4"/>
@@ -25,13 +25,13 @@
     <line x1="70" y1="134" x2="70" y2="146"/>
     <line x1="610" y1="134" x2="610" y2="146"/>
   </g>
-  <rect x="247" y="128" width="200" height="20" fill="#f6f8fa"/>
-  <text x="340" y="144" text-anchor="middle" fill="#57606a" font-size="14">8 m from access point to phone</text>
+  <text x="350" y="162" text-anchor="middle" fill="#57606a" font-size="14">8 m, access point to phone</text>
   <g font-size="15" fill="#1f2328">
     <text x="150" y="208">Distance alone, 8 m</text><text x="470" y="208" text-anchor="end">−42.4 dBm</text>
     <text x="150" y="231">One drywall wall</text><text x="470" y="231" text-anchor="end">− 2.4 dB</text>
     <text x="150" y="254">One brick wall</text><text x="470" y="254" text-anchor="end">− 9.0 dB</text>
     <line x1="150" y1="261" x2="470" y2="261" stroke="#57606a"/>
     <text x="150" y="279" font-weight="600">At the phone</text><text x="470" y="279" text-anchor="end" font-weight="600">−53.7 dBm</text>
+    <text x="490" y="279" fill="#57606a" font-size="13">(figures rounded)</text>
   </g>
 </svg>

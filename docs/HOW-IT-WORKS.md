@@ -46,9 +46,9 @@ A wall takes some of the signal that crosses it, depending on what it's made of.
 
 ![A line from an access point to a phone crossing a drywall wall and a brick wall, with the losses added up](img/how-it-works-walls.svg)
 
-**The angle that matters.** A wall always costs its head-on loss, whatever angle the signal meets it at. Allowing for the angle changed a typical spot by half a decibel at most, so it isn't worth the extra complication for walls. Floors are different (next section).
+**The angle that matters.** A wall always costs its head-on loss, whatever angle the signal meets it at. Allowing for the angle changed a typical spot by half a decibel at most, so walls keep their head-on loss. Floors are different (next section).
 
-An example from the picture: a phone 8 m from a 23 dBm access point on 5 GHz, with a drywall wall and a brick wall between them. Distance alone gives −42.4 dBm. The walls take 2.4 and 9.0 dB, so the phone sees −53.7 dBm. With concrete instead of brick it would see −71.3 dBm.
+An example from the picture: a phone 8 m from a 23 dBm access point on 5 GHz, with a drywall wall and a brick wall between them. Distance alone gives −42.4 dBm. The walls take 2.4 and 9.0 dB, so the phone sees −53.7 dBm (the figures are rounded). With concrete instead of brick it would see −71.3 dBm.
 
 The maths and sources: [MODEL.md › Wall materials](MODEL.md#wall-materials), with the per-band numbers in [Loss per wall crossing](MODEL.md#loss-per-wall-crossing-db).
 
@@ -192,7 +192,7 @@ The maths and sources: [MODEL.md › Known limits](MODEL.md#known-limits).
 - **Fitted to one measurement:** low-E glass and brick.
 - **Taken from rules:** channels, power limits, DFS, and Apple's roaming figures.
 - **From the model's own tests:** the 3 dB scatter for locating.
-- **Judgement, labelled as such:** default power, the 75° cap and the 1, 6 and 11 rule.
+- **Judgement, labelled as such:** default power on 2.4 and 5 GHz, the 75° cap and the 1, 6 and 11 rule.
 
 MODEL.md says where each number comes from and lists every source at the bottom, and the decisions behind the choices are in [DECISIONS.md](DECISIONS.md).
 
