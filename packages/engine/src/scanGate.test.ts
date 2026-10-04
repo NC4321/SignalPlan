@@ -33,20 +33,22 @@ import { threeApHome } from './testPlans.ts'
  * bedroom and to the upstairs access point, scanned at survey spots
  * through the whole Scan your network path: SignalPlan's scan format
  * read by `parseScan`, BSSIDs answered as the dialog would, applied at
- * each spot (D80, D82). The
- * scans' neighbour readings then locate each neighbour (D83) within its
- * stated uncertainty, and with the neighbours located (D84) the channel
- * planner sees them as the true neighbours would be seen: strong only for
- * the access points that hear them at CCA. With spectrum scarce (DFS off,
- * 40 MHz), its plan is the one it gives with the neighbours at their true
- * positions, with no clash left, where counting their strongest strength
- * everywhere leaves a clash at every access point.
+ * each spot (D80, D82). The scans' neighbour readings then locate each
+ * neighbour (D83) within its stated uncertainty, and with the neighbours
+ * located (D84) the channel planner sees them as the true neighbours
+ * would be seen: strong only for the access points that hear them at
+ * CCA. With spectrum scarce (DFS off, 40 MHz), its plan is the one it
+ * gives with the neighbours at their true positions, with no clash left,
+ * where counting their strongest strength everywhere leaves a clash at
+ * every access point. The channels it picks then are a tie-break between
+ * plans that all clash, so they can match the located plan's or not, by
+ * the noise; the test doesn't compare them.
  *
  * Readings are the model's own plus 3 dB of seeded Gaussian noise, the
  * scatter calibration leaves (D78), rounded to 0.1 dB, and a BSSID weaker
  * than −95 dBm isn't heard. The neighbours are quiet (2 dBm EIRP), so each
  * is heard at the CCA level by the access point by its wall (by 10 dB) and
- * below it by the others (by 6 dB or more): close calls would make the
+ * below it by the others (by 5 dB or more): close calls would make the
  * plan follow the noise, not the method.
  */
 
@@ -334,7 +336,8 @@ describe('Phase 8 exit gate: scan, locate, plan (D86)', () => {
       expect(ap.radios.find((r) => r.band === BAND)!.channel).toBeUndefined()
     }
     const spots = plan.floors.flatMap((f) => f.surveySpots ?? [])
-    expect(spots.length).toBeGreaterThanOrEqual(20)
+    // Every 2.5 m: 24 spots on each floor.
+    expect(spots.length).toBe(48)
     expect(spots.every((s) => s.readings.length > 0)).toBe(true)
   })
 
@@ -400,11 +403,9 @@ describe('Phase 8 exit gate: scan, locate, plan (D86)', () => {
         .filter((_, i) => at.get(id)![i]! >= cca)
         .map((ap) => ap.id)
     }
-    // Smith is heard at CCA by the bedroom by its wall, not upstairs.
-    expect(strongAt('Smith')).toContain('bedroom')
-    expect(strongAt('Smith')).not.toContain('upstairs')
-    // Jones by the upstairs access point, not the bedroom.
-    expect(strongAt('Jones')).toContain('upstairs')
-    expect(strongAt('Jones')).not.toContain('bedroom')
+    // Smith is heard at CCA only by the bedroom by its wall, Jones only by
+    // the upstairs access point.
+    expect(strongAt('Smith')).toEqual(['bedroom'])
+    expect(strongAt('Jones')).toEqual(['upstairs'])
   })
 })
