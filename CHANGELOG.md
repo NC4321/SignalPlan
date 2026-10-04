@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ### Added
 
+- Unreadable files and scans say what happened and what to try, in the place you were looking: Open file (not a plan, a newer version, cut short, empty, too big, unreadable, or not kept by the browser), My plans (a stored plan that fails its checks, or storage that can't be read), Import readings and Scan your network (empty, too big or unreadable files, and the box saying why Read scan is off), a tracing image chosen from the 3D view, and a shared link when the open plan couldn't be saved first. The 3D view says "Loading the 3D view…" while it loads, and when WebGL is off, the graphics context can't be made or is lost, or its code won't load, says so with Try again (or Reload the page) and Back to the 2D view, which shows the same coverage, instead of a blank box or taking the editor down (D93).
+
 - Guided first run: a first visit gets four short steps over the sample home (what the colours mean, drag an access point, draw a wall, where to start your own), each moving on when you do it. Skip ends it, it's shown once, and "Show the guide again" in the shortcuts dialog (?) replays it (D90).
 
 - Keyboard shortcuts overlay: press ? (or the ? button at the end of the top bar) for every shortcut, grouped into tools, editing, floors and view, and files, with Ctrl or ⌘ as your computer uses (D89).
