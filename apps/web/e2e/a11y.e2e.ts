@@ -71,6 +71,13 @@ test.describe('axe-core finds no serious problems', () => {
     await exporter.getByRole('button', { name: 'Cancel' }).click()
 
     await page.getByText('File', { exact: true }).click()
+    await page.getByRole('button', { name: 'Share link…' }).click()
+    const share = page.getByRole('dialog', { name: 'Share link' })
+    await expect(share.getByRole('textbox')).toHaveValue(/#plan=/)
+    await expectNoSeriousViolations(page)
+    await share.getByRole('button', { name: 'Close' }).click()
+
+    await page.getByText('File', { exact: true }).click()
     await page
       .getByRole('banner')
       .getByRole('button', { name: 'Scan your network…' })

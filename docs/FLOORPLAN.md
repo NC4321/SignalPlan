@@ -126,6 +126,12 @@ Applying a scan (`scanApply.ts`, D80): `unknownScanEntries` lists the BSSIDs the
 
 A scan at a survey spot (`scanSpot.ts`, D82): after `applyScan`, in the same edit, `applyScanAtSpot` takes an existing spot or adds one at a point. Each of your radios heard becomes a reading, its BSSIDs at mean power, averaged with the spot's reading for it, if any, weighted by that reading's `scans` (`addScanToMean`); it's `approximate` if any scan behind it was. A BSSID given to an access point without a radio on its band becomes a reading on that band, not compared while the band is off. Each neighbour's BSSID heard is kept in the spot's `neighbourReadings`, averaged the same way, and each neighbour network the scan heard takes the strongest of its device's BSSIDs (`scanDeviceKey`) on its band at any spot, rounded to whole dB.
 
+## Sharing as a link
+
+File › Share link… puts the plan in a link's fragment: `https://signalplan.pages.dev/#plan=1.<data>`. `1` is the link format's version, separate from `schemaVersion`. `<data>` is the plan's JSON, compressed with raw deflate (`CompressionStream('deflate-raw')`) and encoded as base64url without padding. Floors' `background` images are left out, since they'd make the link far too long; the dialog names the floors that had one. A browser never sends the fragment to the server, so the plan stays in the link until it's pasted somewhere.
+
+Opening a link decodes it and validates the plan as opening a file does, then opens it like the sample: it joins My plans on its first edit. The plan is then taken out of the address bar. A link with a newer format version, one cut short, or one over 20 MB once decompressed opens nothing and says why. The fixtures make links of 0.8–1.9 thousand characters; the dialog warns from 16,000. See [D88](DECISIONS.md#d88-shareable-plan-links--2026-10-04).
+
 ## Validation
 
 `parsePlan` and `loadPlan` return either the plan or a list of issues, each with a path such as `floors[0].walls[3].to` and a readable message. They check:

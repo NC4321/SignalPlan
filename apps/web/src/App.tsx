@@ -12,6 +12,7 @@ import { ScanPlacementBar, ScanProvider } from './editor/ScanProvider.tsx'
 import { SurveyImportProvider } from './editor/SurveyImportProvider.tsx'
 import { TracingProvider } from './editor/TracingProvider.tsx'
 import { Dialog, PlanIssues } from './editor/Dialog.tsx'
+import { SharedLinkOpener } from './editor/SharedLinkOpener.tsx'
 import { rescuePlan } from './editor/persistence.ts'
 import { useServices } from './editor/services.ts'
 import {
@@ -48,9 +49,12 @@ const View3D = lazy(() => import('./view3d/View3D.tsx'))
 
 function App({
   savedPlanProblem,
+  linkIssues,
 }: {
   /** Set when the last plan in this browser could not be opened. */
   savedPlanProblem?: { issues: readonly PlanIssue[]; raw: unknown } | undefined
+  /** Set when the plan link SignalPlan was opened with couldn't be read. */
+  linkIssues?: PlanIssue[] | undefined
 }) {
   const store = useEditorStore()
   const { autosaver } = useServices()
@@ -320,6 +324,7 @@ function App({
                   </p>
                   <PlanIssues issues={savedPlanProblem?.issues ?? []} />
                 </Dialog>
+                <SharedLinkOpener startupIssues={linkIssues} />
               </div>
             </CalibratorContext>
           </OptimizerContext>

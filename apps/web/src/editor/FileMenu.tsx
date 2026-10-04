@@ -11,6 +11,7 @@ import {
   samplePlan,
 } from './persistence.ts'
 import { PlansDialog } from './PlansDialog.tsx'
+import { ShareDialog } from './ShareDialog.tsx'
 import { useServices } from './services.ts'
 import { embedImages, storeEmbeddedImages } from './tracing.ts'
 import { useScan } from './scanContext.ts'
@@ -19,7 +20,7 @@ import { useTracing } from './tracingContext.ts'
 import { isTyping, MOD_KEY } from './util.ts'
 
 /**
- * New, Open, Save, My plans and the sample home (D21). Every edited plan is
+ * New, Open, Save, Share, My plans and the sample home (D21, D88). Every edited plan is
  * kept in the list, so switching plans never loses work and needs no
  * confirmation: the open plan is saved first.
  */
@@ -38,6 +39,7 @@ export function FileMenu() {
   const fileInput = useRef<HTMLInputElement>(null)
   const [plansOpen, setPlansOpen] = useState(false)
   const [exportOpen, setExportOpen] = useState(false)
+  const [shareOpen, setShareOpen] = useState(false)
   const [problem, setProblem] = useState<{
     file: string
     issues: PlanIssue[]
@@ -205,6 +207,15 @@ export function FileMenu() {
             type="button"
             onClick={() => {
               closeMenu()
+              setShareOpen(true)
+            }}
+          >
+            Share link…
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              closeMenu()
               chooseImage()
             }}
           >
@@ -256,6 +267,7 @@ export function FileMenu() {
       )}
 
       <ExportDialog open={exportOpen} onClose={() => setExportOpen(false)} />
+      <ShareDialog open={shareOpen} onClose={() => setShareOpen(false)} />
 
       <Dialog
         open={problem !== undefined}
