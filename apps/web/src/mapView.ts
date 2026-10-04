@@ -139,8 +139,13 @@ export interface MapData {
   sinr: Float32Array | undefined
   /** How many access points leave their channel on Auto; 0 outside Interference. */
   autoChannels: number
-  /** Neighbours' networks counted on the band; 0 outside Interference (D67). */
+  /**
+   * Neighbours' networks counted on the band at one strength everywhere,
+   * and those counted from where they were located; 0 outside Interference
+   * (D67, D84).
+   */
   neighbours: number
+  locatedNeighbours: number
   /** Names in the order of `accessPointIds`, for the Roaming legend. */
   accessPointNames: string[]
 }
@@ -170,7 +175,9 @@ export function mapData(
   const tunings =
     kind === 'interference' ? sourceTunings(coverage, plan) : undefined
   const background =
-    kind === 'interference' ? neighbourBackground(plan, coverage.band) : []
+    kind === 'interference'
+      ? neighbourBackground(plan, coverage.band, coverage)
+      : []
   return {
     kind,
     coverage,
@@ -180,7 +187,8 @@ export function mapData(
     edges,
     sinr: tunings ? sinrDb(coverage, tunings, background) : undefined,
     autoChannels: tunings ? autoChannelCount(tunings) : 0,
-    neighbours: background.length,
+    neighbours: background.filter((b) => !b.cells).length,
+    locatedNeighbours: background.filter((b) => b.cells).length,
     accessPointNames,
   }
 }
@@ -271,6 +279,7 @@ export function mapLegend(
   accessPointNames: readonly string[],
   autoChannels = 0,
   neighbours = 0,
+  locatedNeighbours = 0,
 ): Legend {
   const threshold = `${settings.roamThresholdDbm} dBm`
   switch (kind) {
@@ -358,6 +367,11 @@ export function mapLegend(
             : neighbours === 1
               ? '1 neighbour’s network counts everywhere at the strength typed in for it.'
               : `${neighbours} neighbours’ networks count everywhere at the strengths typed in for them.`,
+          locatedNeighbours === 0
+            ? undefined
+            : locatedNeighbours === 1
+              ? '1 neighbour’s network counts from where scans located it, through walls and floors.'
+              : `${locatedNeighbours} neighbours’ networks count from where scans located them, through walls and floors.`,
         ]
           .filter((s) => s !== undefined)
           .join(' '),

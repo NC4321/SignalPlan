@@ -138,39 +138,52 @@ export function sourceTunings(
 }
 
 /**
- * A network next door with a channel, as background interference (D67): its
- * typed-in strength counts in every cell, since it has no position.
+ * A network next door with a channel, as background interference: without
+ * a location, its typed-in or scanned strength counts in every cell (D67);
+ * with one, `cells` has its predicted signal in each cell of the coverage
+ * grid (D84), and `dbm` is unused.
  */
 export interface NeighbourSource {
   tuning: Tuning
   dbm: number
+  cells?: Float32Array
 }
 
 /**
  * The plan's neighbours' networks on a band that count: those with a channel.
- * One without a channel yet is left out.
+ * One without a channel yet is left out. Given the coverage of a floor, a
+ * network it has a grid for (one with a location, D84) counts cell by cell.
  */
 export function neighbourBackground(
   plan: Pick<Plan, 'neighbourNetworks'>,
   band: Band,
+  coverage?: Pick<Coverage, 'dbm' | 'neighbourIds' | 'neighbourDbm'>,
 ): NeighbourSource[] {
-  return (plan.neighbourNetworks ?? []).flatMap((n) =>
-    n.band === band && n.channel !== undefined
-      ? [
-          {
-            tuning: { channel: n.channel, widthMHz: n.channelWidthMHz },
+  const size = coverage?.dbm.length ?? 0
+  return (plan.neighbourNetworks ?? []).flatMap((n) => {
+    if (n.band !== band || n.channel === undefined) return []
+    const tuning = { channel: n.channel, widthMHz: n.channelWidthMHz }
+    const index = coverage?.neighbourIds.indexOf(n.id) ?? -1
+    return [
+      index < 0
+        ? { tuning, dbm: n.strengthDbm }
+        : {
+            tuning,
             dbm: n.strengthDbm,
+            cells: coverage!.neighbourDbm.subarray(
+              index * size,
+              (index + 1) * size,
+            ),
           },
-        ]
-      : [],
-  )
+    ]
+  })
 }
 
 /**
  * SINR in dB per cell, from the strongest access point in the cell (D61):
  * its signal over the other sources' power in its channel, the background's
- * (D67) and the noise floor for its width. −Infinity where no access point
- * reaches the cell.
+ * (D67, D84) and the noise floor for its width. −Infinity where no access
+ * point reaches the cell.
  */
 export function sinrDb(
   coverage: Coverage,
@@ -186,17 +199,29 @@ export function sinrDb(
       return share > 0 ? [{ t, share }] : []
     }),
   )
-  // Noise plus the background's power in each source's channel: the same in
-  // every cell.
+  // Noise plus the background without a location in each source's channel:
+  // the same in every cell.
   const noiseMw = tunings.map(
     (receiver) =>
       10 ** (noiseFloorDbm(receiver.widthMHz) / 10) +
       background.reduce(
         (sum, b) =>
-          sum +
-          overlapShare(coverage.band, receiver, b.tuning) * 10 ** (b.dbm / 10),
+          b.cells
+            ? sum
+            : sum +
+              overlapShare(coverage.band, receiver, b.tuning) *
+                10 ** (b.dbm / 10),
         0,
       ),
+  )
+  // Located neighbours, cell by cell, with their share of each channel.
+  const located = tunings.map((receiver) =>
+    background.flatMap((b) => {
+      const share = b.cells
+        ? overlapShare(coverage.band, receiver, b.tuning)
+        : 0
+      return share > 0 ? [{ cells: b.cells!, share }] : []
+    }),
   )
   const sinr = new Float32Array(size).fill(Number.NEGATIVE_INFINITY)
   for (let i = 0; i < size; i++) {
@@ -205,6 +230,9 @@ export function sinrDb(
     let unwantedMw = noiseMw[s]!
     for (const { t, share } of interferers[s]!) {
       unwantedMw += share * 10 ** (coverage.sourceDbm[t * size + i]! / 10)
+    }
+    for (const { cells, share } of located[s]!) {
+      unwantedMw += share * 10 ** (cells[i]! / 10)
     }
     sinr[i] = coverage.dbm[i]! - 10 * Math.log10(unwantedMw)
   }

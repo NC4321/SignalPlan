@@ -82,6 +82,15 @@ export function checkStructure(plan: Plan): PlanIssue[] {
   })
 
   checkUniqueIds(plan.neighbourNetworks ?? [], 'neighbourNetworks', report)
+  plan.neighbourNetworks?.forEach((network, n) => {
+    const floorId = network.location?.floorId
+    if (floorId !== undefined && !floorIds.has(floorId)) {
+      report(
+        `neighbourNetworks[${n}].location.floorId`,
+        `No floor with id "${floorId}".`,
+      )
+    }
+  })
   checkSurvey(plan, report)
 
   return issues

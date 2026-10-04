@@ -6,10 +6,12 @@ import {
   renameNeighbourNetwork,
   setNeighbourBand,
   setNeighbourChannel,
+  setNeighbourLocation,
   setNeighbourStrength,
   setNeighbourWidth,
 } from './neighbours.ts'
-import type { Plan } from './schema.ts'
+import { addFloor, deleteFloor } from './floors.ts'
+import type { NeighbourLocation, Plan } from './schema.ts'
 import { checkStructure, parsePlan } from './validate.ts'
 
 function plan(): Plan {
@@ -105,5 +107,58 @@ describe('neighbours’ networks (D67)', () => {
     expect(checkStructure(p)).toEqual([
       expect.objectContaining({ path: 'neighbourNetworks[1].id' }),
     ])
+  })
+})
+
+describe('neighbours’ locations (D84)', () => {
+  const at: NeighbourLocation = {
+    floorId: 'f',
+    x: -3,
+    y: 4.5,
+    heightM: 1,
+    eirpDbm: 18.5,
+    uncertaintyM: 2.4,
+  }
+
+  it('sets, keeps and clears a location', () => {
+    const p = plan()
+    const id = addNeighbourNetwork(p, '5GHz', 80)
+    expect(setNeighbourLocation(p, id, at)).toBe(true)
+    expect(p.neighbourNetworks![0]!.location).toEqual(at)
+    expect(setNeighbourLocation(p, id, { ...at })).toBe(false)
+    expect(setNeighbourLocation(p, id, { ...at, x: -2 })).toBe(true)
+    expect(parsePlan(p).ok).toBe(true)
+    expect(setNeighbourLocation(p, id, undefined)).toBe(true)
+    expect(p.neighbourNetworks![0]!).not.toHaveProperty('location')
+    expect(setNeighbourLocation(p, id, undefined)).toBe(false)
+    expect(() =>
+      setNeighbourLocation(p, id, { ...at, floorId: 'nope' }),
+    ).toThrow(/nope/)
+  })
+
+  it('refuses a location on a floor the plan doesn’t have', () => {
+    const p = plan()
+    const id = addNeighbourNetwork(p, '5GHz', 80)
+    setNeighbourLocation(p, id, at)
+    p.neighbourNetworks![0]!.location!.floorId = 'gone'
+    expect(checkStructure(p)).toEqual([
+      expect.objectContaining({
+        path: 'neighbourNetworks[0].location.floorId',
+      }),
+    ])
+  })
+
+  it('drops the location when its floor is deleted or the band changes', () => {
+    const p = plan()
+    const upstairs = addFloor(p, 'above')
+    const a = addNeighbourNetwork(p, '5GHz', 80)
+    const b = addNeighbourNetwork(p, '5GHz', 80)
+    setNeighbourLocation(p, a, { ...at, floorId: upstairs })
+    setNeighbourLocation(p, b, at)
+    deleteFloor(p, upstairs)
+    expect(p.neighbourNetworks![0]!).not.toHaveProperty('location')
+    expect(p.neighbourNetworks![1]!.location).toEqual(at)
+    setNeighbourBand(p, b, '6GHz', 80)
+    expect(p.neighbourNetworks![1]!).not.toHaveProperty('location')
   })
 })

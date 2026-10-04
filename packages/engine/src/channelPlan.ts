@@ -63,6 +63,13 @@ export interface PlannerNetwork {
   mw: number
   /** At or above the CCA level for its width: a clash, like an AP's. */
   strong: boolean
+  /**
+   * For a network with a location (D84), its power at each radio of the
+   * problem in mW, and whether that's at or above the CCA level, in place
+   * of `mw` and `strong`.
+   */
+  mwAt?: readonly number[]
+  strongAt?: readonly boolean[]
 }
 
 /**
@@ -148,13 +155,14 @@ export function colourChannels(
       ? [1, overlap, interference, 0]
       : [0, 0, interference, 0]
   }
-  const alone = (choice: Choice, planned: boolean): PlanCost => {
+  const alone = (i: number, choice: Choice, planned: boolean): PlanCost => {
     let cost: PlanCost = [0, 0, 0, planned && choice.dfs ? 1 : 0]
     for (const net of networks) {
       const overlap = overlapMHz(band, choice, net)
       if (overlap === 0) continue
-      const mw = (overlap / net.widthMHz) * net.mw
-      cost = add(cost, net.strong ? [1, overlap, mw, 0] : [0, 0, mw, 0])
+      const mw = (overlap / net.widthMHz) * (net.mwAt?.[i] ?? net.mw)
+      const strong = net.strongAt?.[i] ?? net.strong
+      cost = add(cost, strong ? [1, overlap, mw, 0] : [0, 0, mw, 0])
     }
     return cost
   }
@@ -164,7 +172,7 @@ export function colourChannels(
   for (let i = 0; i < n; i++) {
     const a = radios[i]!.fixed
     if (!a) continue
-    base = add(base, alone(a, false))
+    base = add(base, alone(i, a, false))
     for (let j = i + 1; j < n; j++) {
       const b = radios[j]!.fixed
       if (b) base = add(base, pair(i, a, j, b))
@@ -182,7 +190,7 @@ export function colourChannels(
   // What giving radio i each candidate adds, given the choices made so far.
   const options = (i: number) =>
     radios[i]!.candidates.map((c) => {
-      let cost = alone(c, true)
+      let cost = alone(i, c, true)
       for (let j = 0; j < n; j++) {
         const other = choices[j]
         if (j !== i && other) cost = add(cost, pair(i, c, j, other))
@@ -373,6 +381,53 @@ type Attempt = Omit<BandChannelPlan, 'withDfs' | 'withoutDfs'> & {
 interface Node {
   ap: AccessPoint
   radio: Radio
+}
+
+/**
+ * Each located neighbour's network on the band (D84): its signal at each
+ * access point's antenna in dBm, in the order given, at its fitted power and
+ * through walls and floors, as `accessPointLinks` works out an access
+ * point's.
+ */
+export function neighbourLinks(
+  plan: Plan,
+  band: Band,
+  accessPoints: readonly AccessPoint[],
+): Map<string, number[]> {
+  const networks = (plan.neighbourNetworks ?? []).filter(
+    (n) => n.band === band && n.location,
+  )
+  const result = new Map<string, number[]>()
+  if (networks.length === 0) return result
+  const stack = prepareStack(plan, band)
+  const exponent = plan.calibration?.[band]?.pathLossExponent
+  const storeyOf = new Map(stack.map((s, i) => [s.floor.id, i]))
+  for (const net of networks) {
+    const from = net.location!
+    const a = storeyOf.get(from.floorId)
+    if (a === undefined) continue
+    const fromZ = stack[a]!.floor.elevationM + from.heightM
+    const radio: Radio = { band, txPowerDbm: from.eirpDbm }
+    result.set(
+      net.id,
+      accessPoints.map((to) => {
+        const b = storeyOf.get(to.floorId)!
+        const toZ = stack[b]!.floor.elevationM + to.heightM
+        const loss =
+          a === b
+            ? preparedWallLoss(stack[a]!.walls, from.x, from.y, to.x, to.y)
+            : crossingLossDb(
+                floorCrossing(stack, a, fromZ, b, toZ),
+                from.x,
+                from.y,
+                to.x,
+                to.y,
+              )
+        return signalDbm(from, radio, to.x, to.y, loss, fromZ - toZ, exponent)
+      }),
+    )
+  }
+  return result
 }
 
 /**
@@ -600,19 +655,30 @@ function planAtWidth(
   const linkMw = kept.map((a) =>
     kept.map((b) => 10 ** (links[a.i]![b.i]! / 10)),
   )
+  const located = neighbourLinks(
+    plan,
+    band,
+    kept.map((e) => e.ap),
+  )
   const networks: PlannerNetwork[] = (plan.neighbourNetworks ?? []).flatMap(
-    (net) =>
-      net.band === band && net.channel !== undefined
-        ? [
-            {
-              id: net.id,
-              channel: net.channel,
-              widthMHz: net.channelWidthMHz,
-              mw: 10 ** (net.strengthDbm / 10),
-              strong: net.strengthDbm >= CCA_DBM[net.channelWidthMHz],
-            },
-          ]
-        : [],
+    (net) => {
+      if (net.band !== band || net.channel === undefined) return []
+      const cca = CCA_DBM[net.channelWidthMHz]
+      const at = located.get(net.id)
+      return [
+        {
+          id: net.id,
+          channel: net.channel,
+          widthMHz: net.channelWidthMHz,
+          mw: 10 ** (net.strengthDbm / 10),
+          strong: net.strengthDbm >= cca,
+          ...(at && {
+            mwAt: at.map((dbm) => 10 ** (dbm / 10)),
+            strongAt: at.map((dbm) => dbm >= cca),
+          }),
+        },
+      ]
+    },
   )
   const result = colourChannels(
     {
@@ -645,7 +711,7 @@ function planAtWidth(
         .map((o) => o.ap.id),
       networks: networks.map((net) => ({
         id: net.id,
-        strong: net.strong,
+        strong: net.strongAt?.[k] ?? net.strong,
         overlaps: overlapMHz(band, choice, net) > 0,
       })),
     }

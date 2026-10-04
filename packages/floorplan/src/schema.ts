@@ -266,8 +266,25 @@ export const accessPointSchema = z.object({
 })
 
 /**
- * A network next door, typed in by hand (D61, D67). It has no position: its
- * strength counts everywhere in the home as background interference.
+ * Where a neighbour's network was located from scans at survey spots (D83,
+ * D84): on a floor of the plan, perhaps outside its walls, at a height above
+ * that floor, with the power it sends and how sure the position is.
+ */
+export const neighbourLocationSchema = z.object({
+  floorId: id,
+  x: metres,
+  y: metres,
+  heightM: z.number().nonnegative(),
+  /** Fitted EIRP in dBm. */
+  eirpDbm: z.number().min(-10).max(40),
+  /** The 95 % uncertainty radius, in metres. */
+  uncertaintyM: z.number().nonnegative(),
+})
+
+/**
+ * A network next door, typed in by hand or scanned (D61, D67). Without a
+ * location, its strength counts everywhere in the home as background
+ * interference; with one, its signal is predicted cell by cell (D84).
  */
 export const neighbourNetworkSchema = z.object({
   id,
@@ -290,6 +307,11 @@ export const neighbourNetworkSchema = z.object({
     .number()
     .min(NEIGHBOUR_STRENGTH_RANGE_DBM.min)
     .max(NEIGHBOUR_STRENGTH_RANGE_DBM.max),
+  /**
+   * Where it was located (D84). Omitted means it has no position, and
+   * `strengthDbm` counts everywhere.
+   */
+  location: neighbourLocationSchema.optional(),
 })
 
 /**
@@ -397,6 +419,7 @@ export type Floor = z.infer<typeof floorSchema>
 export type Radio = z.infer<typeof radioSchema>
 export type AccessPoint = z.infer<typeof accessPointSchema>
 export type NeighbourNetwork = z.infer<typeof neighbourNetworkSchema>
+export type NeighbourLocation = z.infer<typeof neighbourLocationSchema>
 export type BandCalibration = z.infer<typeof bandCalibrationSchema>
 export type Calibration = z.infer<typeof calibrationSchema>
 export type CoverageTarget = (typeof COVERAGE_TARGETS)[number]

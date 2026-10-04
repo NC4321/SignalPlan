@@ -227,7 +227,7 @@ describe('worker protocol', () => {
     })
     expect(response.id).toBe(7)
     expect(response.kind).toBe('coverage')
-    expect(transferables(response)).toHaveLength(4)
+    expect(transferables(response)).toHaveLength(5)
   })
 
   it('turns failures into error responses', () => {

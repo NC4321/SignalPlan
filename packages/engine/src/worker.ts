@@ -59,6 +59,7 @@ export function transferables(response: EngineResponse): ArrayBuffer[] {
     response.coverage.strongest.buffer as ArrayBuffer,
     response.coverage.floorArea.buffer as ArrayBuffer,
     response.coverage.sourceDbm.buffer as ArrayBuffer,
+    response.coverage.neighbourDbm.buffer as ArrayBuffer,
   ]
 }
 

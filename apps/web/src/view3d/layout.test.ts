@@ -126,6 +126,8 @@ describe('heatmapPixels', () => {
     floorArea: Uint8Array.from(floorArea),
     accessPointIds: [],
     sourceDbm: new Float32Array(0),
+    neighbourIds: [],
+    neighbourDbm: new Float32Array(0),
   })
   // Coloured as the Signal map, which these tests are about.
   const signal = (dbm: number[], floorArea: number[]) =>

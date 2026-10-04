@@ -22,6 +22,7 @@ export {
   renameNeighbourNetwork,
   setNeighbourBand,
   setNeighbourChannel,
+  setNeighbourLocation,
   setNeighbourStrength,
   setNeighbourWidth,
   upsertScannedNeighbour,

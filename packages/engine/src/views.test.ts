@@ -29,6 +29,8 @@ function row(): Coverage {
     floorArea: Uint8Array.from([1, 1, 1, 1, 0]),
     accessPointIds: ['a', 'b'],
     sourceDbm: Float32Array.from([...a, ...b]),
+    neighbourIds: [],
+    neighbourDbm: new Float32Array(0),
   }
 }
 

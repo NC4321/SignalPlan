@@ -50,6 +50,13 @@ export interface Coverage {
    * order of `accessPointIds`, for the Overlap view (D64).
    */
   sourceDbm: Float32Array
+  /**
+   * The neighbours' networks with a location and a channel on this band
+   * (D84), and each one's signal in dBm per cell, one grid after another in
+   * this order, for the Interference view.
+   */
+  neighbourIds: string[]
+  neighbourDbm: Float32Array
 }
 
 /** Around access points on a floor with no walls yet, the grid reaches this far. */
@@ -176,33 +183,71 @@ export function evaluateCoverage(
     return radio && from !== undefined ? [{ ap, radio, from }] : []
   })
   const sourceDbm = new Float32Array(size * sources.length)
-  sources.forEach(({ ap, radio, from }, index) => {
-    const offset = index * size
-    const apZ = stack[from]!.floor.elevationM + ap.heightM
+  // One source's signal over the grid, into `out` from `offset`.
+  const fill = (
+    source: Pick<AccessPoint, 'x' | 'y' | 'heightM'>,
+    radio: Radio,
+    from: number,
+    out: Float32Array,
+    offset: number,
+  ) => {
+    const apZ = stack[from]!.floor.elevationM + source.heightM
     // Walls sorted by direction from the access point (D56).
     const crossing =
       from === here
         ? undefined
-        : floorCrossing(stack, from, apZ, here, receiverZ, ap)
-    const sorted = crossing ? undefined : indexWalls(walls, ap.x, ap.y)
+        : floorCrossing(stack, from, apZ, here, receiverZ, source)
+    const sorted = crossing ? undefined : indexWalls(walls, source.x, source.y)
     // On its own floor, exactly as `predictDbm` works it out.
-    const dz = crossing ? apZ - receiverZ : ap.heightM - RECEIVER_HEIGHT_M
+    const dz = crossing ? apZ - receiverZ : source.heightM - RECEIVER_HEIGHT_M
     for (let row = 0; row < grid.rows; row++) {
       const y = grid.originY + (row + 0.5) * grid.cellM
       for (let col = 0; col < grid.cols; col++) {
         const x = grid.originX + (col + 0.5) * grid.cellM
-        const i = row * grid.cols + col
         const loss = crossing
-          ? crossingLossDb(crossing, ap.x, ap.y, x, y)
-          : indexedWallLoss(sorted!, ap.x, ap.y, x, y)
-        const value = signalDbm(ap, radio, x, y, loss, dz, exponent)
-        sourceDbm[offset + i] = value
-        if (value > dbm[i]!) {
-          dbm[i] = value
-          strongest[i] = index
-        }
+          ? crossingLossDb(crossing, source.x, source.y, x, y)
+          : indexedWallLoss(sorted!, source.x, source.y, x, y)
+        out[offset + row * grid.cols + col] = signalDbm(
+          source,
+          radio,
+          x,
+          y,
+          loss,
+          dz,
+          exponent,
+        )
       }
     }
+  }
+  sources.forEach(({ ap, radio, from }, index) => {
+    const offset = index * size
+    fill(ap, radio, from, sourceDbm, offset)
+    for (let i = 0; i < size; i++) {
+      const value = sourceDbm[offset + i]!
+      if (value > dbm[i]!) {
+        dbm[i] = value
+        strongest[i] = index
+      }
+    }
+  })
+
+  // Neighbours' networks with a location and a channel on this band (D84),
+  // worked out as an access point is, at their fitted power.
+  const neighbours = (plan.neighbourNetworks ?? []).flatMap((n) => {
+    const from = n.location && storeyOf.get(n.location.floorId)
+    return n.band === band && n.channel !== undefined && from !== undefined
+      ? [{ id: n.id, location: n.location!, from }]
+      : []
+  })
+  const neighbourDbm = new Float32Array(size * neighbours.length)
+  neighbours.forEach(({ location, from }, index) => {
+    fill(
+      location,
+      { band, txPowerDbm: location.eirpDbm },
+      from,
+      neighbourDbm,
+      index * size,
+    )
   })
 
   return {
@@ -213,5 +258,7 @@ export function evaluateCoverage(
     floorArea: floorAreaMask(floor, grid),
     accessPointIds: sources.map(({ ap }) => ap.id),
     sourceDbm,
+    neighbourIds: neighbours.map(({ id }) => id),
+    neighbourDbm,
   }
 }

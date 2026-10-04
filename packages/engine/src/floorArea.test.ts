@@ -219,6 +219,8 @@ describe('summariseCoverage', () => {
       floorArea: Uint8Array.from(floorArea),
       accessPointIds: [],
       sourceDbm: new Float32Array(0),
+      neighbourIds: [],
+      neighbourDbm: new Float32Array(0),
     }
   }
 
