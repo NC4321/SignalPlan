@@ -5,7 +5,6 @@
  *   shadow       the sample home's heatmap, with the concrete room's shadow
  *   optimizer    the sample home before and after "Find a better spot" and
  *                "Suggest one more access point" (a pair, side by side)
- *   3d           the two-storey home in the 3D view, floors spread apart
  *   calibration  the surveyed bungalow's pins before and after Calibrate and
  *                Apply (a pair)
  *   channels     the three-AP home's upper floor as an Interference map, with
@@ -38,7 +37,7 @@ const root = new URL('..', import.meta.url).pathname
 const require = createRequire(join(root, 'apps/web/package.json'))
 const { chromium } = require('@playwright/test')
 
-const names = ['shadow', 'optimizer', '3d', 'calibration', 'channels']
+const names = ['shadow', 'optimizer', 'calibration', 'channels']
 const wanted = process.argv.length > 2 ? process.argv.slice(2) : names
 for (const name of wanted) {
   if (!names.includes(name)) {
@@ -91,12 +90,20 @@ const fixture = (name) => join(root, 'packages/floorplan/fixtures', name)
  * The plan on the canvas, trimmed of the empty margin, as a PNG buffer. The
  * canvas fits the plan to its width, so the same margins suit every home.
  */
-async function shoot(page, { top = 92, height = 456 } = {}) {
+async function shoot(
+  page,
+  { left = 16, width = null, top = 92, height = 456 } = {},
+) {
   await page.mouse.move(0, 0)
   await page.waitForTimeout(600)
   const map = await page.locator('.editor-canvas').boundingBox()
   return page.screenshot({
-    clip: { x: map.x + 16, y: map.y + top, width: map.width - 32, height },
+    clip: {
+      x: map.x + left,
+      y: map.y + top,
+      width: width ?? map.width - 2 * left,
+      height,
+    },
   })
 }
 
@@ -149,7 +156,7 @@ const figures = {
   },
 
   async optimizer() {
-    const view = { top: 110, height: 420 }
+    const view = { left: 60, width: 560, top: 140, height: 360 }
     const page = await open()
     await coverage(page)
       .getByText(/^86% of/)
@@ -171,39 +178,6 @@ const figures = {
     await page.locator('.editor-canvas').focus()
     await page.keyboard.press('Escape')
     save('optimizer', await pair(before, await shoot(page, view)))
-    await page.context().close()
-  },
-
-  async '3d'() {
-    const page = await open()
-    await openFixture(page, fixture('two-storey-home.json'))
-    await page.getByRole('group', { name: 'View' }).getByText('3D').click()
-    await page.locator('.view3d-canvas canvas').waitFor()
-    await page.waitForTimeout(1500)
-    const slider = panelOf(page).getByLabel('Spread floors apart')
-    const box = await slider.boundingBox()
-    const y = box.y + box.height / 2
-    await page.mouse.move(box.x + 6, y)
-    await page.mouse.down()
-    await page.mouse.move(box.x + box.width * 0.55, y, { steps: 12 })
-    await page.mouse.up()
-    await page.waitForTimeout(800)
-    // Turn the house a little, so both floors and the stairwell show.
-    const view = await page.locator('.view3d-canvas canvas').boundingBox()
-    const cx = view.x + view.width / 2
-    const cy = view.y + view.height / 2
-    await page.mouse.move(cx - 80, cy + 40)
-    await page.mouse.down()
-    await page.mouse.move(cx + 40, cy + 10, { steps: 12 })
-    await page.mouse.up()
-    await page.waitForTimeout(1200)
-    await page.mouse.move(0, 0)
-    save(
-      '3d',
-      await page.screenshot({
-        clip: view,
-      }),
-    )
     await page.context().close()
   },
 
@@ -236,7 +210,7 @@ const figures = {
     }
     const file = join(scratch, 'three-ap-home-80.json')
     writeFileSync(file, JSON.stringify(home))
-    const view = { top: 110, height: 420 }
+    const view = { left: 60, width: 585, top: 140, height: 360 }
     const page = await open()
     await openFixture(page, file)
     // The floor list is hidden in the figures, so press its button directly.
