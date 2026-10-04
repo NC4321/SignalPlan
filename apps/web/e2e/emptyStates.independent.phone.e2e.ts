@@ -17,7 +17,7 @@ test('the first-wall control works from the Details drawer on a phone', async ({
   await page.getByRole('button', { name: 'Details' }).click()
 
   const properties = panel(page)
-  await expect(properties.getByText(/To start, pick/)).toBeVisible()
+  await expect(properties.getByText(/No walls on this floor yet/)).toBeVisible()
   const draw = properties.getByRole('button', { name: 'Draw your first wall' })
   await draw.scrollIntoViewIfNeeded()
   await expect(draw).toBeInViewport({ ratio: 1 })
@@ -51,5 +51,7 @@ test('the first-wall control works from the Details drawer on a phone', async ({
   await expect(
     properties.locator('dt', { hasText: 'Walls' }).locator('+ dd'),
   ).not.toHaveText('0')
-  await expect(properties.getByText(/To start, pick/)).toHaveCount(0)
+  await expect(properties.getByText(/No walls on this floor yet/)).toHaveCount(
+    0,
+  )
 })

@@ -636,7 +636,6 @@ function LegendSwatch({ swatch }: { swatch: Swatch }) {
 function CoverageSummary({ message }: { message: string }) {
   const store = useEditorStore()
   const target = useEditor((s) => s.plan.coverageTarget ?? DEFAULT_TARGET)
-  const noAccessPoints = useEditor((s) => s.plan.accessPoints.length === 0)
   const id = useId()
 
   return (
@@ -663,10 +662,7 @@ function CoverageSummary({ message }: { message: string }) {
         </select>
       </div>
       {/* Announced from the status bar, where it is always visible (D37). */}
-      <p className="coverage-share">
-        {message ||
-          (noAccessPoints ? 'Add an access point to see coverage.' : '')}
-      </p>
+      <p className="coverage-share">{message}</p>
     </div>
   )
 }
@@ -1604,6 +1600,18 @@ function PlanSection() {
         <dt>Doors and windows</dt>
         <dd>{floor?.openings.length ?? 0}</dd>
       </dl>
+      {floor?.walls.length === 0 && (
+        <EmptyState
+          className="start-hint"
+          action="Draw your first wall"
+          onAction={() => store.getState().setTool('wall')}
+        >
+          No walls on this floor yet. Pick <strong>Wall</strong> (W) and click
+          each corner; click the first again to close a room.
+          {plan.accessPoints.some((a) => a.floorId === floorId) &&
+            ' Drag an access point to move it.'}
+        </EmptyState>
+      )}
       <RegionFields />
       <NeighbourFields />
       {plan.floors.some((f) => (f.surveySpots ?? []).length > 0) ? (
@@ -1627,17 +1635,6 @@ function PlanSection() {
         </>
       )}
       <ViewSettingsFields />
-      {floor?.walls.length === 0 && (
-        <EmptyState
-          className="start-hint"
-          action="Draw your first wall"
-          onAction={() => store.getState().setTool('wall')}
-        >
-          To start, pick <strong>Wall</strong> (W) and click to place each
-          corner; click the first corner again to close a room. Drag an access
-          point to move it.
-        </EmptyState>
-      )}
       <h3>Access points</h3>
       {!plan.accessPoints.some((a) => a.floorId === floorId) && (
         <EmptyState
@@ -1756,19 +1753,11 @@ function ChannelPlanSection() {
               Plan channels
             </button>
           </div>
-          {plan.accessPoints.length === 0 ? (
-            <EmptyState
-              action="Place an access point"
-              onAction={() => store.getState().setTool('accessPoint')}
-            >
-              Add an access point first: there are no radios to plan yet.
-            </EmptyState>
-          ) : (
-            <p className="hint">
-              Suggests a channel and width for each radio left on Auto, so
-              access points that hear each other don’t share one.
-            </p>
-          )}
+          <p className="hint">
+            {plan.accessPoints.length === 0
+              ? 'Plan channels needs an access point first.'
+              : 'Suggests a channel and width for each radio left on Auto, so access points that hear each other don’t share one.'}
+          </p>
         </>
       ) : (
         <>
@@ -2994,14 +2983,14 @@ function CalibrateSection() {
           <p className="hint">
             {note ??
               (noReadings
-                ? 'Needs readings first: add some to a survey spot, then Calibrate fits the model to them.'
+                ? 'No readings to fit yet: add readings from your access points first.'
                 : 'Fits the walls’ and floors’ losses and how fast signal fades to your readings, band by band, within published limits.')}
           </p>
           <div className="actions">
             <button
               ref={primary}
               type="button"
-              disabled={fitting}
+              disabled={fitting || noReadings}
               onClick={() => calibrator.start()}
             >
               {fitting
@@ -3155,17 +3144,22 @@ function SurveyReport() {
     0,
   )
   const skipped = total - errors.readings.length
-  const firstSpot = floors
-    .flatMap((f) =>
-      (f.surveySpots ?? []).map((spot) => ({ spot, floorId: f.id })),
-    )
-    .at(0)!
+  // The first spot in the order the list shows: top floor first.
+  const firstSpot =
+    total === 0
+      ? stackedFloors(floors)
+          .reverse()
+          .flatMap((f) =>
+            (f.surveySpots ?? []).map((spot) => ({ spot, floorId: f.id })),
+          )
+          .at(0)
+      : undefined
   const approximate = summary.reduce((n, row) => n + row.approximate, 0)
   return (
     <>
       <h3>Predicted versus measured</h3>
       {summary.length === 0 ? (
-        total === 0 ? (
+        firstSpot && (
           <EmptyState
             className="report-empty"
             action={`Add readings at ${surveySpotName(firstSpot.spot.id)}`}
@@ -3178,10 +3172,6 @@ function SurveyReport() {
             No readings yet. Add some to see how far the model is from what you
             measured.
           </EmptyState>
-        ) : (
-          <p className="hint">
-            Add readings to see how far the model is from what you measured.
-          </p>
         )
       ) : (
         <>
@@ -3323,13 +3313,9 @@ function SurveySpotSection({ spot }: { spot: SurveySpot }) {
         </p>
       )}
       {plan.accessPoints.length === 0 && (
-        <EmptyState
-          className="readings-empty"
-          action="Place an access point"
-          onAction={() => store.getState().setTool('accessPoint')}
-        >
-          A reading is from an access point, and this plan has none yet.
-        </EmptyState>
+        <p className="hint">
+          A reading is from an access point: place one first.
+        </p>
       )}
       {spot.readings.map((_, i) => (
         <ReadingRow
@@ -3347,7 +3333,7 @@ function SurveySpotSection({ spot }: { spot: SurveySpot }) {
         disabled={!free}
         title={
           plan.accessPoints.length === 0
-            ? 'Add an access point first'
+            ? 'Place an access point first'
             : free
               ? undefined
               : 'This spot has a reading for every access point and band'

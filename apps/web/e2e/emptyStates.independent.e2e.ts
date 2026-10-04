@@ -12,13 +12,12 @@ const tool = (page: Page, name: string) =>
   page.getByRole('toolbar', { name: 'Tools' }).getByRole('button', { name })
 
 // Stable phrases a user reads; partial so small copy edits don't break them.
-const noWalls = /To start, pick/
+const noWalls = /No walls on this floor yet/
 const noAccessPoints = /No access points on this floor yet/
-const noRadios = /Add an access point first/
+const noRadios = /Plan channels needs an access point first/
 const noNeighbours = /No neighbours’ networks yet/
 const noSpots = /No survey spots yet/
 const noOutline = /Close the outer walls/
-const noCoverage = /Add an access point to see coverage/
 
 async function newPlan(page: Page) {
   await page.getByText('File', { exact: true }).click()
@@ -85,8 +84,6 @@ test('an empty plan says what to do next in every empty section', async ({
   ]) {
     await expectSentence(properties.getByText(phrase))
   }
-  // Coverage summary: a sentence, somewhere the user can see it.
-  await expectSentence(page.getByText(noCoverage).first())
 
   // Each comes with a control right there.
   for (const name of [
@@ -162,7 +159,6 @@ test('every “Place an access point” picks the tool and a click places one', 
   ).toBeVisible()
   await expect(panel(page).getByText(noAccessPoints)).toHaveCount(0)
   await expect(panel(page).getByText(noRadios)).toHaveCount(0)
-  await expect(page.getByText(noCoverage)).toHaveCount(0)
   await expect(
     panel(page).getByRole('button', { name: 'Plan channels' }),
   ).toBeEnabled()
@@ -215,7 +211,6 @@ test('the sample home shows no empty messages for things it has', async ({
     await expect(properties.getByText(phrase)).toHaveCount(0)
   }
   await expect(page.getByText(noOutline)).toHaveCount(0)
-  await expect(page.getByText(noCoverage)).toHaveCount(0)
   for (const name of ['Draw your first wall', 'Place an access point']) {
     await expect(properties.getByRole('button', { name })).toHaveCount(0)
   }
