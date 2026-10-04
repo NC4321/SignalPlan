@@ -1290,6 +1290,19 @@ h4.survey-report {
   border-radius: 0.35rem;
 }
 
+.share-link {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0.5rem 0;
+}
+
+.share-link input {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-family: ui-monospace, monospace;
+}
+
 .scan-script pre {
   max-height: 12rem;
   margin: 0.35rem 0 0;
