@@ -263,23 +263,24 @@ Goal: turn the working tool into something that looks and reads like a professio
 
 **Deliverables**
 
-- [ ] Onboarding: a sample home to explore and a short guided first run
-- [ ] Empty, loading and error states for every screen
-- [ ] Keyboard shortcuts with a help overlay
-- [ ] Shareable plan links (plan encoded in the URL, or a small backend)
-- [ ] README: GIF, live demo link, feature list, architecture diagram, model summary, roadmap
-- [ ] Docs site or MODEL.md expanded into a readable explainer
-- [ ] A short write-up or blog post on the physics and the optimizer
-- [ ] Launch posts where home-network and developer audiences gather
+- [ ] Onboarding: a sample home to explore and a short guided first run (#158, D87)
+- [ ] Empty, loading and error states for every screen (#159, D87)
+- [ ] Keyboard shortcuts with a help overlay (#157, D87)
+- [ ] Shareable plan links, encoded in the URL (#156, D87)
+- [ ] README: GIF, live demo link, feature list, architecture diagram, model summary, roadmap (#160, D87)
+- [ ] Docs site or MODEL.md expanded into a readable explainer (#160, D87)
+- [ ] A short write-up or blog post on the physics and the optimizer (#161, D87)
+- [ ] Launch posts where home-network and developer audiences gather (#162, D87)
 
 **Decide at this phase**
 
+- Settled by D87: links in the URL with no backend, no analytics, no product steps yet, and Reddit's home-network communities before Show HN.
 - Whether shareable links need a backend. URL encoding may be enough for small plans.
 - Analytics: none, or a privacy-friendly option, to learn what people use.
 - Whether to start product steps now: accounts, saved plans in the cloud, and any paid tier.
 - Where to launch and in what order.
 
-**Exit gate:** a stranger lands on the demo, understands it in 30 seconds, and plans a room without help.
+**Exit gate:** a stranger lands on the demo, understands it in 30 seconds, and plans a room without help (#163).
 
 ## Testing, quality and accessibility
 
