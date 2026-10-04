@@ -197,6 +197,54 @@ describe('createModelCalibrator', () => {
     expect(store.getState().modelCalibration).toBeUndefined()
   })
 
+  it('shows a failure where the result would be when the worker fails (D91)', () => {
+    for (const hook of ['onerror', 'onmessageerror'] as const) {
+      const store = createEditorStore(surveyed())
+      const worker = fakeWorker(true)
+      createModelCalibrator(store, () => worker).start()
+      worker[hook]?.(new Error('worker crashed'))
+      expect(store.getState().modelCalibration).toEqual({
+        status: 'failed',
+        message:
+          'Couldn’t calibrate. Try again; if it keeps failing, reload the page.',
+        details: 'worker crashed',
+      })
+      expect(worker.terminated).toBe(true)
+    }
+  })
+
+  it('shows a failure when the worker answers with an error or won’t start', () => {
+    const store = createEditorStore(surveyed())
+    const worker = fakeWorker(true)
+    createModelCalibrator(store, () => worker).start()
+    worker.onmessage?.({
+      data: { id: 0, kind: 'error', message: 'boom.' },
+    } as MessageEvent<CalibrationMessage>)
+    expect(store.getState().modelCalibration).toEqual({
+      status: 'failed',
+      message: 'Couldn’t calibrate. Undo your last change, or reload the page.',
+      details: 'boom.',
+    })
+
+    const blocked = createEditorStore(surveyed())
+    createModelCalibrator(blocked, () => {
+      throw new Error('no workers here')
+    }).start()
+    expect(blocked.getState().modelCalibration).toMatchObject({
+      status: 'failed',
+    })
+  })
+
+  it('drops a failure with the next change to the plan, quietly', () => {
+    const store = createEditorStore(surveyed())
+    const worker = fakeWorker(true)
+    createModelCalibrator(store, () => worker).start()
+    worker.onerror?.(new Error('x'))
+    store.getState().renamePlan('Changed')
+    expect(store.getState().modelCalibration).toBeUndefined()
+    expect(store.getState().notice).toBeUndefined()
+  })
+
   it('has nothing to fit without readings', () => {
     const store = createEditorStore(load(sampleHome))
     let made = 0

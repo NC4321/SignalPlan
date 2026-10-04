@@ -101,6 +101,7 @@ input:focus-visible + *,
   display: grid;
   grid-template:
     'top top top' auto
+    'banner banner banner' auto
     'tools stage props' 1fr
     'status status status' auto / auto minmax(0, 1fr) 18rem;
   height: 100dvh;
@@ -260,6 +261,61 @@ input:focus-visible + *,
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 0.5rem;
+}
+
+/* Coverage could not be worked out (D91): over the middle of the plan, where
+   the heatmap would be. */
+.coverage-failure {
+  inset: 40% 1rem auto;
+  max-width: 30rem;
+  text-align: center;
+}
+
+.coverage-failure p {
+  margin: 0 0 0.5rem;
+}
+
+.calibrate-failure {
+  margin: 0 0 0.5rem;
+  padding: 0.4rem 0.6rem;
+  border-left: 3px solid #d55e00;
+  background: var(--surface);
+}
+
+/* The error boundary's panel (D91): plain, and nothing of the editor in it. */
+.crash {
+  max-width: 36rem;
+  margin: 0 auto;
+  padding: 3rem 1rem;
+}
+
+.crash h1 {
+  margin: 0 0 0.75rem;
+  font-size: 1.4rem;
+}
+
+.crash pre {
+  overflow-x: auto;
+  padding: 0.6rem 0.8rem;
+  border: 1px solid var(--border);
+  border-radius: 0.4rem;
+  background: var(--surface);
+  white-space: pre-wrap;
+}
+
+.calibrate-failure p {
+  margin: 0;
+}
+
+.failure-details {
+  margin-top: 0.5rem;
+  text-align: left;
+}
+
+.failure-details pre {
+  margin: 0.25rem 0 0;
+  overflow-x: auto;
+  white-space: pre-wrap;
 }
 
 /* The floors, top floor at the top, in the canvas corner (D52). */
@@ -951,8 +1007,34 @@ button.danger-fill {
 }
 
 .save-status[data-problem] {
-  color: #d55e00;
+  color: #a34000;
   font-weight: 600;
+}
+
+@media (prefers-color-scheme: dark) {
+  .save-status[data-problem] {
+    color: #ff9f5a;
+  }
+}
+
+/* Saving has failed (D91): a steady line under the top bar. */
+.banner {
+  grid-area: banner;
+}
+
+.storage-notice {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 1rem;
+  margin: 0;
+  padding: 0.5rem 1rem;
+  background: var(--surface);
+  border-bottom: 2px solid #d55e00;
+}
+
+.storage-notice span {
+  flex: 1 1 20rem;
 }
 
 /* Calibration (D22): a bar along the bottom of the plan while it's active. */
@@ -1023,6 +1105,7 @@ button.danger-fill {
   .app {
     grid-template:
       'top' auto
+      'banner' auto
       'stage' 1fr
       'tools' auto
       'status' auto / minmax(0, 1fr);

@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import 'fake-indexeddb/auto'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { Autosaver } from './autosave.ts'
 import { PlanLibrary } from './library.ts'
 import { blankPlan, samplePlan } from './persistence.ts'
@@ -83,5 +83,134 @@ describe('Autosaver', () => {
     await autosaver.flush()
     expect(autosaver.getStatus()).toBe('unavailable')
     stop()
+  })
+
+  it('has no problem to report without one (D91)', async () => {
+    const { store, autosaver, stop } = setup()
+    store.getState().edit('Move', moveRouter)
+    await autosaver.flush()
+    expect(autosaver.getProblem()).toBeUndefined()
+    stop()
+  })
+
+  it('reports a blocked browser from the start', () => {
+    const store = createEditorStore(samplePlan())
+    const autosaver = new Autosaver(store, undefined, 0)
+    expect(autosaver.getProblem()).toBe('blocked')
+    expect(autosaver.canRetry).toBe(false)
+  })
+
+  it('reports a failing save once, keeps it while editing, and clears it when saving works', async () => {
+    const { store, autosaver, stop } = setup()
+    const save = vi.spyOn(library, 'save').mockResolvedValue('full')
+    const seen: unknown[] = []
+    let shown = autosaver.getProblem()
+    autosaver.subscribe(() => {
+      // What the notice would re-render on: only changes of the problem.
+      if (autosaver.getProblem() === shown) return
+      shown = autosaver.getProblem()
+      seen.push(shown)
+    })
+
+    store.getState().edit('Move', moveRouter)
+    await autosaver.flush()
+    expect(autosaver.getProblem()).toBe('full')
+
+    // Keep editing: the problem stays, and listeners hear of it once.
+    for (let i = 0; i < 3; i++) {
+      store.getState().edit('Move', moveRouter)
+      await autosaver.flush()
+    }
+    expect(autosaver.getProblem()).toBe('full')
+    expect(seen).toEqual(['full'])
+    expect(save.mock.calls.length).toBeGreaterThan(1)
+
+    // Storage works again: the next save clears it, with no edit needed when
+    // the person asks for a retry.
+    save.mockRestore()
+    await autosaver.retry()
+    expect(autosaver.getProblem()).toBeUndefined()
+    expect(autosaver.getStatus()).toBe('saved')
+    expect(await library.list()).toHaveLength(1)
+    stop()
+  })
+
+  it('counts a save that throws as a failure', async () => {
+    const { store, autosaver, stop } = setup()
+    vi.spyOn(library, 'save').mockRejectedValue(new Error('disk on fire'))
+    store.getState().edit('Move', moveRouter)
+    await autosaver.flush()
+    expect(autosaver.getProblem()).toBe('failed')
+    expect(autosaver.getStatus()).toBe('unavailable')
+    stop()
+  })
+
+  it('says a retry failed too, once it has, and clears both when saving works', async () => {
+    const { store, autosaver, stop } = setup()
+    const save = vi.spyOn(library, 'save').mockResolvedValue('unavailable')
+    store.getState().edit('Move', moveRouter)
+    await autosaver.flush()
+    expect(autosaver.getRetryFailed()).toBe(false)
+    expect(await autosaver.retry()).toBe('unavailable')
+    expect(autosaver.getRetryFailed()).toBe(true)
+    save.mockRestore()
+    expect(await autosaver.retry()).toBe('saved')
+    expect(autosaver.getRetryFailed()).toBe(false)
+    expect(autosaver.getProblem()).toBeUndefined()
+    stop()
+  })
+
+  it('opens the connection again on a retry after a failure that isn’t a full disk', async () => {
+    const { store, autosaver, stop } = setup()
+    vi.spyOn(library, 'save').mockResolvedValueOnce('unavailable')
+    const reconnect = vi.spyOn(library, 'reconnect')
+    store.getState().edit('Move', moveRouter)
+    await autosaver.flush()
+    await autosaver.retry()
+    expect(reconnect).toHaveBeenCalledTimes(1)
+    expect(autosaver.getProblem()).toBeUndefined()
+    // After a full disk it isn't needed.
+    vi.spyOn(library, 'save').mockResolvedValueOnce('full')
+    store.getState().edit('Move', moveRouter)
+    await autosaver.flush()
+    await autosaver.retry()
+    expect(reconnect).toHaveBeenCalledTimes(1)
+    stop()
+  })
+
+  it('stops saving when suspended, even on hide, and keeps what was saved', async () => {
+    const { store, autosaver, stop } = setup()
+    store.getState().edit('Move', moveRouter)
+    await autosaver.flush()
+    const saved = await library.list()
+    expect(saved).toHaveLength(1)
+    const save = vi.spyOn(library, 'save')
+
+    store.getState().edit('Move', moveRouter)
+    autosaver.suspend()
+    window.dispatchEvent(new Event('pagehide'))
+    expect(await autosaver.flush()).toBe('pending')
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    expect(save).not.toHaveBeenCalled()
+    stop()
+  })
+
+  it('resolves flush to the resulting status', async () => {
+    const { store, autosaver, stop } = setup()
+    store.getState().edit('Move', moveRouter)
+    expect(await autosaver.flush()).toBe('saved')
+    vi.spyOn(library, 'save').mockResolvedValue('full')
+    store.getState().edit('Move', moveRouter)
+    expect(await autosaver.flush()).toBe('full')
+    stop()
+  })
+
+  it('reopens the library connection after it was closed', async () => {
+    const plan = samplePlan()
+    library.close()
+    // Closed: saving fails, and reconnecting makes it work again.
+    expect(await library.save('x', plan)).toBe('unavailable')
+    expect(await library.reconnect()).toBe(true)
+    expect(await library.save('x', plan)).toBe('saved')
   })
 })

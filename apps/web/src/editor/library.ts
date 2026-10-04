@@ -43,29 +43,69 @@ const LAST_PLAN = 'lastPlanId'
 /** Where the single-plan version (before D21) kept the plan. */
 export const LEGACY_PLAN_KEY = 'signalplan:plan'
 
+/**
+ * Why a save failed: the browser's storage is full (the quota error has
+ * different names and codes between browsers), or it can't be used at all,
+ * such as in a private window that blocks it.
+ */
+export function saveFailure(error: unknown): 'full' | 'unavailable' {
+  const { name, code } = (error ?? {}) as { name?: unknown; code?: unknown }
+  return name === 'QuotaExceededError' ||
+    name === 'NS_ERROR_DOM_QUOTA_REACHED' ||
+    code === 22 ||
+    code === 1014
+    ? 'full'
+    : 'unavailable'
+}
+
 export function newPlanId(): string {
   return crypto.randomUUID()
 }
 
-export class PlanLibrary {
-  private readonly db: IDBPDatabase<LibrarySchema>
+function openDatabase(name: string) {
+  return openDB<LibrarySchema>(name, 1, {
+    upgrade(database) {
+      const plans = database.createObjectStore('plans', { keyPath: 'id' })
+      plans.createIndex('updatedAt', 'updatedAt')
+      database.createObjectStore('images', { keyPath: 'id' })
+      database.createObjectStore('meta')
+    },
+  })
+}
 
-  private constructor(db: IDBPDatabase<LibrarySchema>) {
+export class PlanLibrary {
+  private db: IDBPDatabase<LibrarySchema>
+  private readonly name: string
+
+  private constructor(db: IDBPDatabase<LibrarySchema>, name: string) {
     this.db = db
+    this.name = name
+  }
+
+  /**
+   * Opens the database again, for when the browser closed the connection
+   * (it can, after a long idle or an upgrade elsewhere). False if it can't.
+   */
+  async reconnect(): Promise<boolean> {
+    try {
+      const db = await openDatabase(this.name)
+      try {
+        this.db.close()
+      } catch {
+        // Already closed.
+      }
+      this.db = db
+      return true
+    } catch {
+      return false
+    }
   }
 
   /** Opens the library, or returns undefined where the browser blocks storage. */
   static async open(name = DATABASE): Promise<PlanLibrary | undefined> {
     try {
-      const db = await openDB<LibrarySchema>(name, 1, {
-        upgrade(database) {
-          const plans = database.createObjectStore('plans', { keyPath: 'id' })
-          plans.createIndex('updatedAt', 'updatedAt')
-          database.createObjectStore('images', { keyPath: 'id' })
-          database.createObjectStore('meta')
-        },
-      })
-      return new PlanLibrary(db)
+      const db = await openDatabase(name)
+      return new PlanLibrary(db, name)
     } catch {
       return undefined
     }
@@ -106,10 +146,7 @@ export class PlanLibrary {
       await this.db.put('meta', id, LAST_PLAN)
       return 'saved'
     } catch (error) {
-      return error instanceof DOMException &&
-        error.name === 'QuotaExceededError'
-        ? 'full'
-        : 'unavailable'
+      return saveFailure(error)
     }
   }
 

@@ -117,7 +117,8 @@ export function rescuePlan(raw: unknown) {
   downloadText(JSON.stringify(raw, null, 2), `unreadable-plan${FILE_EXTENSION}`)
 }
 
-function downloadText(text: string, name: string) {
+/** Offers any text as a file download. */
+export function downloadText(text: string, name: string) {
   const blob = new Blob([text], { type: 'application/json' })
   const url = URL.createObjectURL(blob)
   const link = document.createElement('a')

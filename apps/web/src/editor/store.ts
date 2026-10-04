@@ -365,6 +365,8 @@ function dropModelCalibration(state: EditorState): Partial<EditorState> {
         modelCalibration: undefined,
         notice: 'Calibration dismissed: the plan changed.',
       }
+    case 'failed':
+      return { modelCalibration: undefined }
     case undefined:
       return {}
   }

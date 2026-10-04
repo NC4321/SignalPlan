@@ -4,7 +4,8 @@ import type {
   EngineResponse,
 } from '@signalplan/engine'
 import type { Band, Plan } from '@signalplan/floorplan'
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { failure, type Failure } from './workerFailure.ts'
 
 type Job = Omit<EngineRequest, 'id'>
 
@@ -12,20 +13,30 @@ type Job = Omit<EngineRequest, 'id'>
  * Computes coverage in a Web Worker. While one job runs, only the newest
  * request waits behind it, so dragging never builds a backlog. A result for
  * another floor than the one on show is held back, so switching floors never
- * shows one floor's heatmap under another's walls (D52).
+ * shows one floor's heatmap under another's walls (D52). If the worker fails,
+ * `error` says why until the next result, and `retry` starts a fresh worker
+ * (D91).
  */
 export function useCoverage(plan: Plan, floorId: string, band: Band) {
   const [result, setResult] = useState<{
     coverage: Coverage
     floorId: string
   }>()
-  const [error, setError] = useState<string>()
+  const [error, setError] = useState<Failure>()
+  const [attempt, setAttempt] = useState(0)
   const submit = useRef<(job: Job) => void>(undefined)
 
   useEffect(() => {
-    const worker = new Worker(new URL('./engine.worker.ts', import.meta.url), {
-      type: 'module',
-    })
+    let worker: Worker
+    try {
+      worker = new Worker(new URL('./engine.worker.ts', import.meta.url), {
+        type: 'module',
+      })
+    } catch (thrown) {
+      const failed = failure('worker', thrown)
+      queueMicrotask(() => setError(failed))
+      return
+    }
     let busy = false
     let pending: Job | undefined
     let nextId = 0
@@ -35,6 +46,12 @@ export function useCoverage(plan: Plan, floorId: string, band: Band) {
       busy = true
       floorOf.set(nextId, job.floorId)
       worker.postMessage({ ...job, id: nextId++ } satisfies EngineRequest)
+    }
+    const next = () => {
+      busy = false
+      const job = pending
+      pending = undefined
+      if (job) send(job)
     }
     worker.addEventListener(
       'message',
@@ -46,14 +63,20 @@ export function useCoverage(plan: Plan, floorId: string, band: Band) {
           setResult({ coverage: response.coverage, floorId: jobFloor })
           setError(undefined)
         } else {
-          setError(response.message)
+          setError(failure('plan', response.message))
         }
-        busy = false
-        const next = pending
-        pending = undefined
-        if (next) send(next)
+        next()
       },
     )
+    // The worker threw, or a message couldn't be read: the job it was on
+    // will never answer. A newer job waiting behind it still gets its go.
+    const failed = (event: unknown) => {
+      setError(failure('worker', event))
+      floorOf.clear()
+      next()
+    }
+    worker.addEventListener('error', failed)
+    worker.addEventListener('messageerror', failed)
     submit.current = (job) => {
       if (busy) pending = job
       else send(job)
@@ -62,12 +85,18 @@ export function useCoverage(plan: Plan, floorId: string, band: Band) {
       worker.terminate()
       submit.current = undefined
     }
-  }, [])
+  }, [attempt])
 
   useEffect(() => {
     submit.current?.({ kind: 'coverage', plan, floorId, band })
-  }, [plan, floorId, band])
+  }, [plan, floorId, band, attempt])
 
-  const coverage = result?.floorId === floorId ? result.coverage : undefined
-  return { coverage, error }
+  const retry = useCallback(() => {
+    setError(undefined)
+    setAttempt((n) => n + 1)
+  }, [])
+
+  const coverage =
+    !error && result?.floorId === floorId ? result.coverage : undefined
+  return { coverage, error, retry }
 }

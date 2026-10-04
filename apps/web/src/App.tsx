@@ -1,18 +1,24 @@
 import { withChannelPlan } from './editor/channelPlan.ts'
 import { viewSettings } from '@signalplan/engine'
-import { mapData } from './mapView.ts'
+import { mapData, type MapData } from './mapView.ts'
 import { adjacentFloorId, type PlanIssue } from '@signalplan/floorplan'
 import { useEffect, useMemo, useState } from 'react'
 import { useEditor, useEditorStore } from './editor/context.ts'
 import { EditorCanvas } from './editor/EditorCanvas.tsx'
 import { FloorStack } from './editor/FloorStack.tsx'
-import { useSaveStatus } from './editor/autosave.ts'
+import {
+  useRetryFailed,
+  useSaveProblem,
+  useSaveStatus,
+} from './editor/autosave.ts'
+import { StorageNotice } from './editor/StorageNotice.tsx'
 import { CalibrationBar } from './editor/CalibrationBar.tsx'
 import { ScanPlacementBar, ScanProvider } from './editor/ScanProvider.tsx'
 import { SurveyImportProvider } from './editor/SurveyImportProvider.tsx'
 import { TracingProvider } from './editor/TracingProvider.tsx'
 import { Dialog, PlanIssues } from './editor/Dialog.tsx'
 import { SharedLinkOpener } from './editor/SharedLinkOpener.tsx'
+import { CoverageFailure } from './editor/CoverageFailure.tsx'
 import { Guide } from './editor/Guide.tsx'
 import { rescuePlan } from './editor/persistence.ts'
 import { useServices } from './editor/services.ts'
@@ -47,6 +53,22 @@ import { useFloorsCoverage } from './useFloorsCoverage.ts'
 import { View3DHost } from './view3d/View3DHost.tsx'
 import { DEFAULT_TARGET } from './quality.ts'
 
+const NO_MAPS = new Map<string, MapData>()
+
+/**
+ * Throws while rendering when the page sets `window.__signalplanCrashOnRender`,
+ * so tests can make the editor crash on purpose. Nothing sets it otherwise.
+ */
+function CrashProbe() {
+  if (
+    (window as { __signalplanCrashOnRender?: boolean })
+      .__signalplanCrashOnRender
+  ) {
+    throw new Error('Crash on render, as asked.')
+  }
+  return null
+}
+
 function App({
   savedPlanProblem,
   linkIssues,
@@ -59,6 +81,8 @@ function App({
   const store = useEditorStore()
   const { autosaver } = useServices()
   const saveStatus = useSaveStatus(autosaver)
+  const saveProblem = useSaveProblem(autosaver)
+  const retryFailed = useRetryFailed(autosaver)
   const [problemOpen, setProblemOpen] = useState(savedPlanProblem !== undefined)
   const plan = useEditor((s) => s.plan)
   const floorId = useEditor((s) => s.floorId)
@@ -114,12 +138,20 @@ function App({
   // Signal from other floors counts too (D51, D52).
   const broadcasting = onBand.length > 0
   const broadcastingHere = onBand.some((ap) => ap.floorId === floorId)
-  const { coverage, error } = useCoverage(shownPlan, floorId, band)
+  const {
+    coverage,
+    error,
+    retry: retryCoverage,
+  } = useCoverage(shownPlan, floorId, band)
   const view = useEditor((s) => s.view)
   const view3d = useEditor((s) => s.view3d)
   const showHeatmap = useEditor((s) => s.showHeatmap)
   const units = useEditor((s) => s.units)
-  const floorsCoverage = useFloorsCoverage(shownPlan, band, view === '3d')
+  const {
+    coverages: floorsCoverage,
+    error: floorsError,
+    retry: retryFloors,
+  } = useFloorsCoverage(shownPlan, band, view === '3d')
   const shown = broadcasting ? coverage : undefined
   // What the heatmap shows, worked out from the coverage (D64).
   const show = useEditor((s) => s.show)
@@ -229,9 +261,15 @@ function App({
           <OptimizerContext value={optimizer}>
             <CalibratorContext value={calibrator}>
               <div className="app">
+                <CrashProbe />
                 <TopBar
                   panelOpen={panelOpen}
                   onTogglePanel={() => setPanelOpen((open) => !open)}
+                />
+                <StorageNotice
+                  problem={saveProblem}
+                  retryFailed={retryFailed}
+                  autosaver={autosaver}
                 />
                 <Toolbar />
                 <main className="stage">
@@ -239,7 +277,7 @@ function App({
                   {view === '3d' ? (
                     <View3DHost
                       plan={shownPlan}
-                      maps={floorMaps}
+                      maps={floorsError ? NO_MAPS : floorMaps}
                       hiddenFloors={view3d.hiddenFloors}
                       spreadM={view3d.spreadM}
                       fullWalls={view3d.fullWalls}
@@ -267,8 +305,19 @@ function App({
                             : ' Add one with the Access point tool.')}
                     </p>
                   )}
-                  {error && (
-                    <p className="notice">Couldn’t compute coverage: {error}</p>
+                  {view === '2d' && error && (
+                    <CoverageFailure
+                      what="this plan"
+                      failure={error}
+                      onRetry={retryCoverage}
+                    />
+                  )}
+                  {view === '3d' && floorsError && (
+                    <CoverageFailure
+                      what="the 3D view"
+                      failure={floorsError}
+                      onRetry={retryFloors}
+                    />
                   )}
                   <Guide />
                 </main>

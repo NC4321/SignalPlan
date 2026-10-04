@@ -473,7 +473,11 @@ describe('searchOutcome', () => {
     ).toEqual({ status: 'message', text: 'There’s nothing to move or add.' })
     expect(
       searchOutcome({ id: 0, kind: 'error', message: 'boom' }, single),
-    ).toEqual({ status: 'message', text: 'Couldn’t search: boom' })
+    ).toEqual({
+      status: 'message',
+      text: 'Couldn’t search for a spot. Undo your last change, or reload the page.',
+      details: 'boom',
+    })
   })
 })
 
@@ -568,6 +572,8 @@ describe('withSuggestion', () => {
 /** A worker that keeps what it's sent, and whether it was terminated. */
 class FakeWorker implements SearchWorker {
   onmessage: ((event: MessageEvent<PlacementMessage>) => void) | null = null
+  onerror: ((event: unknown) => void) | null = null
+  onmessageerror: ((event: unknown) => void) | null = null
   requests: PlacementRequest[] = []
   terminated = false
   postMessage(request: PlacementRequest) {
@@ -672,9 +678,39 @@ describe('createOptimizer', () => {
     worker.reply({ id, kind: 'error', message: 'boom' })
     expect(store.getState().optimizer).toEqual({
       status: 'message',
-      text: 'Couldn’t search: boom',
+      text: 'Couldn’t search for a spot. Undo your last change, or reload the page.',
+      details: 'boom',
     })
     expect(worker.terminated).toBe(true)
+  })
+
+  it('says so when the worker throws or its message can’t be read (D91)', () => {
+    for (const hook of ['onerror', 'onmessageerror'] as const) {
+      const { store, workers, optimizer } = setup()
+      store.getState().select([router])
+      optimizer.start()
+      workers[0]![hook]?.(new Error('worker crashed'))
+      expect(store.getState().optimizer).toEqual({
+        status: 'message',
+        text: 'Couldn’t search for a spot. Try again; if it keeps failing, reload the page.',
+        details: 'worker crashed',
+      })
+      expect(workers[0]!.terminated).toBe(true)
+    }
+  })
+
+  it('says so when the worker can’t be started (D91)', () => {
+    const store = createEditorStore(sample())
+    const optimizer = createOptimizer(store, () => {
+      throw new Error('no workers here')
+    })
+    store.getState().select([router])
+    optimizer.start()
+    expect(store.getState().optimizer).toEqual({
+      status: 'message',
+      text: 'Couldn’t search for a spot. Try again; if it keeps failing, reload the page.',
+      details: 'no workers here',
+    })
   })
 
   it('terminates the worker on Cancel', () => {

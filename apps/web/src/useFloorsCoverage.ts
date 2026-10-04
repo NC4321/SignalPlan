@@ -4,30 +4,45 @@ import type {
   EngineResponse,
 } from '@signalplan/engine'
 import type { Band, Plan } from '@signalplan/floorplan'
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { failure, type Failure } from './workerFailure.ts'
 
 /**
  * Coverage of every floor, for the 3D view (D57), worked out one floor at a
  * time in its own worker while `enabled`. When the plan or band changes,
  * the floors still to do are replaced by those of the new plan; results
  * already shown stay until their floor is redone, and floors that no longer
- * exist are dropped.
+ * exist are dropped. If the worker fails, `error` says why until a floor
+ * works out again, and `retry` starts a fresh worker (D91).
  */
 export function useFloorsCoverage(
   plan: Plan,
   band: Band,
   enabled: boolean,
-): ReadonlyMap<string, Coverage> {
+): {
+  coverages: ReadonlyMap<string, Coverage>
+  error: Failure | undefined
+  retry: () => void
+} {
   const [coverages, setCoverages] = useState<ReadonlyMap<string, Coverage>>(
     () => new Map(),
   )
+  const [error, setError] = useState<Failure>()
+  const [attempt, setAttempt] = useState(0)
   const queue = useRef<(job: { plan: Plan; band: Band }) => void>(undefined)
 
   useEffect(() => {
     if (!enabled) return
-    const worker = new Worker(new URL('./engine.worker.ts', import.meta.url), {
-      type: 'module',
-    })
+    let worker: Worker
+    try {
+      worker = new Worker(new URL('./engine.worker.ts', import.meta.url), {
+        type: 'module',
+      })
+    } catch (thrown) {
+      const failed = failure('worker', thrown)
+      queueMicrotask(() => setError(failed))
+      return
+    }
     let todo: Omit<EngineRequest, 'id'>[] = []
     let busy = false
     let nextId = 0
@@ -45,7 +60,10 @@ export function useFloorsCoverage(
       'message',
       (event: MessageEvent<EngineResponse>) => {
         const response = event.data
+        if (response.kind === 'error')
+          setError(failure('plan', response.message))
         if (response.kind === 'coverage') {
+          setError(undefined)
           const { coverage } = response
           const floorId = floorOf.get(response.id)
           if (floorId !== undefined) {
@@ -56,6 +74,15 @@ export function useFloorsCoverage(
         sendNext()
       },
     )
+    // The worker threw, or a message couldn't be read: the floor it was on
+    // won't answer, so the rest of the queue carries on.
+    const failed = (event: unknown) => {
+      setError(failure('worker', event))
+      floorOf.clear()
+      sendNext()
+    }
+    worker.addEventListener('error', failed)
+    worker.addEventListener('messageerror', failed)
     queue.current = ({ plan, band }) => {
       const ids = new Set(plan.floors.map((f) => f.id))
       setCoverages((old) =>
@@ -74,12 +101,20 @@ export function useFloorsCoverage(
     return () => {
       worker.terminate()
       queue.current = undefined
+      // A failure belongs to the worker that had it: not to the next one, nor
+      // to the 3D view the next time it's opened.
+      setError(undefined)
     }
-  }, [enabled])
+  }, [enabled, attempt])
 
   useEffect(() => {
     if (enabled) queue.current?.({ plan, band })
-  }, [plan, band, enabled])
+  }, [plan, band, enabled, attempt])
 
-  return coverages
+  const retry = useCallback(() => {
+    setError(undefined)
+    setAttempt((n) => n + 1)
+  }, [])
+
+  return { coverages, error: enabled ? error : undefined, retry }
 }
