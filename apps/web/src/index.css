@@ -1118,7 +1118,8 @@ button.danger-fill {
   background: var(--surface);
 }
 
-.view3d-failed {
+.view3d-failed,
+.view3d-loading {
   display: grid;
   place-items: center;
   padding: 2rem;
@@ -1131,11 +1132,6 @@ button.danger-fill {
 
 .view3d-failed .actions {
   justify-content: center;
-}
-
-/* While the 3D view loads it covers the empty canvas, under the controls. */
-.view3d-canvas + .view3d-failed {
-  background: var(--canvas);
 }
 
 .view3d-floors label {

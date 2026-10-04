@@ -16,7 +16,7 @@ import {
   type FloorLayout,
 } from './layout.ts'
 import { NoContextError, type View3DFailure } from './failures.ts'
-import { View3DFailed, View3DLoading } from './View3DFailed.tsx'
+import { View3DFailed } from './ThreeDStatus.tsx'
 
 /**
  * The view-only 3D view (D49, D57): floors stacked at their elevations
@@ -53,8 +53,6 @@ export default function View3D(props: View3DProps) {
     hasWebGL() ? undefined : 'no-webgl',
   )
   const [attempt, setAttempt] = useState(0)
-  // False until the first scene has been built, so the box is never blank.
-  const [drawn, setDrawn] = useState(false)
   // With ?fps in the address, a button measures the frame rate (D58).
   const [measuring] = useState(() =>
     new URLSearchParams(window.location.search).has('fps'),
@@ -78,11 +76,7 @@ export default function View3D(props: View3DProps) {
     if (failure || !element) return
     // WebGL was there when checked, but the context may not be made, e.g.
     // after too many; that throws to the host, which says so (D93).
-    const created = createWorld(
-      element,
-      () => setFailure('lost'),
-      () => setDrawn(true),
-    )
+    const created = createWorld(element, () => setFailure('lost'))
     world.current = created
     return () => {
       created.dispose()
@@ -111,7 +105,6 @@ export default function View3D(props: View3DProps) {
       <View3DFailed
         failure={failure}
         onRetry={() => {
-          setDrawn(false)
           setFailure(undefined)
           setAttempt((n) => n + 1)
         }}
@@ -127,7 +120,6 @@ export default function View3D(props: View3DProps) {
         role="img"
         aria-label="3D view of the floors, described below"
       />
-      {!drawn && <View3DLoading />}
       <div className="view3d-controls" role="group" aria-label="3D view">
         <button
           type="button"
@@ -283,17 +275,33 @@ interface World {
   dispose(): void
 }
 
-function createWorld(
-  element: HTMLDivElement,
-  onLost: () => void,
-  onDrawn: () => void,
-): World {
+function createWorld(element: HTMLDivElement, onLost: () => void): World {
   let renderer: THREE.WebGLRenderer
   try {
     renderer = new THREE.WebGLRenderer({ antialias: true })
   } catch {
     throw new NoContextError()
   }
+  try {
+    return buildWorld(renderer, element, onLost)
+  } catch (error) {
+    release(renderer)
+    throw error
+  }
+}
+
+/** Frees a renderer and gives its WebGL context back to the browser. */
+function release(renderer: THREE.WebGLRenderer) {
+  renderer.dispose()
+  renderer.forceContextLoss()
+  renderer.domElement.remove()
+}
+
+function buildWorld(
+  renderer: THREE.WebGLRenderer,
+  element: HTMLDivElement,
+  onLost: () => void,
+): World {
   renderer.setPixelRatio(window.devicePixelRatio || 1)
   element.append(renderer.domElement)
   // The graphics card can take the context away (sleep, another tab); the
@@ -376,7 +384,6 @@ function createWorld(
       scene.add(content)
       sizeLabels()
       render()
-      onDrawn()
     },
     frame(bounds) {
       // The first framing can come before the size is known.
@@ -443,8 +450,7 @@ function createWorld(
       controls.dispose()
       disposeTree(content)
       for (const m of materials.values()) m.dispose()
-      renderer.dispose()
-      renderer.domElement.remove()
+      release(renderer)
     },
   }
 }

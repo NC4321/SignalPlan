@@ -5,17 +5,15 @@ import {
   type View3DFailure,
 } from './failures.ts'
 import type { View3DProps } from './View3D.tsx'
-import { View3DFailed, View3DLoading } from './View3DFailed.tsx'
+import { View3DFailed, View3DLoading } from './ThreeDStatus.tsx'
 
-/** A fresh lazy import, so "Try again" asks the network again. */
-const load = () => ({
-  attempt: 0,
-  View: lazy(() =>
-    import('./View3D.tsx').catch(() => {
-      throw new NotLoadedError()
-    }),
-  ),
-})
+// One lazy component for the page, so the code loads once; a failed import
+// is remembered by the browser until the page reloads, so there's no retry.
+const View3D = lazy(() =>
+  import('./View3D.tsx').catch(() => {
+    throw new NotLoadedError()
+  }),
+)
 
 /**
  * The 3D view as App shows it (D93): the chunk loads on first use, so it
@@ -24,20 +22,11 @@ const load = () => ({
  * taking the whole editor down.
  */
 export function View3DHost(props: View3DProps) {
-  const [loaded, setLoaded] = useState(load)
-  const { View } = loaded
+  const [attempt, setAttempt] = useState(0)
   return (
-    <Catcher
-      key={loaded.attempt}
-      onRetry={() =>
-        setLoaded((previous) => ({
-          ...load(),
-          attempt: previous.attempt + 1,
-        }))
-      }
-    >
+    <Catcher key={attempt} onRetry={() => setAttempt((n) => n + 1)}>
       <Suspense fallback={<View3DLoading />}>
-        <View {...props} />
+        <View3D {...props} />
       </Suspense>
     </Catcher>
   )

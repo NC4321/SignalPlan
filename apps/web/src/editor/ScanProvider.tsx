@@ -302,7 +302,7 @@ function ReadActions({
         onChange={async (event) => {
           const file = event.target.files?.[0]
           event.target.value = ''
-          if (file) onFile(file)
+          if (file) void onFile(file)
         }}
       />
       <button
@@ -392,15 +392,15 @@ function ReadStep({
           />
           {text.trim() === '' && (
             <p id={emptyId} className="hint">
-              Paste what the command printed here, or use Open a file… if it
-              saved to one. Read scan turns on when there is something to read.
+              Read scan turns on once there is something to read. Paste what the
+              command printed, or open the file it saved.
             </p>
           )}
         </div>
       )}
       {problem && (
         <div role="alert">
-          <p>This scan can’t be read. Nothing was changed:</p>
+          <p>Nothing was changed. This scan can’t be read:</p>
           <PlanIssues issues={problem} />
           <p className="hint">
             Copy everything the command printed, from its first line to its

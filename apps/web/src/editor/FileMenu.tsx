@@ -99,8 +99,15 @@ export function FileMenu() {
       // embedded images move into the browser's image store.
       const plan = await storeEmbeddedImages(result.plan, library)
       const id = newPlanId()
-      await library?.save(id, plan)
+      const saved = await library?.save(id, plan)
       store.getState().loadPlan(plan, { id })
+      if (saved !== 'saved') {
+        store
+          .getState()
+          .setNotice(
+            'Opened, but this browser couldn’t keep a copy. Use File › Save to file to keep your changes.',
+          )
+      }
     } catch {
       setProblem({
         file: file.name,
@@ -108,7 +115,7 @@ export function FileMenu() {
           {
             path: '',
             message:
-              'The file is a plan, but this browser wouldn’t keep a copy of it. Free some space or allow site storage, then try again.',
+              'This browser couldn’t store the images in the file. Free some space or allow site storage, then try again.',
           },
         ],
       })
@@ -304,12 +311,11 @@ export function FileMenu() {
           </button>
         }
       >
-        <p>“{problem?.file}” isn’t a SignalPlan plan, or it has problems:</p>
+        <p>“{problem?.file}” can’t be opened:</p>
         <PlanIssues issues={problem?.issues ?? []} />
         <p className="hint">
           Nothing was opened and your plan is unchanged. Try the file again, or
-          save it again from where it came from. A plan from a newer SignalPlan
-          needs this page reloaded to the latest version.
+          save it again from where it came from.
         </p>
       </Dialog>
     </>

@@ -49,6 +49,7 @@ export function PlansDialog({
     try {
       await autosaver.flush()
       setPlans(await library.list())
+      setFailure(undefined)
     } catch {
       setFailure(LIST_FAILED)
     }
@@ -96,36 +97,63 @@ export function PlansDialog({
     }
   }
 
-  const rename = async (id: string, name: string) => {
-    setRenaming(undefined)
-    if (id === currentId) store.getState().renamePlan(name)
-    else await library.rename(id, name)
-    await refresh()
-  }
-
-  const remove = async (summary: PlanSummary) => {
-    setDeleting(undefined)
-    await library.remove(summary.id)
-    if (summary.id === currentId) {
-      // Open the next most recent plan, or the sample if none are left.
-      const [next] = await library.list()
-      const opened = next ? await library.open(next.id) : undefined
-      if (next && opened?.kind === 'plan') {
-        store.getState().loadPlan(opened.plan, { id: next.id })
-        await library.setLastPlanId(next.id)
-      } else {
-        store.getState().loadPlan(samplePlan(), { pristine: true })
-      }
+  /** Runs a change to the stored plans, and says if the browser refuses. */
+  const attempt = async (what: string, change: () => Promise<void>) => {
+    try {
+      await change()
+    } catch {
+      setFailure(`${what} didn’t work. ${TRY}`)
     }
-    await refresh()
   }
 
-  const downloadCopy = async (id: string) => {
-    const opened = await library.open(id)
-    if (opened.kind === 'plan')
-      downloadPlan(await embedImages(opened.plan, library))
-    else if (opened.kind === 'invalid') rescuePlan(opened.raw)
+  const rename = (id: string, name: string) => {
+    setRenaming(undefined)
+    return attempt('Renaming', async () => {
+      if (id === currentId) store.getState().renamePlan(name)
+      else await library.rename(id, name)
+      await refresh()
+    })
   }
+
+  const remove = (summary: PlanSummary) => {
+    setDeleting(undefined)
+    return attempt('Deleting', async () => {
+      await library.remove(summary.id)
+      if (summary.id === currentId) {
+        // Open the next most recent plan, or the sample if none are left.
+        const [next] = await library.list()
+        const opened = next ? await library.open(next.id) : undefined
+        if (next && opened?.kind === 'plan') {
+          store.getState().loadPlan(opened.plan, { id: next.id })
+          await library.setLastPlanId(next.id)
+        } else {
+          store.getState().loadPlan(samplePlan(), { pristine: true })
+        }
+      }
+      await refresh()
+    })
+  }
+
+  const duplicate = (id: string) =>
+    attempt('Duplicating', async () => {
+      await autosaver.flush()
+      await library.duplicate(id)
+      await refresh()
+    })
+
+  const downloadCopy = (id: string, name: string) =>
+    attempt('Downloading', async () => {
+      const opened = await library.open(id)
+      if (opened.kind === 'plan') {
+        downloadPlan(await embedImages(opened.plan, library))
+      } else if (opened.kind === 'invalid') {
+        rescuePlan(opened.raw)
+      } else {
+        setDeleting(undefined)
+        await refresh()
+        setFailure(`“${name}” is no longer in this browser.`)
+      }
+    })
 
   return (
     <>
@@ -212,11 +240,7 @@ export function PlansDialog({
                   </button>
                   <button
                     type="button"
-                    onClick={async () => {
-                      await autosaver.flush()
-                      await library.duplicate(plan.id)
-                      await refresh()
-                    }}
+                    onClick={() => void duplicate(plan.id)}
                     aria-label={`Duplicate ${plan.name}`}
                   >
                     Duplicate
@@ -247,7 +271,9 @@ export function PlansDialog({
             </button>
             <button
               type="button"
-              onClick={() => deleting && void downloadCopy(deleting.id)}
+              onClick={() =>
+                deleting && void downloadCopy(deleting.id, deleting.name)
+              }
             >
               Download a copy first
             </button>
@@ -288,10 +314,7 @@ export function PlansDialog({
           wasn’t opened. Your open plan is unchanged.
         </p>
         <PlanIssues issues={broken?.issues ?? []} />
-        <p className="hint">
-          Download it to keep what’s in it. A plan from a newer SignalPlan needs
-          this page reloaded to the latest version.
-        </p>
+        <p className="hint">Download it to keep what’s in it.</p>
       </Dialog>
     </>
   )

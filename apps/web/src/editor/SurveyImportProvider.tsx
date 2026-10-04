@@ -119,9 +119,7 @@ export function SurveyImportProvider({ children }: { children: ReactNode }) {
           </button>
         }
       >
-        <p>
-          Nothing was imported from “{problem?.file}”. Fix these and try again:
-        </p>
+        <p>Nothing was imported from “{problem?.file}”:</p>
         <PlanIssues issues={problem?.issues ?? []} />
         <p className="hint">
           The file needs a BSSID and a dBm (or RSSI) column, and a spot or x and

@@ -1,5 +1,4 @@
 import { withChannelPlan } from './editor/channelPlan.ts'
-import { View3DHost } from './view3d/View3DHost.tsx'
 import { viewSettings } from '@signalplan/engine'
 import { mapData } from './mapView.ts'
 import { adjacentFloorId, type PlanIssue } from '@signalplan/floorplan'
@@ -45,6 +44,7 @@ import {
 import { CalibratorContext } from './editor/calibratorContext.ts'
 import { useCoverage } from './useCoverage.ts'
 import { useFloorsCoverage } from './useFloorsCoverage.ts'
+import { View3DHost } from './view3d/View3DHost.tsx'
 import { DEFAULT_TARGET } from './quality.ts'
 
 function App({

@@ -1,6 +1,9 @@
 import { expect, test, type Page } from '@playwright/test'
 import { openEditor, planImage } from './helpers.ts'
 
+const panel = (page: Page) =>
+  page.getByRole('complementary', { name: 'Properties' })
+
 const dialog = (page: Page, name: string) => page.getByRole('dialog', { name })
 const viewSwitch = (page: Page, label: '2D' | '3D') =>
   page.getByRole('group', { name: 'View' }).locator('label', { hasText: label })
@@ -36,7 +39,7 @@ test.describe('unreadable files and scans (D93)', () => {
   }) => {
     await openFile(page, 'newer.json', '{"schemaVersion": 99}')
     const box = dialog(page, 'This file can’t be opened')
-    await expect(box).toContainText('newer')
+    await expect(box).toContainText('schema version 99')
     await box.getByRole('button', { name: 'OK' }).click()
 
     await openFile(page, 'cut.json', '{"schemaVersion": 1, "name": "Ho')
@@ -57,7 +60,8 @@ test.describe('unreadable files and scans (D93)', () => {
 
   test('a file the browser can’t read says so', async ({ page }) => {
     await page.evaluate(() => {
-      Blob.prototype.text = () => Promise.reject(new Error('read failed'))
+      Blob.prototype.arrayBuffer = () =>
+        Promise.reject(new Error('read failed'))
     })
     await openFile(page, 'gone.json', '{"a":1}')
     await expect(dialog(page, 'This file can’t be opened')).toContainText(
@@ -78,14 +82,18 @@ test.describe('unreadable files and scans (D93)', () => {
     await expect(
       reader.getByRole('button', { name: 'Read scan' }),
     ).toBeDisabled()
-    await expect(reader).toContainText('Paste what the command printed here')
+    await expect(reader).toContainText(
+      'Read scan turns on once there is something to read',
+    )
     await reader
       .getByRole('textbox', { name: 'What it printed' })
       .fill('not a scan at all')
     await reader.getByRole('button', { name: 'Read scan' }).click()
     const alert = reader.getByRole('alert')
     await expect(alert).toContainText('isn’t a scan SignalPlan can read')
-    await expect(alert).toContainText('Nothing was changed')
+    await expect(alert).toContainText(
+      'Nothing was changed. This scan can’t be read',
+    )
     await expect(alert).toContainText('Copy everything the command printed')
   })
 
@@ -111,7 +119,9 @@ test.describe('unreadable files and scans (D93)', () => {
       mimeType: 'text/plain',
       buffer: Buffer.alloc(5_000_001, 'a'),
     })
-    await expect(reader.getByRole('alert')).toContainText('5.0 MB')
+    await expect(reader.getByRole('alert')).toContainText(
+      '5.1 MB, more than the 5 MB',
+    )
   })
 
   test('a readings file that is empty says nothing was imported', async ({
@@ -186,7 +196,7 @@ test.describe('the 3D view without WebGL (D93)', () => {
     await expect(failed).toContainText('needs WebGL')
     await expect(failed).toContainText('hardware acceleration')
     await expect(failed).toContainText('the 2D map')
-    await expect(failed).toHaveAttribute('role', 'alert')
+    await expect(failed.getByRole('alert')).toContainText('needs WebGL')
     await failed.getByRole('button', { name: 'Back to the 2D view' }).click()
     await expect(page.locator('.editor-canvas')).toBeVisible()
     await expect(page.locator('.view3d')).toHaveCount(0)
@@ -213,7 +223,7 @@ test.describe('the 3D view without WebGL (D93)', () => {
     await openEditor(page)
     await viewSwitch(page, '3D').click()
     const failed = page.locator('.view3d-failed')
-    await expect(failed).toContainText('couldn’t start')
+    await expect(failed).toContainText('wouldn’t start')
     await expect(
       failed.getByRole('button', { name: 'Try again' }),
     ).toBeVisible()
@@ -233,4 +243,125 @@ test.describe('the 3D view without WebGL (D93)', () => {
     await failed.getByRole('button', { name: 'Back to the 2D view' }).click()
     await expect(page.locator('.editor-canvas')).toBeVisible()
   })
+})
+
+test.describe('storage that refuses to save (D93)', () => {
+  /** Makes every write to the browser's database fail while `__full` is set. */
+  test.beforeEach(async ({ page }) => {
+    await page.addInitScript(() => {
+      const put = IDBObjectStore.prototype.put
+      IDBObjectStore.prototype.put = function (...args) {
+        if ((window as unknown as { __full?: boolean }).__full) {
+          throw new DOMException('full', 'QuotaExceededError')
+        }
+        return put.apply(this, args)
+      }
+    })
+  })
+
+  const setFull = (page: Page) =>
+    page.evaluate(() => {
+      ;(window as unknown as { __full: boolean }).__full = true
+    })
+
+  const routerX = async (page: Page) => {
+    await panel(page)
+      .getByRole('button', { name: 'Wi-Fi 6E router', exact: true })
+      .click()
+    return panel(page).locator('dd').first()
+  }
+
+  test('a plan file still opens, and says it wasn’t kept', async ({ page }) => {
+    await openEditor(page)
+    await setFull(page)
+    const plan = {
+      schemaVersion: 1,
+      name: 'Studio',
+      floors: [
+        {
+          id: 'f',
+          name: 'Floor',
+          elevationM: 0,
+          heightM: 2.5,
+          nodes: [],
+          walls: [],
+          openings: [],
+        },
+      ],
+      accessPoints: [],
+    }
+    await page.getByLabel('Open a plan file').setInputFiles({
+      name: 'studio.json',
+      mimeType: 'application/json',
+      buffer: Buffer.from(JSON.stringify(plan)),
+    })
+    await expect(page.locator('.status-notice')).toContainText(
+      'couldn’t keep a copy',
+    )
+    await expect(
+      panel(page).getByRole('heading', { level: 2 }).first(),
+    ).toHaveText('Studio')
+  })
+
+  test('a link waits when the open plan can’t be saved', async ({ page }) => {
+    await openEditor(page)
+    // A link to the plan with the router moved east.
+    await panel(page)
+      .getByRole('button', { name: 'Wi-Fi 6E router', exact: true })
+      .click()
+    await page.locator('.editor-canvas').focus()
+    await page.keyboard.press('Shift+ArrowRight')
+    await page.getByText('File', { exact: true }).click()
+    await page.getByRole('button', { name: 'Share link…' }).click()
+    const share = page.getByRole('dialog', { name: 'Share link' })
+    const link = await share
+      .getByRole('textbox', { name: 'Link to this plan' })
+      .inputValue()
+    await share.getByRole('button', { name: 'Close' }).click()
+
+    // Now an edit that can't be saved.
+    await page.getByText('File', { exact: true }).click()
+    await page.getByRole('button', { name: 'Open the sample home' }).click()
+    await setFull(page)
+    await panel(page)
+      .getByRole('button', { name: 'Wi-Fi 6E router', exact: true })
+      .click()
+    await page.locator('.editor-canvas').focus()
+    await page.keyboard.press('Shift+ArrowLeft')
+    await expect(
+      page.getByText('Not saved: browser storage is full'),
+    ).toBeVisible()
+
+    await page.evaluate((hash) => {
+      window.location.hash = hash
+    }, new URL(link).hash)
+    const waiting = page.getByRole('dialog', {
+      name: 'Your open plan isn’t saved',
+    })
+    await expect(waiting).toContainText('Save it to a file first')
+    const download = page.waitForEvent('download')
+    await waiting.getByRole('button', { name: 'Save to file' }).click()
+    await download
+    await waiting.getByRole('button', { name: 'Open the link anyway' }).click()
+    await expect(await routerX(page)).toHaveText('6.10 m, 1.20 m')
+  })
+})
+
+test('a lost graphics context says so, and Try again brings the view back', async ({
+  page,
+}) => {
+  await openEditor(page)
+  await viewSwitch(page, '3D').click()
+  const canvas = page.locator('.view3d-canvas canvas')
+  await expect(canvas).toBeVisible()
+  await canvas.evaluate((el) => {
+    const gl =
+      (el as HTMLCanvasElement).getContext('webgl2') ??
+      (el as HTMLCanvasElement).getContext('webgl')
+    gl?.getExtension('WEBGL_lose_context')?.loseContext()
+  })
+  const failed = page.locator('.view3d-failed')
+  await expect(failed).toContainText('graphics card stopped drawing')
+  await failed.getByRole('button', { name: 'Try again' }).click()
+  await expect(page.locator('.view3d-canvas canvas')).toBeVisible()
 })

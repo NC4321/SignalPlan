@@ -11,25 +11,25 @@ export const VIEW3D_FAILURES: Record<
   { message: string; canRetry: boolean; reload?: boolean }
 > = {
   'no-webgl': {
-    message: `The 3D view needs WebGL, and this browser has it turned off or doesn’t support it. Try turning on hardware acceleration in the browser’s settings, or ${MAP}.`,
+    message: `The 3D view needs WebGL, which this browser has turned off or doesn’t support. Turn on hardware acceleration in its settings, or ${MAP}.`,
     canRetry: false,
   },
   'no-context': {
-    message: `The 3D view couldn’t start: the browser wouldn’t give it the graphics it needs. This can happen when many tabs are using the graphics card. Close some tabs and try again, or ${MAP}.`,
+    message: `The browser wouldn’t start the 3D view, often because many tabs are using the graphics card. Close some and try again, or ${MAP}.`,
     canRetry: true,
   },
   lost: {
-    message: `The graphics card stopped drawing the 3D view. This can happen when the computer sleeps or another tab needs the graphics. Try again, or ${MAP}.`,
+    message: `The graphics card stopped drawing the 3D view. Try again, or ${MAP}.`,
     canRetry: true,
   },
   // A failed import is remembered by the browser until the page reloads.
   'not-loaded': {
-    message: `The 3D view’s code couldn’t be loaded, usually because the connection dropped. Check it and reload the page, or ${MAP}.`,
+    message: `The 3D view’s code couldn’t be loaded, usually because the connection dropped. Reload the page once it’s back, or ${MAP}.`,
     canRetry: false,
     reload: true,
   },
   broken: {
-    message: `The 3D view couldn’t be shown. If your connection dropped while it loaded, check it and try again; otherwise ${MAP}.`,
+    message: `Something went wrong drawing the 3D view. Try again, or ${MAP}.`,
     canRetry: true,
   },
 }

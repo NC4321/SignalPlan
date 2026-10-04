@@ -8,9 +8,20 @@ import {
 /** What the 3D view's area shows while it loads. */
 export function View3DLoading() {
   return (
-    <div className="view3d view3d-failed" role="status">
+    <div className="view3d view3d-loading" role="status">
       <p>{VIEW3D_LOADING}</p>
     </div>
+  )
+}
+
+/** Puts focus on the View switch, which the failure's buttons are leaving. */
+function focusViewSwitch() {
+  requestAnimationFrame(() =>
+    document
+      .querySelector<HTMLElement>(
+        'input[name="view"]:checked, input[name="view"]',
+      )
+      ?.focus(),
   )
 }
 
@@ -28,12 +39,18 @@ export function View3DFailed({
   const store = useEditorStore()
   const { message, canRetry, reload } = VIEW3D_FAILURES[failure]
   return (
-    <div className="view3d view3d-failed" role="alert">
+    <div className="view3d view3d-failed">
       <div className="view3d-failed-box">
-        <p>{message}</p>
+        <p role="alert">{message}</p>
         <div className="actions">
           {canRetry && (
-            <button type="button" onClick={onRetry}>
+            <button
+              type="button"
+              onClick={() => {
+                onRetry()
+                focusViewSwitch()
+              }}
+            >
               Try again
             </button>
           )}
@@ -45,7 +62,10 @@ export function View3DFailed({
           <button
             type="button"
             className="primary"
-            onClick={() => store.getState().setView('2d')}
+            onClick={() => {
+              store.getState().setView('2d')
+              focusViewSwitch()
+            }}
           >
             Back to the 2D view
           </button>

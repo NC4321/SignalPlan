@@ -348,7 +348,7 @@ test.describe('the 3D view', () => {
     expect((await stage.innerText()).trim().length).toBeGreaterThan(30)
     await expectNoSeriousViolations(page)
 
-    await alert.getByRole('button', { name: /2D/ }).click()
+    await stage.getByRole('button', { name: /2D/ }).click()
     await expect(alert).toBeHidden()
     const canvas = page.locator('.editor-canvas')
     await expect(canvas).toBeVisible()
@@ -385,7 +385,7 @@ test.describe('the 3D view', () => {
     const stage = page.getByRole('main')
     const alert = stage.getByRole('alert')
     await expectReadable(alert)
-    await alert.getByRole('button', { name: /2D/ }).click()
+    await stage.getByRole('button', { name: /2D/ }).click()
     await expect(page.locator('.editor-canvas')).toBeVisible()
   })
 })
