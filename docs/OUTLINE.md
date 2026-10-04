@@ -263,10 +263,10 @@ Goal: turn the working tool into something that looks and reads like a professio
 
 **Deliverables**
 
-- [ ] Onboarding: a sample home to explore and a short guided first run (#158, D87)
-- [ ] Empty, loading and error states for every screen (#159, D87)
-- [ ] Keyboard shortcuts with a help overlay (#157, D87)
-- [ ] Shareable plan links, encoded in the URL (#156, D87)
+- [x] Onboarding: a sample home to explore and a short guided first run (#158, D87, D90)
+- [x] Empty, loading and error states for every screen (#159, D87, D91–D93)
+- [x] Keyboard shortcuts with a help overlay (#157, D87, D89)
+- [x] Shareable plan links, encoded in the URL (#156, D87, D88)
 - [ ] README: GIF, live demo link, feature list, architecture diagram, model summary, roadmap (#160, D87)
 - [ ] Docs site or MODEL.md expanded into a readable explainer (#160, D87)
 - [ ] A short write-up or blog post on the physics and the optimizer (#161, D87)
