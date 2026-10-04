@@ -107,6 +107,22 @@ export {
   type PlannedRadio,
   type PlannerNetwork,
 } from './channelPlan.ts'
+export {
+  accessPointSightings,
+  bssidSightings,
+  chiSquaredQuantile95,
+  COARSE_CELL_M,
+  CONFIDENCE,
+  locateSource,
+  MIN_EIRP_DBM,
+  MIN_LOCATE_SPOTS,
+  MODEL_SIGMA_DB,
+  OUTSIDE_REACH_M,
+  regionLimit,
+  type LocateOptions,
+  type Location,
+  type Sighting,
+} from './locate.ts'
 export { freeSpacePathLoss, SPEED_OF_LIGHT } from './pathLoss.ts'
 export {
   betterScore,
