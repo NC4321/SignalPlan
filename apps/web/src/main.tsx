@@ -22,14 +22,17 @@ import './index.css'
 // visit (D21). A stored plan that no longer loads falls back to the sample.
 const library = await PlanLibrary.open()
 // After a reload from the crash screen the plan that crashed may be the last
-// one, so the sample opens instead; the plan is still in My plans (D91).
+// one, so the sample opens instead (D91).
 const afterCrash = takeReloadAfterCrash()
 let lastId: string | undefined
 let last: Opened | undefined
 let startNotice: string | undefined
 if (afterCrash) {
-  startNotice =
-    'SignalPlan reloaded with the sample home after a problem. Your plan is still in My plans.'
+  // Only promise My plans when a saved copy is there to go back to.
+  const kept = await library?.lastPlanId().catch(() => undefined)
+  startNotice = kept
+    ? 'SignalPlan reloaded with the sample home after a problem. Your last saved copy is in My plans.'
+    : 'SignalPlan reloaded with the sample home after a problem. Your plan wasn’t kept in this browser.'
 } else {
   try {
     await library?.migrateFrom(safeStorage())

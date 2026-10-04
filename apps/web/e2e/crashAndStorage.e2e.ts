@@ -289,7 +289,7 @@ test.describe('the editor crashes', () => {
     await crashed.getByRole('button', { name: 'Reload SignalPlan' }).click()
     await page.locator('.editor-canvas[data-scale]').waitFor()
     await expect(page.locator('.status-notice')).toHaveText(
-      'SignalPlan reloaded with the sample home after a problem. Your plan is still in My plans.',
+      'SignalPlan reloaded with the sample home after a problem. Your last saved copy is in My plans.',
     )
     await page.getByText('File', { exact: true }).click()
     await page.getByRole('button', { name: 'My plans…' }).click()

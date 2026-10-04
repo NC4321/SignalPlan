@@ -90,8 +90,7 @@ test.describe('top-level error boundary', () => {
   }) => {
     await armRenderCrash(page)
     await openEditor(page)
-    // The edit made just before the crash, so the autosaved copy (saved
-    // shortly after an edit) may well not have it yet.
+    // The edit made just before the crash.
     await renamePlan(page, 'Rescued before the crash')
     // Saved before the crash, so My plans has it. A change still waiting to
     // be saved at the crash is not saved, since it may be what crashed the
@@ -135,7 +134,7 @@ test.describe('top-level error boundary', () => {
     await expect(page.locator('.editor-canvas[data-scale]')).toBeVisible()
     await expect(planNameField(page)).toHaveValue('Sample bungalow')
     await expect(page.locator('.status-notice')).toHaveText(
-      'SignalPlan reloaded with the sample home after a problem. Your plan is still in My plans.',
+      'SignalPlan reloaded with the sample home after a problem. Your last saved copy is in My plans.',
     )
     await expect(coverageStatus(page)).toHaveText(/^\d+% of/)
     await page.getByText('File', { exact: true }).click()
