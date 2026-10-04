@@ -41,7 +41,7 @@ Free · Runs in your browser · No account · Plans stay on your device
       See which access point a phone would use, where they compete and where they interfere, then plan channels so they don't.
     </td>
     <td width="50%" valign="top">
-      <img src="docs/demo-survey.gif" alt="Survey pins on a bungalow show the prediction off by 4 to 8 dB. A scan is added at a new spot, then Calibrate and Apply bring the errors down to between minus 3 and plus 2 dB">
+      <img src="docs/demo-survey.gif" alt="Survey pins on a bungalow show the prediction off by 4 to 8 dB. A scan is added at a new spot. After calibrating, the errors are between minus 3 and plus 2 dB">
       <h3>Check it against your home</h3>
       Scan your Wi-Fi where you stand, see how far the prediction is off, then calibrate the model to your home.
     </td>
