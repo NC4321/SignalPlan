@@ -32,6 +32,7 @@ export function SharedLinkOpener({
   const [issues, setIssues] = useState(startupIssues)
   /** A link's plan, held while the open plan isn't safely kept. */
   const [waiting, setWaiting] = useState<Plan>()
+  const [saveFailed, setSaveFailed] = useState(false)
   useEffect(() => {
     const onHashChange = async () => {
       if (!isShareFragment(window.location.hash)) return
@@ -42,10 +43,12 @@ export function SharedLinkOpener({
         return
       }
       await autosaver.flush()
+      // Only a status known to mean "kept" counts as saved, so a new
+      // failure status, or a save skipped mid-gesture, makes the link wait.
       const status = autosaver.getStatus()
       const unsaved =
         !store.getState().pristine &&
-        (!library || status === 'full' || status === 'unavailable')
+        (!library || (status !== 'saved' && status !== 'idle'))
       if (unsaved) setWaiting(result.plan)
       else store.getState().loadPlan(result.plan, { pristine: true })
     }
@@ -54,9 +57,23 @@ export function SharedLinkOpener({
     return () => window.removeEventListener('hashchange', listener)
   }, [store, autosaver, library])
 
+  const closeWaiting = () => {
+    setWaiting(undefined)
+    setSaveFailed(false)
+  }
+
   const openAnyway = () => {
     if (waiting) store.getState().loadPlan(waiting, { pristine: true })
-    setWaiting(undefined)
+    closeWaiting()
+  }
+
+  const saveToFile = async () => {
+    try {
+      downloadPlan(await embedImages(store.getState().plan, library))
+      setSaveFailed(false)
+    } catch {
+      setSaveFailed(true)
+    }
   }
 
   return (
@@ -81,18 +98,13 @@ export function SharedLinkOpener({
       <Dialog
         open={waiting !== undefined}
         title="Your open plan isn’t saved"
-        onClose={() => setWaiting(undefined)}
+        onClose={closeWaiting}
         actions={
           <>
-            <button type="button" onClick={() => setWaiting(undefined)}>
+            <button type="button" onClick={closeWaiting}>
               Cancel
             </button>
-            <button
-              type="button"
-              onClick={async () =>
-                downloadPlan(await embedImages(store.getState().plan, library))
-              }
-            >
+            <button type="button" onClick={() => void saveToFile()}>
               Save to file
             </button>
             <button type="button" className="primary" onClick={openAnyway}>
@@ -106,6 +118,12 @@ export function SharedLinkOpener({
           link would replace it. Save it to a file first, or open the link
           anyway and lose its latest changes.
         </p>
+        {saveFailed && (
+          <p role="alert">
+            Couldn’t save the plan as a file. Try again, or cancel and keep
+            working on it.
+          </p>
+        )}
       </Dialog>
     </>
   )
