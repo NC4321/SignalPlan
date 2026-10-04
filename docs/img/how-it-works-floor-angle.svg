@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 680 330" width="680" height="330" font-family="system-ui, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15">
+  <title>The same timber floor costs more the shallower the signal meets it</title>
+  <desc>Side view of two storeys. An access point downstairs sends one path straight up through the timber floor, which costs 2.7 dB at 5 GHz, and another to a phone 10 m across upstairs. That path meets the floor at 75 degrees from the vertical, runs much further inside it, and costs 6.6 dB.</desc>
+  <rect width="680" height="330" rx="8" fill="#f6f8fa" stroke="#d0d7de"/>
+  <text x="20" y="28" font-size="16" font-weight="600" fill="#1f2328">Through a timber floor at 5 GHz: straight up, and from 10 m away</text>
+  <text x="20" y="316" font-size="14" fill="#57606a">Not to scale vertically: the storey is 2.7 m high, the far phone 10 m across.</text>
+  <rect x="40" y="160" width="620" height="48" fill="#d0d7de" stroke="#8c959f"/>
+  <text x="640" y="150" text-anchor="end" fill="#57606a" font-size="14">upstairs</text>
+  <text x="640" y="236" text-anchor="end" fill="#57606a" font-size="14">downstairs</text>
+  <text x="640" y="190" text-anchor="end" fill="#1f2328" font-size="14" font-weight="600">timber joist floor</text>
+  <circle cx="90" cy="250" r="10" fill="#0969da"/>
+  <text x="90" y="282" text-anchor="middle" fill="#1f2328" font-size="14">access point</text>
+  <line x1="90" y1="250" x2="90" y2="100" stroke="#0969da" stroke-width="3"/>
+  <line x1="90" y1="208" x2="90" y2="160" stroke="#0969da" stroke-width="8"/>
+  <rect x="78" y="82" width="24" height="24" rx="5" fill="#1a7f37"/>
+  <text x="112" y="62" fill="#0969da" font-weight="600">straight up: 0°</text>
+  <text x="112" y="82" fill="#0969da">floor costs 2.7 dB</text>
+  <line x1="90" y1="250" x2="570" y2="100" stroke="#bc4c00" stroke-width="3" stroke-dasharray="8 5"/>
+  <line x1="224" y1="208" x2="378" y2="160" stroke="#bc4c00" stroke-width="8"/>
+  <rect x="558" y="82" width="24" height="24" rx="5" fill="#1a7f37"/>
+  <text x="400" y="56" text-anchor="middle" fill="#bc4c00" font-weight="600">10 m across: 75° from the vertical</text>
+  <text x="400" y="76" text-anchor="middle" fill="#bc4c00">floor costs 6.6 dB</text>
+  <text x="400" y="282" text-anchor="middle" fill="#57606a" font-size="14">thick sections: the part of each path inside the floor</text>
+</svg>

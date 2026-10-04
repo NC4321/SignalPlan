@@ -2,6 +2,8 @@
 
 How SignalPlan predicts Wi-Fi signal strength, where every number comes from, and where the model is known to be wrong. The code is in [`packages/engine`](../packages/engine/src).
 
+For a plain-language version, see [HOW-IT-WORKS.md](HOW-IT-WORKS.md).
+
 ## The equation
 
 The received signal strength at a point, in dBm, is
