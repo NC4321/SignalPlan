@@ -51,7 +51,7 @@ The fourth map, **Interference** ([D66](DECISIONS.md#d66-sinr-and-the-interferen
 
 SINR = S − 10·log10( Σ share_i · 10^(I_i / 10) + 10^(N / 10) )
 
-- **S** is the strongest access point's signal in dBm, and **I_i** each other access point's signal in the same cell, on this floor or another, or a neighbour's network's typed-in strength (see below).
+- **S** is the strongest access point's signal in dBm, and **I_i** each other access point's signal in the same cell, on this floor or another, or a neighbour's network: its predicted signal in that cell if it has a location, else its typed-in strength (see below).
 - **share_i** is how much of access point _i_'s power lands in the receiving channel. Power is taken as spread evenly across a channel, so the share is the overlap of the two channels' spans in MHz over _i_'s width (spans as in [Channels and regions](#channels-and-regions)). Channels 1 and 3 on 2.4 GHz, 2402–2422 and 2412–2432 MHz, share 10 of 20 MHz, so half; 1 and 6 don't overlap. A 40 MHz channel inside an 80 MHz one gets half of the 80 MHz radio's power, and the 80 MHz radio all of the 40 MHz one's. Real transmitters don't spread power evenly: 802.11's spectral mask lets some power leak beyond the channel's edge and puts less in its outer MHz. That's a simplification, not a sourced shape.
 - **N** is the noise floor for the receiving channel's width B: N = kT₀ + 10·log10(B) + NF = −173.98 dBm/Hz + 10·log10(B in Hz) + 10 dB, so −90.97 dBm in 20 MHz and −84.95 dBm in 80 MHz. kT₀ is the Boltzmann constant (1.380649 × 10⁻²³ J/K, exact in the SI Brochure, 9th edition) times the reference temperature T₀ "fixed, by convention, around 290 K" (ITU-R V.573-5, term F03). NF is a receiver noise figure of 10 dB, the one 802.11 assumes for its minimum sensitivities: IEEE Std 802.11a-1999, 17.3.10.1, says its minimum input levels are measured at the antenna connector, "NF of 10 dB and 5 dB implementation margins are assumed" (read from the copy filed as a USPTO PTAB exhibit, checked 2026-09-29, [D68](DECISIONS.md#d68-channel-planner--2026-09-29)). IEEE 802.11 working-group document 11-03/845r1 (Mahadevappa and ten Brink, Realtek, November 2003) uses the same "10dB noise figure (conservative [4])" and "5dB implementation margin", citing that standard, and works sensitivities out as "(-174+73+10+5)dBm+Es/N0" in 20 MHz.
 
@@ -74,6 +74,8 @@ Unusable cells are hatched grey; cells no access point reaches are left clear. T
 
 **Neighbours' networks** ([D67](DECISIONS.md#d67-neighbours-networks--2026-09-29)) are typed in by hand: band, channel, width and a rough signal in dBm, as a Wi-Fi analyser app shows it where you stand. They have no position, so each counts at that one strength in every cell of every floor, with the same channel share as an access point. Like interference from the plan's own access points, they only reach radios with a channel set: a radio on Auto is still taken to be on a channel no one else uses. A network whose channel hasn't been picked yet isn't counted. That makes them background interference, not a map of the neighbour: a network 3 dB stronger by the party wall than in the far room counts the same in both.
 
+A neighbour's network with a **location** ([D84](DECISIONS.md#d84-located-neighbours-interfere-cell-by-cell--2026-10-04)), fitted from scans at survey spots ([Locating access points](#locating-access-points)), is worked out cell by cell as an access point would be: from its position and height, at its fitted EIRP, through the walls and slabs between, with the plan's calibrated values. It isn't a source of coverage, only of interference, and it doesn't widen a floor's grid when it lies outside the walls. A test checks its grid is bit for bit that of an access point in its place. Each one costs about as much to compute as an access point (about 10 ms on the big house). The legend says how many count from a location and how many everywhere.
+
 Working SINR out on the page adds about 2 ms to the big house's grid (12.7 → 14.5 ms median on the desktop, with every access point on one channel), inside its 50 ms budget; `coverage.speed.ts` checks it.
 
 ### Channel planner
@@ -82,7 +84,7 @@ The channel planner ([D68](DECISIONS.md#d68-channel-planner--2026-09-29), `chann
 
 In a home, most access points hear each other: at the default 23 dBm on 5 GHz, free-space signal stays above −76 dBm out to about 385 m, so only thick walls, floors or low power keep two apart.
 
-A **clash** is two joined radios whose channels overlap, or a radio whose channel overlaps a neighbour's network at or above the CCA level for its width, since the access point would wait for it too. Plans are compared in order:
+A **clash** is two joined radios whose channels overlap, or a radio whose channel overlaps a neighbour's network at or above the CCA level for its width, since the access point would wait for it too. A neighbour with a location is judged at each access point's antenna, from its position as for the signal between access points (D84), so it can be a clash for the router by the party wall and only a tie-break for the access point upstairs; one without counts at its strength for all of them. Plans are compared in order:
 
 1. the number of clashes;
 2. the MHz those clashes share;
@@ -548,7 +550,7 @@ Loss per crossing: default (limits), dB:
 
 ## Locating access points
 
-From the signal of one radio at three or more survey spots, the engine estimates where it is and how much power it sends ([D83](DECISIONS.md#d83-locating-access-points-from-readings--2026-10-04), `locate.ts`). It's for a neighbour's network heard by scans at several spots (D82), and for an access point of your own whose position you aren't sure of. It's in the engine only for now; the editor will use it next (#143).
+From the signal of one radio at three or more survey spots, the engine estimates where it is and how much power it sends ([D83](DECISIONS.md#d83-locating-access-points-from-readings--2026-10-04), `locate.ts`). It's for a neighbour's network heard by scans at several spots (D82), and for an access point of your own whose position you aren't sure of. A neighbour's network can keep the result as its location, and then interferes cell by cell ([Interference](#interference), D84); the editor will offer to locate them next (#143).
 
 **What's fitted.** The reading at spot i is predicted as for the [error report](#survey-readings), with the source at (x, y) on some floor, a mounting height h above it (1 m unless given, as for a new access point) and an unknown EIRP:
 
@@ -584,12 +586,13 @@ So the radius is conservative: the truth was inside it in all 600 surveys, and i
 
 ## Known limits
 
-- **The channel planner trusts the model's signal between access points.** Reflections that carry signal around a wall, which the model ignores (D24), can let two access points hear each other when the planner thinks they don't. Neighbours' networks count as heard everywhere at the one strength typed in ([D68](DECISIONS.md#d68-channel-planner--2026-09-29)).
+- **The channel planner trusts the model's signal between access points.** Reflections that carry signal around a wall, which the model ignores (D24), can let two access points hear each other when the planner thinks they don't. Neighbours' networks without a location count as heard everywhere at the one strength typed in ([D68](DECISIONS.md#d68-channel-planner--2026-09-29)); located ones are only as right as their position (D84).
 - **Straight line only.** Signals that bend around corners (diffraction) or bounce off walls (reflection) are ignored, so areas behind strong walls are predicted darker than they are. See [D24](DECISIONS.md#d24-propagation-scope-for-m1-omnidirectional-direct-path-only--2026-09-27).
 - **Normal incidence.** Wall loss is computed for a wave meeting the wall head on. The slab code supports angles, but using them moved 90% of cells by at most about 3 dB in the test plans, and not always downwards, so it was left out ([D30](DECISIONS.md#d30-wall-loss-stays-at-normal-incidence--2026-09-27)).
 - **Omnidirectional access points.** Antenna patterns are ignored ([D24](DECISIONS.md#d24-propagation-scope-for-m1-omnidirectional-direct-path-only--2026-09-27)).
 - **Typical constructions.** A real wall may differ from its construction above: metal studs, foil-backed insulation, tile or plaster lath all add loss.
-- **No furniture or people.** Neighbours' networks are only a typed-in strength that counts everywhere in the home ([D67](DECISIONS.md#d67-neighbours-networks--2026-09-29)); the engine can now [locate](#locating-access-points) them from scans, but they don't interfere from that position yet.
+- **No furniture or people.**
+- **Neighbours' networks** without a location are a typed-in strength that counts everywhere in the home ([D67](DECISIONS.md#d67-neighbours-networks--2026-09-29)). A located one is predicted from its single best position, ignoring its uncertainty radius, so a neighbour placed in the wrong room makes that room look noisier than it is ([D84](DECISIONS.md#d84-located-neighbours-interfere-cell-by-cell--2026-10-04)).
 - **Receiver losses aren't modelled.** A phone's antenna is less efficient than the 0 dBi assumed, and a hand or body near it absorbs signal, so a phone may read several dB below the prediction.
 - **Calibration is per home and only as good as the survey.** Calibrate fits the model to a home's readings ([Calibration](#calibration)), but no real home has been surveyed and calibrated yet (#132), and an uncalibrated plan uses the defaults above.
 

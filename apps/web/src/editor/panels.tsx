@@ -562,6 +562,7 @@ function MapLegend({ map }: { map: MapData | undefined }) {
     names,
     map ? map.autoChannels : 0,
     map ? map.neighbours : 0,
+    map ? map.locatedNeighbours : 0,
   )
   return (
     <>

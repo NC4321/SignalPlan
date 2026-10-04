@@ -87,6 +87,10 @@ export function deleteFloor(plan: Plan, floorId: string): boolean {
   plan.floors = plan.floors.filter((f) => f.id !== floorId)
   if (plan.floors.length === before) return false
   plan.accessPoints = plan.accessPoints.filter((ap) => ap.floorId !== floorId)
+  // A neighbour located on it loses its position and counts everywhere again.
+  for (const network of plan.neighbourNetworks ?? []) {
+    if (network.location?.floorId === floorId) delete network.location
+  }
   dropOrphanReadings(plan)
   return true
 }

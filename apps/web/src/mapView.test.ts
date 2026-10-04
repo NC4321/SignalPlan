@@ -22,6 +22,8 @@ function row(inside = [1, 1, 1, 1, 0]): Coverage {
     floorArea: Uint8Array.from(inside),
     accessPointIds: ['a', 'b'],
     sourceDbm: Float32Array.from([...a, ...b]),
+    neighbourIds: [],
+    neighbourDbm: new Float32Array(0),
   }
 }
 
@@ -274,6 +276,50 @@ describe('Interference (D66)', () => {
       '1 neighbour’s network counts everywhere at the strength typed in for it.',
     )
     expect(mapData(row(), 'signal', settings, p).neighbours).toBe(0)
+  })
+
+  it('counts a located neighbour cell by cell and says so (D84)', () => {
+    const p = {
+      ...tuned(44),
+      neighbourNetworks: [
+        {
+          id: 'n1',
+          band: '5GHz',
+          channel: 36,
+          channelWidthMHz: 20,
+          strengthDbm: -40,
+          location: {
+            floorId: 'f',
+            x: 0,
+            y: 0,
+            heightM: 1,
+            eirpDbm: 20,
+            uncertaintyM: 1,
+          },
+        },
+      ] as Plan['neighbourNetworks'],
+    }
+    // Its predicted signal: loud at cell 0, gone by cell 4.
+    const coverage: Coverage = {
+      ...row(),
+      neighbourIds: ['n1'],
+      neighbourDbm: Float32Array.from([-60, -70, -80, -90, -200]),
+    }
+    const data = mapData(coverage, 'interference', settings, p)
+    // Cell 0 is on A (channel 36): −50 over −60 and the noise is 9.6 dB,
+    // not the −40 dBm its typed-in strength would give.
+    expect(data.sinr![0]).toBeCloseTo(
+      -50 - 10 * Math.log10(10 ** -6 + 10 ** (-90.97 / 10)),
+      2,
+    )
+    expect(data.neighbours).toBe(0)
+    expect(data.locatedNeighbours).toBe(1)
+    expect(
+      mapLegend('interference', settings, [], 0, 0, data.locatedNeighbours)
+        .note,
+    ).toContain(
+      '1 neighbour’s network counts from where scans located it, through walls and floors.',
+    )
   })
 
   it('names the bands in dB and says how many radios are on Auto', () => {

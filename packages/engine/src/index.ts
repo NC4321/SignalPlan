@@ -91,6 +91,7 @@ export {
 } from './interference.ts'
 export {
   accessPointLinks,
+  neighbourLinks,
   candidateChoices,
   CCA_DBM,
   colourChannels,

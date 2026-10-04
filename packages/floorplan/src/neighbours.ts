@@ -1,4 +1,10 @@
-import type { Band, ChannelWidth, NeighbourNetwork, Plan } from './schema.ts'
+import type {
+  Band,
+  ChannelWidth,
+  NeighbourLocation,
+  NeighbourNetwork,
+  Plan,
+} from './schema.ts'
 
 /**
  * Editing operations on neighbours' networks (D67). Like the access point
@@ -66,7 +72,10 @@ export function renameNeighbourNetwork(
   return true
 }
 
-/** Moves a network to another band at `width`; its channel is cleared. */
+/**
+ * Moves a network to another band at `width`; its channel is cleared, and its
+ * location too, since its power was fitted on the old band (D84).
+ */
 export function setNeighbourBand(
   plan: Plan,
   id: string,
@@ -78,6 +87,7 @@ export function setNeighbourBand(
   network.band = band
   network.channelWidthMHz = width
   delete network.channel
+  delete network.location
   return true
 }
 
@@ -114,6 +124,37 @@ export function setNeighbourStrength(
   const network = find(plan, id)
   if (network.strengthDbm === dbm) return false
   network.strengthDbm = dbm
+  return true
+}
+
+/**
+ * Sets where a network is (D84), or clears it so its strength counts
+ * everywhere again. Its floor must be one of the plan's.
+ */
+export function setNeighbourLocation(
+  plan: Plan,
+  id: string,
+  location: NeighbourLocation | undefined,
+): boolean {
+  const network = find(plan, id)
+  if (location === undefined) {
+    if (!network.location) return false
+    delete network.location
+    return true
+  }
+  if (!plan.floors.some((f) => f.id === location.floorId)) {
+    throw new Error(`No floor with id "${location.floorId}".`)
+  }
+  const current = network.location
+  if (
+    current &&
+    (Object.keys(location) as (keyof NeighbourLocation)[]).every(
+      (k) => current[k] === location[k],
+    )
+  ) {
+    return false
+  }
+  network.location = { ...location }
   return true
 }
 
