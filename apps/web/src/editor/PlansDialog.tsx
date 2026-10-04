@@ -8,6 +8,10 @@ import { useServices } from './services.ts'
 import { embedImages } from './tracing.ts'
 import { editedAgo } from './util.ts'
 
+const TRY =
+  'Reload the page and try again, or save the open plan to a file first.'
+const LIST_FAILED = `The list of plans couldn’t be read from this browser. ${TRY}`
+
 /**
  * The plans kept in this browser (D21): open, rename, duplicate or delete
  * them. Deleting asks first, with a chance to download a copy.
@@ -33,18 +37,34 @@ export function PlansDialog({
     raw: unknown
   }>()
 
+  /** Set when the list or a plan couldn't be read from this browser. */
+  const [failure, setFailure] = useState<string>()
+
+  const close = () => {
+    setFailure(undefined)
+    onClose()
+  }
+
   const refresh = async () => {
-    await autosaver.flush()
-    setPlans(await library.list())
+    try {
+      await autosaver.flush()
+      setPlans(await library.list())
+    } catch {
+      setFailure(LIST_FAILED)
+    }
   }
 
   useEffect(() => {
     if (!open) return
     let cancelled = false
     void (async () => {
-      await autosaver.flush()
-      const list = await library.list()
-      if (!cancelled) setPlans(list)
+      try {
+        await autosaver.flush()
+        const list = await library.list()
+        if (!cancelled) setPlans(list)
+      } catch {
+        if (!cancelled) setFailure(LIST_FAILED)
+      }
     })()
     return () => {
       cancelled = true
@@ -52,16 +72,27 @@ export function PlansDialog({
   }, [open, library, autosaver])
 
   const openPlan = async (summary: PlanSummary) => {
-    await autosaver.flush()
-    const opened = await library.open(summary.id)
-    if (opened.kind === 'plan') {
-      store.getState().loadPlan(opened.plan, { id: summary.id })
-      await library.setLastPlanId(summary.id)
-      onClose()
-    } else if (opened.kind === 'invalid') {
-      setBroken({ name: summary.name, issues: opened.issues, raw: opened.raw })
-    } else {
-      await refresh()
+    setFailure(undefined)
+    try {
+      await autosaver.flush()
+      const opened = await library.open(summary.id)
+      if (opened.kind === 'plan') {
+        store.getState().loadPlan(opened.plan, { id: summary.id })
+        await library.setLastPlanId(summary.id)
+        close()
+      } else if (opened.kind === 'invalid') {
+        setBroken({
+          name: summary.name,
+          issues: opened.issues,
+          raw: opened.raw,
+        })
+      } else {
+        // Gone since the list was drawn, say deleted in another tab.
+        await refresh()
+        setFailure(`“${summary.name}” is no longer in this browser.`)
+      }
+    } catch {
+      setFailure(`“${summary.name}” couldn’t be read from this browser. ${TRY}`)
     }
   }
 
@@ -101,9 +132,9 @@ export function PlansDialog({
       <Dialog
         open={open}
         title="My plans"
-        onClose={onClose}
+        onClose={close}
         actions={
-          <button type="button" className="primary" onClick={onClose}>
+          <button type="button" className="primary" onClick={close}>
             Done
           </button>
         }
@@ -112,8 +143,15 @@ export function PlansDialog({
           Plans are kept in this browser only. Save to a file to back one up or
           share it.
         </p>
+        {failure && (
+          <p role="alert" className="field-error">
+            {failure}
+          </p>
+        )}
         {plans === undefined ? (
-          <p>Loading…</p>
+          failure ? null : (
+            <p role="status">Loading…</p>
+          )
         ) : plans.length === 0 ? (
           <p>No plans yet. Any plan you change is added here automatically.</p>
         ) : (
@@ -245,7 +283,15 @@ export function PlansDialog({
           </>
         }
       >
+        <p>
+          This plan is kept in this browser but doesn’t pass the checks, so it
+          wasn’t opened. Your open plan is unchanged.
+        </p>
         <PlanIssues issues={broken?.issues ?? []} />
+        <p className="hint">
+          Download it to keep what’s in it. A plan from a newer SignalPlan needs
+          this page reloaded to the latest version.
+        </p>
       </Dialog>
     </>
   )

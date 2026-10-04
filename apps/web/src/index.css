@@ -1125,6 +1125,19 @@ button.danger-fill {
   text-align: center;
 }
 
+.view3d-failed-box {
+  max-width: 32rem;
+}
+
+.view3d-failed .actions {
+  justify-content: center;
+}
+
+/* While the 3D view loads it covers the empty canvas, under the controls. */
+.view3d-canvas + .view3d-failed {
+  background: var(--canvas);
+}
+
 .view3d-floors label {
   display: flex;
   gap: 0.4rem;

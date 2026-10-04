@@ -41,15 +41,30 @@ export function TracingProvider({ children }: { children: ReactNode }) {
     }
     const state = store.getState()
     const canvas = document.querySelector('.editor-canvas')
-    if (!state.camera || !canvas) return
+    if (!state.camera || !canvas) {
+      setError(
+        'The image can only be placed from the 2D view. Switch to 2D, then choose it again.',
+      )
+      bitmap.close()
+      return
+    }
     const rect = canvas.getBoundingClientRect()
     const size = { widthPx: bitmap.width, heightPx: bitmap.height }
     const placement = initialPlacement(state.camera, rect, size)
 
-    const source = library
-      ? { imageId: await library.addImage(file) }
-      : { dataUrl: await blobToDataUrl(file) }
-    rememberImage(source.imageId ?? source.dataUrl!, bitmap)
+    let source: { imageId: string } | { dataUrl: string }
+    try {
+      source = library
+        ? { imageId: await library.addImage(file) }
+        : { dataUrl: await blobToDataUrl(file) }
+    } catch {
+      setError(
+        'This browser wouldn’t keep the image. Free some space or allow site storage, or try a smaller image.',
+      )
+      bitmap.close()
+      return
+    }
+    rememberImage('imageId' in source ? source.imageId : source.dataUrl, bitmap)
 
     const floorId = state.floorId
     const current = state.plan.floors.find((f) => f.id === floorId)?.background

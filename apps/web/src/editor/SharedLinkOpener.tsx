@@ -33,7 +33,20 @@ export function SharedLinkOpener({
         setIssues(result.issues)
         return
       }
-      await autosaver.flush()
+      try {
+        await autosaver.flush()
+      } catch {
+        // The open plan couldn't be saved first; opening the link would
+        // lose it, so say so and leave it open.
+        setIssues([
+          {
+            path: '',
+            message:
+              'Your open plan couldn’t be saved first, so the link wasn’t opened. Save it to a file, then paste the link again.',
+          },
+        ])
+        return
+      }
       store.getState().loadPlan(result.plan, { pristine: true })
     }
     const listener = () => void onHashChange()

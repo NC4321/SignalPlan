@@ -15,6 +15,8 @@ import {
   type Bounds,
   type FloorLayout,
 } from './layout.ts'
+import { NoContextError, type View3DFailure } from './failures.ts'
+import { View3DFailed, View3DLoading } from './View3DFailed.tsx'
 
 /**
  * The view-only 3D view (D49, D57): floors stacked at their elevations
@@ -46,7 +48,13 @@ export default function View3D(props: View3DProps) {
   const { plan, maps, hiddenFloors, spreadM, fullWalls, showHeatmap } = props
   const host = useRef<HTMLDivElement>(null)
   const world = useRef<World>(undefined)
-  const [supported] = useState(hasWebGL)
+  // Why the view can't draw, if it can't (D93); "Try again" bumps `attempt`.
+  const [failure, setFailure] = useState<View3DFailure | undefined>(() =>
+    hasWebGL() ? undefined : 'no-webgl',
+  )
+  const [attempt, setAttempt] = useState(0)
+  // False until the first scene has been built, so the box is never blank.
+  const [drawn, setDrawn] = useState(false)
   // With ?fps in the address, a button measures the frame rate (D58).
   const [measuring] = useState(() =>
     new URLSearchParams(window.location.search).has('fps'),
@@ -67,43 +75,47 @@ export default function View3D(props: View3DProps) {
   // The renderer, camera and controls live as long as the view.
   useEffect(() => {
     const element = host.current
-    if (!element) return
-    let created: World
-    try {
-      created = createWorld(element)
-    } catch {
-      // WebGL was there when checked, but the context couldn't be made,
-      // e.g. after too many; the view stays empty.
-      return
-    }
+    if (failure || !element) return
+    // WebGL was there when checked, but the context may not be made, e.g.
+    // after too many; that throws to the host, which says so (D93).
+    const created = createWorld(
+      element,
+      () => setFailure('lost'),
+      () => setDrawn(true),
+    )
     world.current = created
     return () => {
       created.dispose()
       world.current = undefined
     }
-  }, [])
+  }, [failure, attempt])
 
   // Rebuild the scene when the plan, its coverage or the settings change.
   useEffect(() => {
+    // A scene that can't be built throws to the host as well.
     world.current?.show(
       layouts,
       plan,
       showHeatmap ? maps : new Map(),
       fullWalls,
     )
-  }, [layouts, plan, maps, fullWalls, showHeatmap])
+  }, [layouts, plan, maps, fullWalls, showHeatmap, failure, attempt])
 
   const frame = useEffectEvent(() => {
     if (bounds) world.current?.frame(bounds)
   })
-  useEffect(() => frame(), [frameKey])
+  useEffect(() => frame(), [frameKey, failure, attempt])
 
-  if (!supported) {
+  if (failure) {
     return (
-      <div className="view3d view3d-failed" role="alert">
-        The 3D view needs WebGL, which this browser has turned off or doesn’t
-        support. The 2D editor has everything else.
-      </div>
+      <View3DFailed
+        failure={failure}
+        onRetry={() => {
+          setDrawn(false)
+          setFailure(undefined)
+          setAttempt((n) => n + 1)
+        }}
+      />
     )
   }
 
@@ -115,6 +127,7 @@ export default function View3D(props: View3DProps) {
         role="img"
         aria-label="3D view of the floors, described below"
       />
+      {!drawn && <View3DLoading />}
       <div className="view3d-controls" role="group" aria-label="3D view">
         <button
           type="button"
@@ -270,10 +283,26 @@ interface World {
   dispose(): void
 }
 
-function createWorld(element: HTMLDivElement): World {
-  const renderer = new THREE.WebGLRenderer({ antialias: true })
+function createWorld(
+  element: HTMLDivElement,
+  onLost: () => void,
+  onDrawn: () => void,
+): World {
+  let renderer: THREE.WebGLRenderer
+  try {
+    renderer = new THREE.WebGLRenderer({ antialias: true })
+  } catch {
+    throw new NoContextError()
+  }
   renderer.setPixelRatio(window.devicePixelRatio || 1)
   element.append(renderer.domElement)
+  // The graphics card can take the context away (sleep, another tab); the
+  // view then says so rather than freezing on the last frame (D93).
+  const lost = (event: Event) => {
+    event.preventDefault()
+    onLost()
+  }
+  renderer.domElement.addEventListener('webglcontextlost', lost)
   const style = getComputedStyle(element)
   const token = (name: string) => style.getPropertyValue(name).trim()
 
@@ -347,6 +376,7 @@ function createWorld(element: HTMLDivElement): World {
       scene.add(content)
       sizeLabels()
       render()
+      onDrawn()
     },
     frame(bounds) {
       // The first framing can come before the size is known.
@@ -408,6 +438,7 @@ function createWorld(element: HTMLDivElement): World {
       render()
     },
     dispose() {
+      renderer.domElement.removeEventListener('webglcontextlost', lost)
       observer.disconnect()
       controls.dispose()
       disposeTree(content)

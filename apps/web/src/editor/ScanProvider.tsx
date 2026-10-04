@@ -25,6 +25,7 @@ import { useId, useRef, useState, type ReactNode } from 'react'
 import { BAND_LABELS } from './coverageText.ts'
 import { useEditor, useEditorStore } from './context.ts'
 import { Dialog, PlanIssues } from './Dialog.tsx'
+import { MAX_SCAN_FILE_BYTES, readTextFile } from './readFile.ts'
 import {
   guessPlatform,
   SCAN_PLATFORMS,
@@ -236,9 +237,14 @@ export function ScanProvider({ children }: { children: ReactNode }) {
               text={text}
               onCancel={close}
               onRead={() => read(text)}
-              onFile={(contents) => {
-                setText(contents)
-                read(contents)
+              onFile={async (file) => {
+                const result = await readTextFile(file, MAX_SCAN_FILE_BYTES)
+                if (!result.ok) {
+                  setProblem(result.issues)
+                  return
+                }
+                setText(result.text)
+                read(result.text)
               }}
             />
           )
@@ -276,7 +282,7 @@ function ReadActions({
   text: string
   onCancel: () => void
   onRead: () => void
-  onFile: (contents: string) => void
+  onFile: (file: File) => void | Promise<void>
 }) {
   const input = useRef<HTMLInputElement>(null)
   return (
@@ -296,7 +302,7 @@ function ReadActions({
         onChange={async (event) => {
           const file = event.target.files?.[0]
           event.target.value = ''
-          if (file) onFile(await file.text())
+          if (file) onFile(file)
         }}
       />
       <button
@@ -327,6 +333,7 @@ function ReadStep({
 }) {
   const platformId = useId()
   const outputId = useId()
+  const emptyId = useId()
   const help = SCAN_PLATFORMS[platform]
   return (
     <>
@@ -380,14 +387,25 @@ function ReadStep({
             rows={5}
             spellCheck={false}
             value={text}
+            aria-describedby={text.trim() === '' ? emptyId : undefined}
             onChange={(event) => setText(event.target.value)}
           />
+          {text.trim() === '' && (
+            <p id={emptyId} className="hint">
+              Paste what the command printed here, or use Open a file… if it
+              saved to one. Read scan turns on when there is something to read.
+            </p>
+          )}
         </div>
       )}
       {problem && (
         <div role="alert">
-          <p>This scan can’t be read:</p>
+          <p>This scan can’t be read. Nothing was changed:</p>
           <PlanIssues issues={problem} />
+          <p className="hint">
+            Copy everything the command printed, from its first line to its
+            last, or run it again and open the file it saves.
+          </p>
         </div>
       )}
     </>
