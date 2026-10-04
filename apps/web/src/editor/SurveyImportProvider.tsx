@@ -13,6 +13,7 @@ import { useId, useRef, useState, type ReactNode } from 'react'
 import { BAND_LABELS } from './coverageText.ts'
 import { useEditor, useEditorStore } from './context.ts'
 import { Dialog, PlanIssues } from './Dialog.tsx'
+import { MAX_READINGS_FILE_BYTES, readTextFile } from './readFile.ts'
 import { importSummaryText } from './surveyImport.ts'
 import { SurveyImportContext } from './surveyImportContext.ts'
 
@@ -61,7 +62,12 @@ export function SurveyImportProvider({ children }: { children: ReactNode }) {
   }
 
   const importFile = async (file: File) => {
-    const parsed = parseReadings(await file.text())
+    const read = await readTextFile(file, MAX_READINGS_FILE_BYTES)
+    if (!read.ok) {
+      setProblem({ file: file.name, issues: read.issues })
+      return
+    }
+    const parsed = parseReadings(read.text)
     if (!parsed.ok) {
       setProblem({ file: file.name, issues: parsed.issues })
       return
@@ -113,9 +119,7 @@ export function SurveyImportProvider({ children }: { children: ReactNode }) {
           </button>
         }
       >
-        <p>
-          Nothing was imported from “{problem?.file}”. Fix these and try again:
-        </p>
+        <p>Nothing was imported from “{problem?.file}”:</p>
         <PlanIssues issues={problem?.issues ?? []} />
         <p className="hint">
           The file needs a BSSID and a dBm (or RSSI) column, and a spot or x and

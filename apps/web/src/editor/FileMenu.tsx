@@ -14,6 +14,7 @@ import { PlansDialog } from './PlansDialog.tsx'
 import { ShareDialog } from './ShareDialog.tsx'
 import { useServices } from './services.ts'
 import { embedImages, storeEmbeddedImages } from './tracing.ts'
+import { MAX_PLAN_FILE_BYTES, readTextFile } from './readFile.ts'
 import { useScan } from './scanContext.ts'
 import { useSurveyImport } from './surveyImportContext.ts'
 import { useTracing } from './tracingContext.ts'
@@ -82,18 +83,43 @@ export function FileMenu() {
   }
 
   const openFile = async (file: File) => {
-    const result = loadPlan(await file.text())
+    const read = await readTextFile(file, MAX_PLAN_FILE_BYTES)
+    if (!read.ok) {
+      setProblem({ file: file.name, issues: read.issues })
+      return
+    }
+    const result = loadPlan(read.text)
     if (!result.ok) {
       setProblem({ file: file.name, issues: result.issues })
       return
     }
-    await autosaver.flush()
-    // Opened files are your work: they join the list straight away. Their
-    // embedded images move into the browser's image store.
-    const plan = await storeEmbeddedImages(result.plan, library)
-    const id = newPlanId()
-    await library?.save(id, plan)
-    store.getState().loadPlan(plan, { id })
+    try {
+      await autosaver.flush()
+      // Opened files are your work: they join the list straight away. Their
+      // embedded images move into the browser's image store.
+      const plan = await storeEmbeddedImages(result.plan, library)
+      const id = newPlanId()
+      const saved = await library?.save(id, plan)
+      store.getState().loadPlan(plan, { id })
+      if (saved !== 'saved') {
+        store
+          .getState()
+          .setNotice(
+            'Opened, but this browser couldn’t keep a copy. Use File › Save to file to keep your changes.',
+          )
+      }
+    } catch {
+      setProblem({
+        file: file.name,
+        issues: [
+          {
+            path: '',
+            message:
+              'This browser couldn’t store the images in the file. Free some space or allow site storage, then try again.',
+          },
+        ],
+      })
+    }
   }
 
   // Ctrl/⌘+S saves to a file, Ctrl/⌘+O opens one.
@@ -285,8 +311,12 @@ export function FileMenu() {
           </button>
         }
       >
-        <p>“{problem?.file}” isn’t a SignalPlan plan, or it has problems:</p>
+        <p>“{problem?.file}” can’t be opened:</p>
         <PlanIssues issues={problem?.issues ?? []} />
+        <p className="hint">
+          Nothing was opened and your plan is unchanged. Try the file again, or
+          save it again from where it came from.
+        </p>
       </Dialog>
     </>
   )

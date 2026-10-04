@@ -1201,11 +1201,20 @@ button.danger-fill {
   background: var(--surface);
 }
 
-.view3d-failed {
+.view3d-failed,
+.view3d-loading {
   display: grid;
   place-items: center;
   padding: 2rem;
   text-align: center;
+}
+
+.view3d-failed-box {
+  max-width: 32rem;
+}
+
+.view3d-failed .actions {
+  justify-content: center;
 }
 
 .view3d-floors label {
@@ -1558,4 +1567,9 @@ h4.survey-report {
 .calibrate-table td {
   white-space: nowrap;
   vertical-align: top;
+}
+
+/* An empty list or section: a hint, then the button that fills it (D92). */
+.empty-state button {
+  margin-top: 0.5rem;
 }

@@ -2,7 +2,7 @@ import { withChannelPlan } from './editor/channelPlan.ts'
 import { viewSettings } from '@signalplan/engine'
 import { mapData, type MapData } from './mapView.ts'
 import { adjacentFloorId, type PlanIssue } from '@signalplan/floorplan'
-import { lazy, Suspense, useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useEditor, useEditorStore } from './editor/context.ts'
 import { EditorCanvas } from './editor/EditorCanvas.tsx'
 import { FloorStack } from './editor/FloorStack.tsx'
@@ -50,10 +50,8 @@ import {
 import { CalibratorContext } from './editor/calibratorContext.ts'
 import { useCoverage } from './useCoverage.ts'
 import { useFloorsCoverage } from './useFloorsCoverage.ts'
+import { View3DHost } from './view3d/View3DHost.tsx'
 import { DEFAULT_TARGET } from './quality.ts'
-
-// three.js loads only when the 3D view first opens (D57).
-const View3D = lazy(() => import('./view3d/View3D.tsx'))
 
 const NO_MAPS = new Map<string, MapData>()
 
@@ -277,20 +275,16 @@ function App({
                 <main className="stage">
                   <h1 className="visually-hidden">SignalPlan editor</h1>
                   {view === '3d' ? (
-                    <Suspense
-                      fallback={<p className="notice">Loading the 3D view…</p>}
-                    >
-                      <View3D
-                        plan={shownPlan}
-                        maps={floorsError ? NO_MAPS : floorMaps}
-                        hiddenFloors={view3d.hiddenFloors}
-                        spreadM={view3d.spreadM}
-                        fullWalls={view3d.fullWalls}
-                        showHeatmap={showHeatmap}
-                        units={units}
-                        target={plan.coverageTarget ?? DEFAULT_TARGET}
-                      />
-                    </Suspense>
+                    <View3DHost
+                      plan={shownPlan}
+                      maps={floorsError ? NO_MAPS : floorMaps}
+                      hiddenFloors={view3d.hiddenFloors}
+                      spreadM={view3d.spreadM}
+                      fullWalls={view3d.fullWalls}
+                      showHeatmap={showHeatmap}
+                      units={units}
+                      target={plan.coverageTarget ?? DEFAULT_TARGET}
+                    />
                   ) : (
                     <>
                       <EditorCanvas coverage={shown} map={map} />
