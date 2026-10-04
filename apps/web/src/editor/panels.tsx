@@ -1555,6 +1555,31 @@ function MultipleSection() {
   )
 }
 
+/**
+ * An empty list or section (D92): one plain sentence on what to do next, with
+ * the button that does it, in the hint style.
+ */
+function EmptyState({
+  children,
+  action,
+  onAction,
+  className,
+}: {
+  children: ReactNode
+  action: string
+  onAction: () => void
+  className?: string
+}) {
+  return (
+    <div className={className ? `empty-state ${className}` : 'empty-state'}>
+      <p className="hint">{children}</p>
+      <button type="button" onClick={onAction}>
+        {action}
+      </button>
+    </div>
+  )
+}
+
 function PlanSection() {
   const store = useEditorStore()
   const plan = useEditor((s) => s.plan)
@@ -1575,6 +1600,18 @@ function PlanSection() {
         <dt>Doors and windows</dt>
         <dd>{floor?.openings.length ?? 0}</dd>
       </dl>
+      {floor?.walls.length === 0 && (
+        <EmptyState
+          className="start-hint"
+          action="Draw your first wall"
+          onAction={() => store.getState().setTool('wall')}
+        >
+          No walls on this floor yet. Pick <strong>Wall</strong> (W) and click
+          each corner; click the first again to close a room.
+          {plan.accessPoints.some((a) => a.floorId === floorId) &&
+            ' Drag an access point to move it.'}
+        </EmptyState>
+      )}
       <RegionFields />
       <NeighbourFields />
       {plan.floors.some((f) => (f.surveySpots ?? []).length > 0) ? (
@@ -1583,18 +1620,32 @@ function PlanSection() {
           <p className="hint">Add more with the Survey tool (S).</p>
         </>
       ) : (
-        // Reset stays in reach after the spots are gone (D76).
-        plan.calibration && <CalibrateSection />
+        <>
+          <h3>Survey spots</h3>
+          <EmptyState
+            className="survey-empty"
+            action="Add survey spots"
+            onAction={() => store.getState().setTool('survey')}
+          >
+            No survey spots yet. Measure signal in a few rooms to check the
+            model against your home.
+          </EmptyState>
+          {/* Reset stays in reach after the spots are gone (D76). */}
+          {plan.calibration && <CalibrateSection />}
+        </>
       )}
       <ViewSettingsFields />
-      {floor?.walls.length === 0 && (
-        <p className="hint start-hint">
-          To start, pick <strong>Wall</strong> (W) and click to place each
-          corner; click the first corner again to close a room. Drag an access
-          point to move it.
-        </p>
-      )}
       <h3>Access points</h3>
+      {!plan.accessPoints.some((a) => a.floorId === floorId) && (
+        <EmptyState
+          className="access-points-empty"
+          action="Place an access point"
+          onAction={() => store.getState().setTool('accessPoint')}
+        >
+          No access points on this floor yet. Place one where your router or
+          access point is.
+        </EmptyState>
+      )}
       <ul className="object-list">
         {plan.accessPoints
           .filter((a) => a.floorId === floorId)
@@ -1704,7 +1755,7 @@ function ChannelPlanSection() {
           </div>
           <p className="hint">
             {plan.accessPoints.length === 0
-              ? 'Add an access point first.'
+              ? 'Plan channels needs an access point first.'
               : 'Suggests a channel and width for each radio left on Auto, so access points that hear each other don’t share one.'}
           </p>
         </>
@@ -1781,6 +1832,12 @@ function NeighbourFields() {
         Settings. Its signal counts everywhere in the home, unless scans at
         three survey spots or more have located it.
       </p>
+      {(networks?.length ?? 0) === 0 && (
+        <p className="hint">
+          No neighbours’ networks yet. Add the ones you can see, and channels
+          are planned around them.
+        </p>
+      )}
       {networks?.map((network, i) => (
         <NeighbourRow
           key={network.id}
@@ -2818,7 +2875,9 @@ function SurveyList() {
     <>
       <h3>Survey spots</h3>
       {withSpots.length === 0 && (
-        <p className="hint">No spots yet on any floor.</p>
+        <p className="hint">
+          No spots yet on any floor. Click the plan where you measured signal.
+        </p>
       )}
       {withSpots.map((floor) => (
         <div key={floor.id} className="survey-floor">
@@ -2909,6 +2968,9 @@ function CalibrateSection() {
     }
   }, [state])
   const fitting = state?.status === 'fitting'
+  const noReadings = !plan.floors.some((f) =>
+    (f.surveySpots ?? []).some((spot) => spot.readings.length > 0),
+  )
   return (
     <div
       className="calibrate"
@@ -2920,13 +2982,15 @@ function CalibrateSection() {
         <>
           <p className="hint">
             {note ??
-              'Fits the walls’ and floors’ losses and how fast signal fades to your readings, band by band, within published limits.'}
+              (noReadings
+                ? 'No readings to fit yet: add readings from your access points first.'
+                : 'Fits the walls’ and floors’ losses and how fast signal fades to your readings, band by band, within published limits.')}
           </p>
           <div className="actions">
             <button
               ref={primary}
               type="button"
-              disabled={fitting}
+              disabled={fitting || noReadings}
               onClick={() => calibrator.start()}
             >
               {fitting
@@ -3080,14 +3144,35 @@ function SurveyReport() {
     0,
   )
   const skipped = total - errors.readings.length
+  // The first spot in the order the list shows: top floor first.
+  const firstSpot =
+    total === 0
+      ? stackedFloors(floors)
+          .reverse()
+          .flatMap((f) =>
+            (f.surveySpots ?? []).map((spot) => ({ spot, floorId: f.id })),
+          )
+          .at(0)
+      : undefined
   const approximate = summary.reduce((n, row) => n + row.approximate, 0)
   return (
     <>
       <h3>Predicted versus measured</h3>
       {summary.length === 0 ? (
-        <p className="hint">
-          Add readings to see how far the model is from what you measured.
-        </p>
+        firstSpot && (
+          <EmptyState
+            className="report-empty"
+            action={`Add readings at ${surveySpotName(firstSpot.spot.id)}`}
+            onAction={() => {
+              const state = store.getState()
+              state.setFloor(firstSpot.floorId)
+              state.select([{ kind: 'surveySpot', id: firstSpot.spot.id }])
+            }}
+          >
+            No readings yet. Add some to see how far the model is from what you
+            measured.
+          </EmptyState>
+        )
       ) : (
         <>
           <table className="error-table">
@@ -3227,6 +3312,11 @@ function SurveySpotSection({ spot }: { spot: SurveySpot }) {
           here.
         </p>
       )}
+      {plan.accessPoints.length === 0 && (
+        <p className="hint">
+          A reading is from an access point: place one first.
+        </p>
+      )}
       {spot.readings.map((_, i) => (
         <ReadingRow
           key={i}
@@ -3243,7 +3333,7 @@ function SurveySpotSection({ spot }: { spot: SurveySpot }) {
         disabled={!free}
         title={
           plan.accessPoints.length === 0
-            ? 'Add an access point first'
+            ? 'Place an access point first'
             : free
               ? undefined
               : 'This spot has a reading for every access point and band'

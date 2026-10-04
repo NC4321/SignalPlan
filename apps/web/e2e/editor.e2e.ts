@@ -20,7 +20,7 @@ test('says how to start on an empty plan, until there are walls', async ({
   page,
 }) => {
   const properties = page.getByRole('complementary', { name: 'Properties' })
-  const hint = properties.getByText(/To start, pick Wall/)
+  const hint = properties.getByText(/No walls on this floor yet/)
   await expect(hint).toBeHidden()
   await page.getByText('File', { exact: true }).click()
   await page.getByRole('button', { name: 'New plan' }).click()
