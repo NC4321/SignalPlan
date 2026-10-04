@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ### Added
 
+- Guided first run: a first visit gets four short steps over the sample home (what the colours mean, drag an access point, draw a wall, where to start your own), each moving on when you do it. Skip ends it, it's shown once, and "Show the guide again" in the shortcuts dialog (?) replays it (D90).
+
 - Keyboard shortcuts overlay: press ? (or the ? button at the end of the top bar) for every shortcut, grouped into tools, editing, floors and view, and files, with Ctrl or ⌘ as your computer uses (D89).
 
 - Share a plan as a link: File › Share link… gives a link with the plan in it (compressed, in the part of the address that never reaches the server), to copy and send. Opening it opens a copy of the plan that joins My plans when you edit it, so your own plans are never replaced; a link pasted into an open tab works too. Tracing images stay out of the link, and the dialog says so. A damaged or newer link says why it can't be opened (D88).
