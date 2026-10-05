@@ -102,16 +102,13 @@ export async function removeOffline(
   return removed
 }
 
-/** Links the manifest (and the iOS home-screen icon), once. */
+/** Links the manifest, once. (index.html has the iOS home-screen icon.) */
 function linkManifest(doc: Document) {
   if (doc.querySelector('link[rel="manifest"]')) return
   const manifest = doc.createElement('link')
   manifest.rel = 'manifest'
   manifest.href = '/manifest.webmanifest'
-  const touchIcon = doc.createElement('link')
-  touchIcon.rel = 'apple-touch-icon'
-  touchIcon.href = '/icons/apple-touch-icon.png'
-  doc.head.append(manifest, touchIcon)
+  doc.head.append(manifest)
 }
 
 type Listener = () => void

@@ -1,6 +1,10 @@
-import { AxeBuilder } from '@axe-core/playwright'
 import { expect, test, type Page } from '@playwright/test'
-import { clickPlan, openEditor, summaryCount } from './helpers.ts'
+import {
+  clickPlan,
+  expectNoSeriousViolations,
+  openEditor,
+  summaryCount,
+} from './helpers.ts'
 
 const panel = (page: Page) =>
   page.getByRole('complementary', { name: 'Properties' })
@@ -8,18 +12,6 @@ const canvas = (page: Page) =>
   page.getByRole('application', { name: /^Floor plan/ })
 const announcement = (page: Page) =>
   page.locator('[aria-live="polite"]').filter({ hasText: /./ }).last()
-
-/** Fails on serious or critical axe-core findings, listing them. */
-async function expectNoSeriousViolations(page: Page) {
-  const { violations } = await new AxeBuilder({ page }).analyze()
-  const serious = violations
-    .filter((v) => v.impact === 'serious' || v.impact === 'critical')
-    .map(
-      (v) =>
-        `${v.id}: ${v.help} (${v.nodes.map((n) => n.target.join(' ')).join(', ')})`,
-    )
-  expect(serious).toEqual([])
-}
 
 test.describe('axe-core finds no serious problems', () => {
   test('in the editor and properties panel', async ({ page }) => {

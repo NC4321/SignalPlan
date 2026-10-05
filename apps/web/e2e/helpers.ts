@@ -1,5 +1,6 @@
 import { deflateSync, crc32 } from 'node:zlib'
-import type { Page } from '@playwright/test'
+import { AxeBuilder } from '@axe-core/playwright'
+import { expect, type Page } from '@playwright/test'
 
 /** Where a plan point (in metres) appears on the page. */
 export async function screenPoint(page: Page, x: number, y: number) {
@@ -34,6 +35,18 @@ export async function clickPlan(page: Page, x: number, y: number) {
 export async function openEditor(page: Page) {
   await page.goto('/')
   await page.locator('.editor-canvas[data-scale]').waitFor({ state: 'visible' })
+}
+
+/** Fails on serious or critical axe-core findings, listing them. */
+export async function expectNoSeriousViolations(page: Page) {
+  const { violations } = await new AxeBuilder({ page }).analyze()
+  const serious = violations
+    .filter((v) => v.impact === 'serious' || v.impact === 'critical')
+    .map(
+      (v) =>
+        `${v.id}: ${v.help} (${v.nodes.map((n) => n.target.join(' ')).join(', ')})`,
+    )
+  expect(serious).toEqual([])
 }
 
 /** The number shown next to a label in the plan summary. */
