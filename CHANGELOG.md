@@ -86,6 +86,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ### Fixed
 
+- Typed lengths accept more common forms, as D16 promises: `12'6` and `12' 6 1/2` without the closing ", `5 ft 6`, `12ft6in`, and a decimal comma (`3,5`) as the dBm fields already do. They used to show "Try 12'6"…" instead.
+
 - `docs/MODEL.md` quoted the optimizer's how-many times from before walls were sorted by direction (D56): the big house's 3.3–5.6 s and the 22–33 s on a slow phone. It now gives the current 2.63 s and 3.86 s, and the 15–23 s as an estimate, not a measurement (D96). It also lists that predictions are downlink only.
 
 ## [0.3.0] - 2026-09-28
