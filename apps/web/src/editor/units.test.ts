@@ -43,6 +43,10 @@ describe('parseLength', () => {
     ['350 cm', 3.5],
     ['3500mm', 3.5],
     ['.5', 0.5],
+    ['3,5', 3.5],
+    ['3,5 m', 3.5],
+    ['350,5 cm', 3.505],
+    [',5', 0.5],
   ])('reads metric "%s"', (text, metres) => {
     expect(parseLength(text, 'metric')).toBeCloseTo(metres, 9)
   })
@@ -59,6 +63,22 @@ describe('parseLength', () => {
     [`1/2"`, inches(0.5)],
     ['12 ft 6 in', feet(12) + inches(6)],
     ['6 inches', inches(6)],
+    [`12'6`, feet(12) + inches(6)],
+    [`12' 6`, feet(12) + inches(6)],
+    [`12'6.5`, feet(12) + inches(6.5)],
+    [`12' 6 1/2`, feet(12) + inches(6.5)],
+    [`12' 1/2`, feet(12) + inches(0.5)],
+    [`12′ 6`, feet(12) + inches(6)],
+    ['5 ft 6', feet(5) + inches(6)],
+    ['5 feet 6', feet(5) + inches(6)],
+    ['12ft6in', feet(12) + inches(6)],
+    ['12ft 6in', feet(12) + inches(6)],
+    ['12ft', feet(12)],
+    ['6in', inches(6)],
+    ['1 foot 2 inches', feet(1) + inches(2)],
+    ['12,5', feet(12.5)],
+    [`12,5'`, feet(12.5)],
+    [`12'6,5"`, feet(12) + inches(6.5)],
   ])('reads imperial "%s"', (text, metres) => {
     expect(parseLength(text, 'imperial')).toBeCloseTo(metres, 9)
   })
@@ -68,13 +88,30 @@ describe('parseLength', () => {
     expect(parseLength(`10'`, 'metric')).toBeCloseTo(feet(10), 9)
   })
 
-  it.each(['', 'abc', '3.5 km', `12'x`, `1/0"`, '-2', `"`, '1.2.3'])(
-    'rejects "%s"',
-    (text) => {
-      expect(parseLength(text, 'metric')).toBeUndefined()
-      expect(parseLength(text, 'imperial')).toBeUndefined()
-    },
-  )
+  it.each([
+    '',
+    'abc',
+    '3.5 km',
+    `12'x`,
+    `1/0"`,
+    '-2',
+    `"`,
+    '1.2.3',
+    '1,2,3',
+    '3,5,',
+    '3.5,5',
+    ',',
+    `12'6'`,
+    `12' 6"6`,
+    `12' 1/0`,
+    '12ftx',
+    '12 fts',
+    '6 inx',
+    `12'6 m`,
+  ])('rejects "%s"', (text) => {
+    expect(parseLength(text, 'metric')).toBeUndefined()
+    expect(parseLength(text, 'imperial')).toBeUndefined()
+  })
 })
 
 describe('parseSignedLength', () => {

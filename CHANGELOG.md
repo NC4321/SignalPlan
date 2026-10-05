@@ -6,9 +6,13 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ### Added
 
+- Install and work offline, hidden for now: SignalPlan can be installed as an app and keeps working without a connection after the first visit, with a line saying when a new version is ready to reload into. It's off for everyone until the owner opens it, and nothing on the page mentions it; a browser turns it on with `/?offline=on` and off again with `/?offline=off`. Plans stay where they were, in this browser's storage (D98).
+
 - A logo: the corner of two walls with signal arcs spreading from an access point, in the heatmap's colours, as the favicon, the home-screen icon, on the link-preview card and above the README (D97).
 
 - Link previews: a link to the app shows a card with its name, what it does and a picture of the sample home's heatmap on Reddit, Slack, Discord, iMessage, X and other sites that read Open Graph tags. Also a canonical address, a theme colour that matches the top bar in light and dark, and a home-screen icon for iPhone and iPad. `scripts/og-image.mjs` makes both images from the built app.
+
+- Launch post drafts: `docs/launch/` has drafts for r/HomeNetworking, r/homelab and Show HN, each with title options, a body that says plainly it's free, open source and in the browser and that no real home has been surveyed or scanned yet, and the repo source for each claim. Its README sets the order (Reddit first, then Show HN), summarises each venue's rules on posting your own project with links and the date checked (marked unconfirmed where the pages couldn't be loaded), and has a checklist before posting and a template for notes on what people said. Marked gaps are left for the author's own words (#162).
 
 - Phase 9 exit gate, automated part: one end-to-end test of a stranger's first visit, from a fresh browser through all four guide steps to a room drawn from scratch with its own access point and its coverage, with axe-core finding no serious problems at each step (a shared link opening in a fresh browser was already tested). The usability script now covers the guide and asks each person what SignalPlan is for within 30 seconds; watching first-time users completes the gate.
 
@@ -85,6 +89,8 @@ All notable changes to this project are documented here. The format follows [Kee
 - Engine: a floor's loss now depends on the angle the signal passes through it, as ITU-R P.2040 gives it, up to 75° from straight up. Signal to rooms well across the floor above or below meets the floor at a shallow angle and loses more than head on (a timber floor: 2.7 dB straight through, 6.6 dB at 75° on 5 GHz). Against ITU-R P.1238-13, the upper floor of the two-storey sample home goes from 2.3 / 5.5 dB optimistic to 0.7 / 3.4 dB on 2.4 / 5 GHz; the main floor doesn't change. Walls stay head-on (D60).
 
 ### Fixed
+
+- Typed lengths accept more common forms, as D16 promises: `12'6` and `12' 6 1/2` without the closing ", `5 ft 6`, `12ft6in`, and a decimal comma (`3,5`) as the dBm fields already do. They used to show "Try 12'6"…" instead.
 
 - Pressing Delete or an arrow key while dragging no longer makes the item vanish until the next pointer move and leaves an undo step that does nothing: the key is ignored until the drag ends.
 
