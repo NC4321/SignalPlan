@@ -133,7 +133,7 @@ Every design choice and its reasoning is recorded in the [decision log](docs/DEC
 
 The phase-by-phase plan is in [docs/OUTLINE.md](docs/OUTLINE.md); the [milestones](https://github.com/NC4321/SignalPlan/milestones) list what's next.
 
-**Next**, the rest of the polish and launch phase (the README and [how it works](docs/HOW-IT-WORKS.md) are done): a short write-up on the physics and the optimizer ([#161](https://github.com/NC4321/SignalPlan/issues/161)), launch posts ([#162](https://github.com/NC4321/SignalPlan/issues/162)), and the exit gate: a stranger lands on the demo, understands it in 30 seconds and plans a room without help, tested with first-time users ([#163](https://github.com/NC4321/SignalPlan/issues/163)).
+**Next**, the rest of the polish and launch phase (the README, [how it works](docs/HOW-IT-WORKS.md) and the [write-up](docs/writeup.md) are written): launch posts ([#162](https://github.com/NC4321/SignalPlan/issues/162)), and the exit gate: a stranger lands on the demo, understands it in 30 seconds and plans a room without help, tested with first-time users ([#163](https://github.com/NC4321/SignalPlan/issues/163)).
 
 **Still open: checks in a real home.** Calibration lowering the error on a real home ([#132](https://github.com/NC4321/SignalPlan/issues/132)), and scanning your own network from a laptop and a phone, then planning from it ([#144](https://github.com/NC4321/SignalPlan/issues/144)). Both are tested on synthetic homes only so far.
 
