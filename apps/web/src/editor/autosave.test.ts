@@ -205,6 +205,81 @@ describe('Autosaver', () => {
     stop()
   })
 
+  it('stays pending while a newer change waits behind a save in flight', async () => {
+    vi.useFakeTimers()
+    try {
+      const store = createEditorStore(samplePlan())
+      const autosaver = new Autosaver(store, library, 400)
+      const stop = autosaver.start()
+      let finish: (result: 'saved') => void = () => {}
+      const save = vi
+        .spyOn(library, 'save')
+        .mockImplementationOnce(
+          () => new Promise((resolve) => (finish = resolve)),
+        )
+        .mockResolvedValue('saved')
+
+      store.getState().edit('Move', moveRouter)
+      await vi.advanceTimersByTimeAsync(400)
+      expect(save).toHaveBeenCalledTimes(1)
+
+      // A newer change comes in while the first save is still writing.
+      store.getState().edit('Move', moveRouter)
+      expect(autosaver.getStatus()).toBe('pending')
+      finish('saved')
+      await vi.advanceTimersByTimeAsync(0)
+      expect(autosaver.getStatus()).toBe('pending')
+
+      // Once the newer change is saved too, it says so.
+      await vi.advanceTimersByTimeAsync(400)
+      expect(save).toHaveBeenCalledTimes(2)
+      expect(autosaver.getStatus()).toBe('saved')
+      stop()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('keeps a newly opened plan idle when a save of the last one finishes', async () => {
+    const { store, autosaver, stop } = setup()
+    let finish: (result: 'saved') => void = () => {}
+    const save = vi
+      .spyOn(library, 'save')
+      .mockImplementationOnce(
+        () => new Promise((resolve) => (finish = resolve)),
+      )
+    store.getState().edit('Move', moveRouter)
+    const flushed = autosaver.flush()
+    await vi.waitFor(() => expect(save).toHaveBeenCalled())
+    store.getState().loadPlan(blankPlan(), { pristine: true })
+    expect(autosaver.getStatus()).toBe('idle')
+    finish('saved')
+    await flushed
+    expect(autosaver.getStatus()).toBe('idle')
+    stop()
+  })
+
+  it('saves as soon as the page is hidden, not only on pagehide (D20)', async () => {
+    const store = createEditorStore(samplePlan())
+    const autosaver = new Autosaver(store, library, 60_000)
+    const stop = autosaver.start()
+    const save = vi.spyOn(library, 'save')
+    store.getState().edit('Move', moveRouter)
+
+    // Still visible: nothing happens.
+    document.dispatchEvent(new Event('visibilitychange'))
+    expect(save).not.toHaveBeenCalled()
+
+    const visibility = vi
+      .spyOn(document, 'visibilityState', 'get')
+      .mockReturnValue('hidden')
+    document.dispatchEvent(new Event('visibilitychange'))
+    await vi.waitFor(() => expect(save).toHaveBeenCalledTimes(1))
+    expect(await autosaver.flush()).toBe('saved')
+    visibility.mockRestore()
+    stop()
+  })
+
   it('reopens the library connection after it was closed', async () => {
     const plan = samplePlan()
     library.close()
