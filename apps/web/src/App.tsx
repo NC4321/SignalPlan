@@ -34,7 +34,7 @@ import {
   describeSelection,
   onlySurveySpots,
 } from './editor/selectTool.ts'
-import { isTyping } from './editor/util.ts'
+import { inOpenDialog, isTyping } from './editor/util.ts'
 import { toolForKey } from './editor/shortcuts.ts'
 import {
   createOptimizer,
@@ -186,7 +186,10 @@ function App({
   // Global shortcuts: undo, redo and tools.
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
-      if (isTyping(event)) return
+      // Keys in an open dialog are the dialog's (Esc closes it), not the plan's.
+      if (event.defaultPrevented || isTyping(event) || inOpenDialog(event)) {
+        return
+      }
       const mod = event.ctrlKey || event.metaKey
       const key = event.key.toLowerCase()
       const state = store.getState()

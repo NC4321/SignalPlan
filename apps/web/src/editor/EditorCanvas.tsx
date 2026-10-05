@@ -67,7 +67,7 @@ import { useServices } from './services.ts'
 import { pinError, spotCardLines, useSurveyErrors } from './surveyErrors.ts'
 import { onImage } from './tracing.ts'
 import { snapStep } from './units.ts'
-import { isTyping } from './util.ts'
+import { inOpenDialog, isTyping } from './util.ts'
 
 /** Arrow keys move the selection this far; with Shift, 5×. */
 const NUDGE_M = 0.1
@@ -324,10 +324,10 @@ export function EditorCanvas({
     const down = (event: KeyboardEvent) => {
       const onCanvas =
         event.target === canvas.current || event.target === document.body
-      if (event.code === 'Space' && onCanvas && !isTyping(event)) {
-        event.preventDefault()
-        setSpaceDown(true)
-      }
+      if (event.code !== 'Space' || !onCanvas || isTyping(event)) return
+      if (event.defaultPrevented || inOpenDialog(event)) return
+      event.preventDefault()
+      setSpaceDown(true)
     }
     const up = (event: KeyboardEvent) => {
       if (event.code === 'Space') setSpaceDown(false)

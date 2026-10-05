@@ -35,6 +35,19 @@ export function isTyping(event: KeyboardEvent): boolean {
   return target instanceof HTMLInputElement && TEXT_INPUTS.has(target.type)
 }
 
+/**
+ * True when a key event belongs to an open dialog, so editor shortcuts must
+ * leave the plan behind it alone. A modal dialog makes the rest of the page
+ * inert, so a key with focus fallen back to the body counts too.
+ */
+export function inOpenDialog(event: KeyboardEvent): boolean {
+  const target = event.target
+  if (target instanceof Element && target.closest('dialog[open]')) return true
+  return (
+    target === document.body && document.querySelector('dialog[open]') !== null
+  )
+}
+
 /** Predicted signal in the coverage cell under a point, if any. */
 export function signalAt(coverage: Coverage, p: Point): number | undefined {
   const { grid } = coverage
