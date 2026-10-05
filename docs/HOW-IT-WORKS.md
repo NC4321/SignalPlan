@@ -80,7 +80,7 @@ The maths and sources: [MODEL.md › Bands](MODEL.md#bands) and [Loss per wall c
 
 ## 6. Overlap, roaming and interference
 
-The heatmap can show four maps. The first, Signal, is the one above. The other three ask what happens when more than one access point is involved.
+The heatmap can show five maps. The first, Signal, is the one above. The second, **Upload**, turns it round: the signal from your phone as the access point receives it. The path loses the same both ways, but a phone sends at much less power than a router (10 dBm against 23 dBm on 5 GHz), so upload runs out first. Spots where download is good enough for your target and upload isn't are hatched grey. The other three ask what happens when more than one access point is involved.
 
 **Overlap** counts how many access points compete for a phone at each spot: those within 8 dB of the strongest and at or above −70 dBm. Where two or more count, a phone there could use either, which is what you want where it moves from one to another, and a waste where it doesn't. **Roaming** colours each spot by the access point a phone would be on (the strongest), and draws a line where that changes. Spots where none reaches −70 dBm are hatched grey. The 8 dB and −70 dBm are the figures Apple publishes for when an iPhone moves to another access point, used here as fixed defaults you can change per plan.
 
@@ -92,7 +92,7 @@ The heatmap can show four maps. The first, Signal, is the one above. The other t
 
 A wider channel picks up more background noise and overlaps more neighbours, so it pays twice. A radio whose channel is left on Auto is taken to be on a channel nobody else uses, the best case.
 
-The maths and sources: [MODEL.md › Overlap and roaming](MODEL.md#overlap-and-roaming) and [Interference](MODEL.md#interference).
+The maths and sources: [MODEL.md › Upload](MODEL.md#upload), [Overlap and roaming](MODEL.md#overlap-and-roaming) and [Interference](MODEL.md#interference).
 
 ## 7. Channels and the planner
 
@@ -179,6 +179,7 @@ The model draws one straight line from each access point to each point, and know
 - **Typical constructions.** A real wall may differ from its type. Metal studs, foil-backed insulation, tile or plaster lath all add loss, and real wood measured up to 5 dB lossier than the model.
 - **Dampness.** Concrete's loss depends hugely on how wet it is. The model assumes fairly damp concrete, so a dry wall above ground is probably predicted too lossy.
 - **Antennas.** Every access point is treated as sending evenly in all directions, and your phone as a perfect receiver. A real phone, and your hand around it, may read several dB lower.
+- **Upload is for a typical phone.** Upload assumes one phone power per band. Yours may send a few dB more or less, and a router's antennas help it hear a phone, which the model leaves out.
 - **No furniture or people.**
 - **The channel planner trusts the model's signal between access points.** A neighbour you haven't located counts as heard everywhere at one strength.
 

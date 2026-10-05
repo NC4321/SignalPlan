@@ -40,7 +40,7 @@ The editor reports the share of the **floor area** at or above a target level (D
 
 ### Overlap and roaming
 
-The heatmap can show four maps ([D64](DECISIONS.md#d64-overlap-and-roaming-views--2026-09-28), [D66](DECISIONS.md#d66-sinr-and-the-interference-view--2026-09-28)). **Signal** is the strongest access point's signal, as above. **Overlap** and **Roaming** work from each access point's own signal in every cell (`views.ts`), which the engine keeps alongside the strongest.
+The heatmap can show five maps ([D64](DECISIONS.md#d64-overlap-and-roaming-views--2026-09-28), [D66](DECISIONS.md#d66-sinr-and-the-interference-view--2026-09-28), [D99](DECISIONS.md#d99-upload-the-phone-to-access-point-link--2026-10-05)). **Signal** is the strongest access point's signal, as above. **Upload** is the phone's signal at that access point ([Upload](#upload)). **Overlap** and **Roaming** work from each access point's own signal in every cell (`views.ts`), which the engine keeps alongside the strongest.
 
 - **Overlap** counts the access points that compete for a device in a cell: those within the **overlap margin** of the strongest there (8 dB by default) and at or above the **roaming threshold** (−70 dBm by default). Cells where no access point reaches the threshold count 0 and are left uncoloured. The summary gives the share of the floor with two or more, rounded up, so 0% only ever means none.
 - **Roaming** colours each cell by its strongest access point, if that one reaches the roaming threshold, and draws a line where the strongest changes. A gap, where none reaches the threshold, is hatched grey. The summary gives the share of the floor in gaps, rounded up.
@@ -79,6 +79,38 @@ Unusable cells are hatched grey; cells no access point reaches are left clear. T
 A neighbour's network with a **location** ([D84](DECISIONS.md#d84-located-neighbours-interfere-cell-by-cell--2026-10-04)), fitted from scans at survey spots ([Locating access points](#locating-access-points)), is worked out cell by cell as an access point would be: from its position and height, at its fitted EIRP, through the walls and slabs between, with the plan's calibrated values. It isn't a source of coverage, only of interference, and it doesn't widen a floor's grid when it lies outside the walls. A test checks its grid is bit for bit that of an access point in its place. Each one costs about as much to compute as an access point (about 10 ms on the big house). The legend says how many count from a location and how many everywhere.
 
 Working SINR out on the page adds about 2 ms to the big house's grid (12.7 → 14.5 ms median on the desktop, with every access point on one channel), inside its 50 ms budget; `coverage.speed.ts` checks it.
+
+### Upload
+
+Every map above is download: the access point sending, the phone receiving. **Upload** is the other way ([D99](DECISIONS.md#d99-upload-the-phone-to-access-point-link--2026-10-05), `uplink.ts`). Path loss is the same in both directions: the straight line, its distance, walls and slabs don't depend on which end sends (a property test checks the engine's loss both ways). So the access point receives
+
+P_up = EIRP_phone − PL = P_down − (EIRP_AP − EIRP_phone)
+
+where PL is the loss the heatmap already worked out for that cell, calibration included, and P_down is the heatmap's value. The phone is taken to be on the strongest access point, as in Roaming and Interference; a phone stays on the access point it hears best, not the one that hears it best. Working it out is one subtraction per cell from the coverage result, so the engine doesn't run again and the worker's time is unchanged.
+
+**A phone's power.** The phone's EIRP, with its antenna counted at 0 dBi as the downlink's receiver is (so conducted power and EIRP are the same):
+
+| Band    | Phone EIRP | Access point default | Gap   | Source                                                                                                                                                                       |
+| ------- | ---------- | -------------------- | ----- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 2.4 GHz | 14 dBm     | 20 dBm               | 6 dB  | Top of Cisco's 9–14 dBm "typical max transmit power for most iOS devices"; Sârbu et al. give 16 dBm conducted for phones on 802.11n                                          |
+| 5 GHz   | 10 dBm     | 23 dBm               | 13 dB | Sârbu et al.: 10 dBm conducted for phones on 802.11ac, from FCC filings; inside Cisco's range                                                                                |
+| 6 GHz   | 12 dBm     | 18 dBm               | 6 dB  | 47 CFR § 15.407(a)(8): a client of a low-power indoor access point, −1 dBm/MHz, at most 24 dBm; over 20 MHz that is 12.0 dBm, as the 18 dBm default is 5 dBm/MHz over 20 MHz |
+
+The 2.4 and 5 GHz values are **assumptions**, as the access points' defaults are. Phones differ by model, band and channel, and lower their power when the link allows; at the edge of coverage they send at their maximum, which is what these stand for. Cisco's white paper (_Enterprise Best Practices for iOS, iPadOS, and macOS Devices on Cisco Wireless LAN_) gives a range across bands, not a value per band, and Sârbu et al. (2020) quote a phone's conducted power on each standard. Where the two differ the lower is used. The EU's 6 GHz limits ([Channels and regions](#channels-and-regions)) aren't split between access points and clients, so 12 dBm is the US case there. The legend says which value is in use. These sources were read through search excerpts on 2026-10-05: the development container couldn't open the pages themselves, so the figures still need checking against the full texts (see D99).
+
+**The level it needs.** The same as download's: the plan's coverage target (Fair, −67 dBm, by default). 802.11's minimum sensitivities are for any receiver, access point or phone, with the same 10 dB noise figure and 5 dB implementation margin (IEEE Std 802.11a-1999, 17.3.10.1, as in [Interference](#interference)), so the same level gives the same rate either way, and comparing the two directions at one target is like for like.
+
+**What's left out, and which way it errs.** The access point's receive antenna counts as 0 dBi and as one antenna, as D24 treats access points as plain omnidirectional radios. A real router's antenna gain is already inside its EIRP for download, and helps upload by the same amount, and with two or more antennas it can combine what each receives. Both make the upload worse here than in practice, by a few dB; taking the top of Cisco's range for 2.4 GHz leans the other way. Interference at the access point (from its own clients and the neighbours' networks around it, not around the phone) isn't modelled for upload.
+
+**The map.** Upload colours each cell by P_up on the Signal view's bands. Where download reaches the target and upload doesn't, the cell is hatched grey: download works there for calls and streaming, sending doesn't. The summary gives the share of the floor that's hatched, rounded up so 0% only means none. On the test homes on 5 GHz at Fair, with each home's one router at the default 23 dBm:
+
+| Home                    | Download at Fair | Upload at Fair | Download only |
+| ----------------------- | ---------------- | -------------- | ------------- |
+| Sample home (150 m²)    | 86.9%            | 86.8%          | 0.1%          |
+| Apartment (65 m²)       | 89.3%            | 51.0%          | 38.3%         |
+| L-shaped house (220 m²) | 72.3%            | 40.4%          | 31.9%         |
+
+The sample home barely changes, because its signal falls off a cliff behind the concrete utility room and low-E windows rather than fading; where the signal fades with distance through light walls, a third of the floor can download at Fair but not upload. On 2.4 and 6 GHz the gap is 6 dB, and the share is 0–11% in these homes.
 
 ### Channel planner
 
@@ -591,7 +623,7 @@ So the radius is conservative: the truth was inside it in all 600 surveys, and i
 ## Known limits
 
 - **The channel planner trusts the model's signal between access points.** Reflections that carry signal around a wall, which the model ignores (D24), can let two access points hear each other when the planner thinks they don't. Neighbours' networks without a location count as heard everywhere at the one strength typed in ([D68](DECISIONS.md#d68-channel-planner--2026-09-29)); located ones are only as right as their position (D84).
-- **Downlink only.** Every prediction is from the access point to the phone. A phone transmits at much lower power than a router, so at the edge of coverage the return link can fail first.
+- **Upload is an estimate from a typical phone.** Upload uses one phone EIRP per band ([Upload](#upload), [D99](DECISIONS.md#d99-upload-the-phone-to-access-point-link--2026-10-05)); a given phone may send a few dB more or less, and the access point's own antenna gain and receive diversity, which help it, aren't counted. Every other map, the optimizer, the channel planner and the coverage summary are download only, and interference at the access point isn't modelled.
 - **Straight line only.** Signals that bend around corners (diffraction) or bounce off walls (reflection) are ignored, so areas behind strong walls are predicted darker than they are. See [D24](DECISIONS.md#d24-propagation-scope-for-m1-omnidirectional-direct-path-only--2026-09-27).
 - **Normal incidence.** Wall loss is computed for a wave meeting the wall head on. The slab code supports angles, but using them moved 90% of cells by at most about 3 dB in the test plans, and not always downwards, so it was left out ([D30](DECISIONS.md#d30-wall-loss-stays-at-normal-incidence--2026-09-27)).
 - **Omnidirectional access points.** Antenna patterns are ignored ([D24](DECISIONS.md#d24-propagation-scope-for-m1-omnidirectional-direct-path-only--2026-09-27)).
@@ -619,6 +651,8 @@ So the radius is conservative: the truth was inside it in all 600 surveys, and i
 - 3GPP TR 38.901 V17.0.0 (ETSI TR 138 901, 2022-04), _Study on channel model for frequencies from 0.5 to 100 GHz_. Table 7.4.3-1.
 - COST Action 231, _Digital mobile radio towards future generation systems: final report_, European Commission, 1999. Indoor multi-wall model.
 - 47 CFR §§ 15.205, 15.247, 15.403 and 15.407 (FCC Part 15, eCFR as of 2026-09-24), and the matching ISED rules RSS-247 and RSS-248.
+- Cisco Systems, _Enterprise Best Practices for iOS, iPadOS, and macOS Devices on Cisco Wireless LAN_, white paper. [cisco.com](https://www.cisco.com/c/en/us/products/collateral/wireless/access-points/enterprise-best-practices-ios-ipados-wp.html). Client transmit power (read from search excerpts, 2026-10-05).
+- A. Sârbu, S. Miclăuș, A. Digulescu and P. Bechet, "Comparative Analysis of User Exposure to the Electromagnetic Radiation Emitted by the Fourth and Fifth Generations of Wi-Fi Communication Devices", _International Journal of Environmental Research and Public Health_, vol. 17, no. 23, 8837, 2020. [doi:10.3390/ijerph17238837](https://doi.org/10.3390/ijerph17238837). Phone conducted power on 802.11n and 802.11ac (read from search excerpts, 2026-10-05).
 - FCC Office of Engineering and Technology, "KDB 248227 802.11 SAR Procedures Update Proposal", TCB Workshop, October 2013. Slide 7.
 - ETSI EN 300 328 V2.2.2 (2019-07), _Wideband transmission systems; Data transmission equipment operating in the 2,4 GHz band; Harmonised Standard for access to radio spectrum_. Clauses 4.3.2.2, 4.3.2.3.
 - ETSI EN 301 893 V2.2.1 (2024-11), _5 GHz WAS/RLAN; Harmonised Standard for access to radio spectrum_. Table 1, eq. (1), Table 2, clause 4.2.6.1.2, Figure 6.
