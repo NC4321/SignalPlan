@@ -1,6 +1,6 @@
 import { withChannelPlan } from './editor/channelPlan.ts'
 import { viewSettings } from '@signalplan/engine'
-import { mapData, type MapData } from './mapView.ts'
+import { mapData, sameMapPlan, type MapData, type MapPlan } from './mapView.ts'
 import { adjacentFloorId, type PlanIssue } from '@signalplan/floorplan'
 import { useEffect, useMemo, useState } from 'react'
 import { useEditor, useEditorStore } from './editor/context.ts'
@@ -161,19 +161,22 @@ function App({
     () => ({ overlapMarginDb, roamThresholdDbm }),
     [overlapMarginDb, roamThresholdDbm],
   )
+  // Kept while what the map reads is unchanged, so a drag doesn't redo the
+  // map (and the heatmap bitmap) until new coverage arrives.
+  const mapPlan = useMapPlan(shownPlan)
   const map = useMemo(
-    () => (shown ? mapData(shown, show, settings, shownPlan) : undefined),
-    [shown, show, settings, shownPlan],
+    () => (shown ? mapData(shown, show, settings, mapPlan) : undefined),
+    [shown, show, settings, mapPlan],
   )
   const floorMaps = useMemo(
     () =>
       new Map(
         [...floorsCoverage].map(([id, c]) => [
           id,
-          mapData(c, show, settings, shownPlan),
+          mapData(c, show, settings, mapPlan),
         ]),
       ),
-    [floorsCoverage, show, settings, shownPlan],
+    [floorsCoverage, show, settings, mapPlan],
   )
   const summary = useCoverageMessage(map)
   const coverageText = !summary
@@ -375,6 +378,27 @@ function App({
       </SurveyImportProvider>
     </TracingProvider>
   )
+}
+
+/**
+ * The parts of `plan` that `mapData` reads, as the same object for as long
+ * as they are unchanged (moving an access point doesn't change them).
+ */
+function useMapPlan(plan: MapPlan): MapPlan {
+  const [kept, setKept] = useState<MapPlan>(() => pickMapPlan(plan))
+  if (sameMapPlan(kept, plan)) return kept
+  // Updated during render, as React suggests for state from earlier renders.
+  const next = pickMapPlan(plan)
+  setKept(next)
+  return next
+}
+
+function pickMapPlan(plan: MapPlan): MapPlan {
+  return {
+    accessPoints: plan.accessPoints,
+    region: plan.region,
+    neighbourNetworks: plan.neighbourNetworks,
+  }
 }
 
 export default App
