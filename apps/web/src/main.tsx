@@ -3,6 +3,7 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import App from './App.tsx'
 import { ErrorBoundary } from './ErrorBoundary.tsx'
+import { startOffline } from './offline.ts'
 import { takeReloadAfterCrash } from './rescue.ts'
 import { Autosaver } from './editor/autosave.ts'
 import { EditorContext } from './editor/context.ts'
@@ -81,6 +82,13 @@ if (!shared && !last && !startNotice && !guideSeen()) {
 if (startNotice) store.getState().setNotice(startNotice)
 const autosaver = new Autosaver(store, library)
 autosaver.start()
+// Offline use, behind a switch (D98): off unless this browser asked for it.
+void startOffline({
+  onReady: () =>
+    store.getState().setNotice('SignalPlan now works offline in this browser.'),
+  onTurnedOff: () =>
+    store.getState().setNotice('Offline use is off in this browser.'),
+}).catch(() => {})
 // Tidy away tracing images that no saved plan uses any more.
 void library?.collectGarbage(imageIdsIn(store.getState().plan)).catch(() => {})
 
