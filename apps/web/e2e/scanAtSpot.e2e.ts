@@ -207,3 +207,30 @@ SSID 1 : HomeNet
     panel(page).getByRole('region', { name: '2.4 GHz calibration' }),
   ).toContainText('1 of 11 readings are approximate (≈)')
 })
+
+test('opening another plan drops a scan waiting to be placed', async ({
+  page,
+}) => {
+  await openPlan(page, withoutSpots())
+  const answers = await readScan(page, scanAt(SPOTS[0]!, -75))
+  await answers
+    .getByRole('combobox', { name: /Next door/ })
+    .selectOption({ label: 'A neighbour’s' })
+  await answers
+    .getByRole('radio', { name: /click the plan after Apply/ })
+    .check()
+  await answers.getByRole('button', { name: 'Apply, then click…' }).click()
+  const bar = page.getByRole('region', { name: 'Place the scan' })
+  await expect(bar).toBeVisible()
+
+  await page.getByText('File', { exact: true }).click()
+  await page.getByRole('button', { name: 'New plan' }).click()
+  await expect(bar).toHaveCount(0)
+
+  // A click on the new plan no longer imports the old plan's scan.
+  await clickPlan(page, 2, 2)
+  await expect(
+    panel(page).getByRole('heading', { name: 'Spot 1' }),
+  ).toHaveCount(0)
+  await expect(notice(page)).not.toContainText('readings at')
+})

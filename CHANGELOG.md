@@ -102,6 +102,10 @@ All notable changes to this project are documented here. The format follows [Kee
 
 - A tracing image that failed to load once (say a passing storage error) stayed missing until a reload. It's now tried again. Decoded images a plan no longer uses are freed, so they don't pile up when you open other plans.
 
+- Pressing Delete or an arrow key while dragging no longer makes the item vanish until the next pointer move and leaves an undo step that does nothing: the key is ignored until the drag ends.
+
+- Opening a plan (New plan, the sample, a file, My plans or a share link) no longer keeps the last plan's tool, calibration clicks, floors hidden in 3D, status note or a scan waiting to be placed, which the next click would have imported into the new plan. View settings such as the band, units and 2D or 3D stay.
+
 - `docs/MODEL.md` quoted the optimizer's how-many times from before walls were sorted by direction (D56): the big house's 3.3–5.6 s and the 22–33 s on a slow phone. It now gives the current 2.63 s and 3.86 s, and the 15–23 s as an estimate, not a measurement (D96). It also lists that predictions are downlink only.
 
 ## [0.3.0] - 2026-09-28
