@@ -78,7 +78,7 @@ import {
   type Wall,
 } from '@signalplan/floorplan'
 import type { Draft } from 'immer'
-import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
+import { memo, useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import { DEFAULT_TARGET, qualityOf, targetBand } from '../quality.ts'
 import {
   EDGE_KEY_CSS,
@@ -588,13 +588,19 @@ export function PropertiesPanel({
  * view's names come from the map itself, so they match its colours, even
  * with a suggestion's access points added.
  */
-function MapLegend({ map }: { map: MapData | undefined }) {
+// Memoised, with narrow reads, so a drag doesn't redo it every frame.
+const MapLegend = memo(function MapLegend({
+  map,
+}: {
+  map: MapData | undefined
+}) {
   const show = useEditor((s) => s.show)
-  const plan = useEditor((s) => s.plan)
+  const overlapMarginDb = useEditor((s) => s.plan.overlapMarginDb)
+  const roamThresholdDbm = useEditor((s) => s.plan.roamThresholdDbm)
   const names = map ? map.accessPointNames : []
   const legend = mapLegend(
     show,
-    viewSettings(plan),
+    viewSettings({ overlapMarginDb, roamThresholdDbm }),
     names,
     map ? map.autoChannels : 0,
     map ? map.neighbours : 0,
@@ -615,7 +621,7 @@ function MapLegend({ map }: { map: MapData | undefined }) {
       {legend.note && <p className="hint legend-note">{legend.note}</p>}
     </>
   )
-}
+})
 
 function LegendSwatch({ swatch }: { swatch: Swatch }) {
   switch (swatch.kind) {
@@ -636,7 +642,11 @@ function LegendSwatch({ swatch }: { swatch: Swatch }) {
  * The share of the floor inside the walls that reaches the plan's target,
  * for the band on show (#43).
  */
-function CoverageSummary({ message }: { message: string }) {
+const CoverageSummary = memo(function CoverageSummary({
+  message,
+}: {
+  message: string
+}) {
   const store = useEditorStore()
   const target = useEditor((s) => s.plan.coverageTarget ?? DEFAULT_TARGET)
   const id = useId()
@@ -668,7 +678,7 @@ function CoverageSummary({ message }: { message: string }) {
       <p className="coverage-share">{message}</p>
     </div>
   )
-}
+})
 
 /**
  * The placement optimizer (D44, D45, D46): buttons to search, then progress

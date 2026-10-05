@@ -27,7 +27,9 @@ export interface ViewSettings {
 }
 
 /** A plan's view settings, with the defaults where it doesn't set them. */
-export function viewSettings(plan: Plan): ViewSettings {
+export function viewSettings(
+  plan: Pick<Plan, 'overlapMarginDb' | 'roamThresholdDbm'>,
+): ViewSettings {
   return {
     overlapMarginDb: plan.overlapMarginDb ?? DEFAULT_OVERLAP_MARGIN_DB,
     roamThresholdDbm: plan.roamThresholdDbm ?? DEFAULT_ROAM_THRESHOLD_DBM,
