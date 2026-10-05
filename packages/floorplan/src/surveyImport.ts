@@ -181,7 +181,7 @@ function readRow(
  * Splits CSV text into rows of cells, with quoted cells as RFC 4180 has
  * them, and the line each row starts on.
  */
-function csvRows(
+export function csvRows(
   text: string,
   delimiter: string,
 ): { line: number; cells: string[] }[] {
