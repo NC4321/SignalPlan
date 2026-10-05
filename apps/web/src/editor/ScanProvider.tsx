@@ -136,7 +136,20 @@ export function ScanProvider({ children }: { children: ReactNode }) {
   }
 
   const read = (output: string) => {
-    const result = parseScan(output)
+    let result: ReturnType<typeof parseScan>
+    try {
+      result = parseScan(output)
+    } catch (error) {
+      // A reader that throws must still say so, not leave the dialog idle.
+      const detail = error instanceof Error ? ` (${error.message})` : ''
+      setProblem([
+        {
+          path: '',
+          message: `SignalPlan hit an error reading it${detail}.`,
+        },
+      ])
+      return
+    }
     if (!result.ok) {
       setProblem(result.issues)
       return
