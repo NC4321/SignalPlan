@@ -48,8 +48,10 @@ const IMPERIAL = new RegExp(
  * Parses a typed length into metres, or undefined if it isn't one.
  *
  * Metric accepts `3.5`, `3.5 m`, `350 cm` and `3500 mm`. Imperial accepts
- * `12'6.5"`, `12' 6 1/2"`, `12.5'`, `150"`, `12 ft 6 in`, and a bare number
- * as feet. Either system also accepts the other's explicit units.
+ * `12'6.5"`, `12' 6 1/2"`, `12'6` and `12' 6 1/2` (the closing `"` is optional
+ * after feet), `12.5'`, `150"`, `12 ft 6 in`, `12ft6in`, `5 ft 6`, and a bare
+ * number as feet. Either system also accepts the other's explicit units. A
+ * single comma is read as a decimal point (`3,5`), as the dBm fields do.
  */
 export function parseLength(text: string, units: Units): number | undefined {
   const input = text
@@ -57,8 +59,11 @@ export function parseLength(text: string, units: Units): number | undefined {
     .toLowerCase()
     .replace(/[′’]/g, "'")
     .replace(/[″”]/g, '"')
-    .replace(/\s*(feet|foot|ft)\b/g, "'")
-    .replace(/\s*(inches|inch|in)\b/g, '"')
+    .replace(/\s*(feet|foot|ft)(?![a-z])/g, "'")
+    .replace(/\s*(inches|inch|in)(?![a-z])/g, '"')
+    .replace(/^([^,]*),([^,]*)$/, '$1.$2')
+    // Inches after feet may leave off the closing ": 12'6, 12' 6 1/2.
+    .replace(/'(\s*[\d.]+(?:\s+\d+\s*\/\s*\d+)?|\s*\d+\s*\/\s*\d+)$/, `'$1"`)
   if (input === '') return undefined
 
   const bare = Number(input)
