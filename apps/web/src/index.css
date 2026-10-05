@@ -204,8 +204,14 @@ input:focus-visible + *,
   display: none;
 }
 
-.toolbar {
+/* A landmark around the toolbar, so axe's region rule holds. */
+.tools-region {
   grid-area: tools;
+  display: flex;
+}
+
+.toolbar {
+  flex: 1;
   display: flex;
   flex-direction: column;
   gap: 0.25rem;
