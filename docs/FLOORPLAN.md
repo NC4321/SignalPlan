@@ -141,6 +141,7 @@ Opening a link decodes it and validates the plan as opening a file does, then op
 - **Geometry:** walls are at least 1 cm long, openings fit inside their wall and don't overlap.
 - **Uniqueness:** ids are unique within each list (survey spot ids across all floors), each access point has at most one radio per band, each survey spot has at most one reading per access point and band and one neighbour reading per BSSID, and each BSSID is on one radio or one neighbour network and not also in `ignoredBssids`.
 - **Channels:** a radio with a `channel` also has a `channelWidthMHz`.
+- **Size:** `loadPlan`, which opens files and share links, also refuses a plan more than 2 km across (`MAX_PLAN_SIZE_M`), asking whether it was saved in millimetres ([D100](DECISIONS.md#d100-a-cap-on-the-coverage-grid-and-on-plan-size--2026-10-05)).
 
 ## Versions and migrations
 

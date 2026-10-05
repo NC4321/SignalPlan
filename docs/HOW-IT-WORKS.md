@@ -10,7 +10,7 @@ Each section ends with a link to [MODEL.md](MODEL.md), which has the same story 
 
 ## 1. What the heatmap is
 
-The heatmap is a **prediction**, not a measurement. SignalPlan doesn't listen to your Wi-Fi to draw it (unless you calibrate it, [section 8](#8-checking-against-your-home)). It takes the plan you drew, with its walls, floors and access points, and works out how strong each access point's signal should be at a point every 10 cm across each floor. It keeps the strongest and colours the point.
+The heatmap is a **prediction**, not a measurement. SignalPlan doesn't listen to your Wi-Fi to draw it (unless you calibrate it, [section 8](#8-checking-against-your-home)). It takes the plan you drew, with its walls, floors and access points, and works out how strong each access point's signal should be at a point every 10 cm across each floor (further apart only on a floor over about 100 m by 100 m). It keeps the strongest and colours the point.
 
 The colours step down at fixed levels: Excellent from −50 dBm, Good from −60, Fair from −67, Weak from −75 and Poor from −85. Below that a point is left uncoloured. The model assumes a phone held 1 m above the floor, with an antenna that neither boosts nor weakens the signal, which is typical of a phone.
 
