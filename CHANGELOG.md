@@ -90,6 +90,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ### Fixed
 
+- The length you type while drawing a wall is capped at 1000 m, the same as the Length field in the panel (D100).
+
 - Plans far too large no longer break coverage. A plan saved in millimetres opened as one 15 km across and failed with "Couldn't work out coverage… Undo your last change", with nothing to undo. Opening a file or a link wider than 2 km now says "This plan is 15 km across. Was it saved in millimetres?". A large floor's coverage grid has at most a million cells, so floors over about 100 m × 100 m get coarser cells instead of a recompute of several seconds on every drag; a 600 m × 400 m floor gets 50 cm cells. A wall's typed length goes up to 1000 m, and a coverage failure with nothing to undo says to open another plan (D100).
 
 - Typed lengths accept more common forms, as D16 promises: `12'6` and `12' 6 1/2` without the closing ", `5 ft 6`, `12ft6in`, and a decimal comma (`3,5`) as the dBm fields already do. They used to show "Try 12'6"…" instead.
