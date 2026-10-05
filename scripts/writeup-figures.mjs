@@ -210,7 +210,7 @@ const figures = {
     }
     const file = join(scratch, 'three-ap-home-80.json')
     writeFileSync(file, JSON.stringify(home))
-    const view = { left: 60, width: 585, top: 140, height: 360 }
+    const view = { left: 60, width: 625, top: 140, height: 360 }
     const page = await open()
     await openFixture(page, file)
     // The floor list is hidden in the figures, so press its button directly.
