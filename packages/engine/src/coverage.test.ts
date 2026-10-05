@@ -14,6 +14,7 @@ import {
   cellCentre,
   evaluateCoverage,
   gridForFloor,
+  MAX_GRID_CELLS,
   predictDbm,
   RECEIVER_HEIGHT_M,
 } from './coverage.ts'
@@ -169,6 +170,45 @@ describe('gridForFloor', () => {
       cols: 10,
       rows: 10,
     })
+  })
+
+  it('keeps 10 cm cells up to the cell limit (D100)', () => {
+    // 98 m walls plus a 1 m margin each side: 1,000 × 1,000 cells.
+    const grid = gridForFloor(floor([[0, 0, 98, 98, 'brick']]))
+    expect(grid.cellM).toBe(0.1)
+    expect(grid.cols * grid.rows).toBe(MAX_GRID_CELLS)
+  })
+
+  it('coarsens the cells of a floor too big for the limit (D100)', () => {
+    // 602 × 402 m would be 24 million 10 cm cells; 20 and 25 cm are still
+    // too many, so it takes 50 cm.
+    const grid = gridForFloor(floor([[0, 0, 600, 400, 'brick']]))
+    expect(grid).toEqual({
+      originX: -1,
+      originY: -1,
+      cellM: 0.5,
+      cols: 1204,
+      rows: 804,
+    })
+  })
+
+  it('works out a plan saved in millimetres instead of failing (D100)', () => {
+    const result = parsePlan(sampleHome)
+    if (!result.ok) throw new Error('sample home is invalid')
+    const huge: Plan = JSON.parse(JSON.stringify(result.plan))
+    for (const node of huge.floors[0]!.nodes) {
+      node.x *= 1000
+      node.y *= 1000
+    }
+    for (const a of huge.accessPoints) {
+      a.x *= 1000
+      a.y *= 1000
+    }
+    const coverage = evaluateCoverage(huge, huge.floors[0]!.id, '5GHz')
+    const { grid } = coverage
+    expect(grid.cols * grid.rows).toBeLessThanOrEqual(MAX_GRID_CELLS)
+    expect(grid.cellM).toBe(20)
+    expect(coverage.dbm).toHaveLength(grid.cols * grid.rows)
   })
 })
 

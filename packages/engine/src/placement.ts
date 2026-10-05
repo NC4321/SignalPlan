@@ -108,8 +108,15 @@ export function betterScore(a: PlacementScore, b: PlacementScore): boolean {
 /** The scorer for a problem, or undefined when no floor has a closed outline. */
 export function createScorer(problem: PlacementProblem): Scorer | undefined {
   const { plan, band, minDbm, fixed, template } = problem
-  const cellM = problem.cellM ?? SEARCH_CELL_M
   const stack = prepareStack(plan, band)
+  // Every floor shares one cell size, so each cell counts the same area: the
+  // coarsest any floor's grid needs (D100).
+  const cellM = Math.max(
+    ...stack.map(
+      ({ floor }) => gridForFloor(floor, problem.cellM ?? SEARCH_CELL_M).cellM,
+    ),
+    problem.cellM ?? SEARCH_CELL_M,
+  )
   const exponent = plan.calibration?.[band]?.pathLossExponent
   const storeyOf = new Map(stack.map((storey, i) => [storey.floor.id, i]))
 
