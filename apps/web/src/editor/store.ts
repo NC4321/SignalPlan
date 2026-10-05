@@ -191,7 +191,7 @@ export interface EditorState {
   /**
    * Applies one undoable edit. It drops a search or suggestion unless
    * `keepOptimizer` says the edit can't affect it, like the Overlap and
-   * Roaming settings (D64).
+   * Roaming settings (D64). Does nothing while a gesture is open.
    */
   edit: (
     label: string,
@@ -473,6 +473,10 @@ export function createEditorStore(
     coverageGoal: DEFAULT_COVERAGE_GOAL,
 
     edit: (label, recipe, options) => {
+      // Mid-gesture the plan on show is a preview that ending the gesture
+      // replaces, so an edit made now would be lost, leaving an undo step
+      // that does nothing. The gesture is the only edit until it ends.
+      if (get().gesture) return
       const [next, patches, inverse] = produceWithPatches(get().plan, recipe)
       if (patches.length === 0) return
       set((state) => ({
@@ -584,7 +588,10 @@ export function createEditorStore(
     },
 
     loadPlan: (next, { id, pristine = false } = {}) => {
-      set({
+      // Only what belongs to the plan that was open is reset. Settings of
+      // the view and tools (band, units, 2D or 3D, materials, the 3D spread
+      // and walls) are the person's and stay.
+      set((state) => ({
         plan: next,
         planId: id,
         pristine,
@@ -596,11 +603,21 @@ export function createEditorStore(
         camera: undefined,
         chain: undefined,
         outline: undefined,
+        // Calibrating was for the old plan's image, and a floor opening
+        // may have no slab to cut in the new one.
+        tool: 'select',
+        calibrationPoints: [],
+        // A scan waiting for its spot belongs to the old plan.
+        placeScan: undefined,
+        // Floor ids repeat between plans ('main'), so a hidden floor would
+        // hide the new plan's.
+        view3d: { ...state.view3d, hiddenFloors: [] },
+        notice: undefined,
         optimizer: undefined,
         channelPlan: undefined,
         positionCheck: undefined,
         modelCalibration: undefined,
-      })
+      }))
     },
 
     setPlanId: (planId) => set({ planId }),
