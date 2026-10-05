@@ -20,6 +20,8 @@ export default defineConfig({
         // The app shell, every JS and CSS chunk (the workers and the lazily
         // loaded 3D view among them), the icons and the manifest.
         globPatterns: ['**/*.{html,js,css,svg,png,webmanifest}'],
+        // The link-preview image (D97) is for other sites, not the app.
+        globIgnores: ['og-image.png'],
         maximumFileSizeToCacheInBytes: 8 * 1024 * 1024,
         navigateFallback: 'index.html',
         cleanupOutdatedCaches: true,
