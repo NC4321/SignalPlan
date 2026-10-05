@@ -124,3 +124,67 @@ test('pans with the wheel', async ({ page }) => {
     .poll(async () => (await screenPoint(page, 0, 0)).y)
     .toBeCloseTo(before.y - 60, 0)
 })
+
+test('hovering with Select neither redraws nor resizes the canvas', async ({
+  page,
+}) => {
+  // Count draws (each sets the transform once) and backing store resizes.
+  await page.evaluate(() => {
+    const counts = { draws: 0, resizes: 0 }
+    Object.assign(window, { canvasCounts: counts })
+    const canvas = document.querySelector('canvas.editor-canvas')!
+    const proto = CanvasRenderingContext2D.prototype
+    const setTransform = proto.setTransform
+    proto.setTransform = function (
+      this: CanvasRenderingContext2D,
+      ...args: unknown[]
+    ) {
+      if (this.canvas === canvas) counts.draws++
+      return (setTransform as (...a: unknown[]) => void).apply(this, args)
+    } as typeof setTransform
+    for (const name of ['width', 'height'] as const) {
+      const property = Object.getOwnPropertyDescriptor(
+        HTMLCanvasElement.prototype,
+        name,
+      )!
+      Object.defineProperty(canvas, name, {
+        get: () => property.get!.call(canvas),
+        set: (value: number) => {
+          counts.resizes++
+          property.set!.call(canvas, value)
+        },
+      })
+    }
+  })
+  const counts = () =>
+    page.evaluate(
+      () =>
+        (window as unknown as { canvasCounts: Record<string, number> })
+          .canvasCounts,
+    )
+
+  // Once the heatmap is in, hover a corner of the view, clear of the plan.
+  const box = (await page.locator('.editor-canvas').boundingBox())!
+  const readout = page.locator('.readout')
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
+  await expect(readout).toContainText(/-\d+ dBm/)
+  await page.mouse.move(box.x + 20, box.y + 20)
+  const first = await readout.textContent()
+  await page.evaluate(() =>
+    Object.assign(
+      (window as unknown as { canvasCounts: object }).canvasCounts,
+      { draws: 0, resizes: 0 },
+    ),
+  )
+  for (let i = 1; i <= 20; i++) {
+    await page.mouse.move(box.x + 20 + i * 2, box.y + 20 + i)
+  }
+  // The readout follows the pointer, so the moves were seen.
+  await expect(readout).not.toHaveText(first ?? '')
+  expect(await counts()).toEqual({ draws: 0, resizes: 0 })
+
+  // A change that is drawn still draws, without resizing.
+  await page.mouse.wheel(0, 40)
+  await expect.poll(async () => (await counts())['draws']).toBeGreaterThan(0)
+  expect((await counts())['resizes']).toBe(0)
+})
