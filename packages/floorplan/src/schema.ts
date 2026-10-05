@@ -72,9 +72,43 @@ export const SURVEY_READING_RANGE_DBM = { min: -120, max: 0 } as const
 /** Signal levels a plan can aim for, named after the heatmap bands (D12). */
 export const COVERAGE_TARGETS = ['excellent', 'good', 'fair', 'weak'] as const
 
+/**
+ * Bounds on where things can be and how high (D104). Far beyond any building,
+ * they only keep out nonsense such as a corner at 1e300 m, which validates
+ * but makes the model's geometry and signal meaningless. The size of a plan
+ * opened from a file or link is limited more tightly by `MAX_PLAN_SIZE_M`.
+ *
+ * - Positions: 1,000 km from the plan's origin either way, so a building of
+ *   up to 1 km saved in millimetres still gets `loadPlan`'s message about
+ *   millimetres rather than one error per corner.
+ * - Elevations: −1,000 m to 1,000 m, a hundred 10 m storeys either way.
+ * - Floor-to-ceiling heights and mounting heights: 100 m, an atrium or a
+ *   hall far taller than any room (the editor offers up to 10 m).
+ */
+export const MAX_COORDINATE_M = 1_000_000
+export const PLAN_ELEVATION_RANGE_M = { min: -1000, max: 1000 } as const
+export const MAX_FLOOR_HEIGHT_M = 100
+export const MAX_MOUNTING_HEIGHT_M = 100
+
 const id = z.string().min(1).max(64)
-const metres = z.number()
+const metres = z
+  .number()
+  .min(
+    -MAX_COORDINATE_M,
+    'More than 1,000 km from the plan’s origin. SignalPlan opens positions up to 1,000 km from it.',
+  )
+  .max(
+    MAX_COORDINATE_M,
+    'More than 1,000 km from the plan’s origin. SignalPlan opens positions up to 1,000 km from it.',
+  )
 const positiveMetres = z.number().positive()
+const mountingHeightM = z
+  .number()
+  .nonnegative()
+  .max(
+    MAX_MOUNTING_HEIGHT_M,
+    'Mounted more than 100 m above its floor. SignalPlan opens heights up to 100 m.',
+  )
 
 export const wallMaterialSchema = z.enum(WALL_MATERIALS)
 export const openingMaterialSchema = z.enum(OPENING_MATERIALS)
@@ -200,9 +234,21 @@ export const floorSchema = z.object({
   id,
   name: z.string().max(100),
   /** Height of this floor's surface above the lowest floor. */
-  elevationM: metres,
+  elevationM: z
+    .number()
+    .min(
+      PLAN_ELEVATION_RANGE_M.min,
+      'Elevation is below −1,000 m. SignalPlan opens elevations from −1,000 m to 1,000 m.',
+    )
+    .max(
+      PLAN_ELEVATION_RANGE_M.max,
+      'Elevation is above 1,000 m. SignalPlan opens elevations from −1,000 m to 1,000 m.',
+    ),
   /** Floor-to-ceiling height. */
-  heightM: positiveMetres,
+  heightM: positiveMetres.max(
+    MAX_FLOOR_HEIGHT_M,
+    'Floor is more than 100 m tall. SignalPlan opens floor-to-ceiling heights up to 100 m.',
+  ),
   /**
    * What this floor's slab is made of: the floor under its rooms, crossed by
    * signal to and from the storey below (D51). Omitted means
@@ -256,7 +302,7 @@ export const accessPointSchema = z.object({
   x: metres,
   y: metres,
   /** Mounting height above this floor's surface. */
-  heightM: z.number().nonnegative(),
+  heightM: mountingHeightM,
   radios: z.array(radioSchema).min(1),
   /**
    * Locked access points can't be moved, by hand or by the optimizer (D40,
@@ -274,11 +320,11 @@ export const neighbourLocationSchema = z.object({
   floorId: id,
   x: metres,
   y: metres,
-  heightM: z.number().nonnegative(),
+  heightM: mountingHeightM,
   /** Fitted EIRP in dBm. */
   eirpDbm: z.number().min(-10).max(40),
   /** The 95 % uncertainty radius, in metres. */
-  uncertaintyM: z.number().nonnegative(),
+  uncertaintyM: z.number().nonnegative().max(MAX_COORDINATE_M),
 })
 
 /**
