@@ -106,6 +106,8 @@ The strongest access point sets the cell's colour. The same model feeds the cove
 
 **[docs/HOW-IT-WORKS.md](docs/HOW-IT-WORKS.md)** explains this without the maths, with diagrams. **[docs/MODEL.md](docs/MODEL.md)** has the equations, the sources and the tests.
 
+**[docs/writeup.md](docs/writeup.md)** is a write-up of the physics, the optimizer and how far to trust them.
+
 ### Built on published measurements
 
 Every material loss and constant is traced to a primary source.
