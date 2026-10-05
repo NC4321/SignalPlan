@@ -94,6 +94,12 @@ All notable changes to this project are documented here. The format follows [Kee
 
 - Keyboard shortcuts no longer act on the plan behind an open dialog. Delete, undo, tool keys, Page Up/Down and Space did, and Esc that closed a dialog also reset the tool, stopped a search or ended a wall. The shortcuts list no longer logs a duplicate-key warning.
 
+- The status bar could say Saved while a newer change was still waiting to be saved. It now stays on saving until that change is saved too.
+
+- Changes are now saved as soon as the page is hidden, as D20 says, not only when it's unloaded, so switching apps on a phone straight after an edit no longer loses it.
+
+- A tracing image that failed to load once (say a passing storage error) stayed missing until a reload. It's now tried again. Decoded images a plan no longer uses are freed, so they don't pile up when you open other plans.
+
 - Pressing Delete or an arrow key while dragging no longer makes the item vanish until the next pointer move and leaves an undo step that does nothing: the key is ignored until the drag ends.
 
 - Opening a plan (New plan, the sample, a file, My plans or a share link) no longer keeps the last plan's tool, calibration clicks, floors hidden in 3D, status note or a scan waiting to be placed, which the next click would have imported into the new plan. View settings such as the band, units and 2D or 3D stay.

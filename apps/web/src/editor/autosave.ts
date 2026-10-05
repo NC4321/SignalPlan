@@ -35,6 +35,11 @@ export class Autosaver {
   private readonly listeners = new Set<() => void>()
   private timer: ReturnType<typeof setTimeout> | undefined
   private saving: Promise<void> = Promise.resolve()
+  /**
+   * Counts changes to the open plan (and switches to another), so a save
+   * that finishes after a newer change doesn't say 'saved' for it.
+   */
+  private generation = 0
 
   private readonly store: StoreApi<EditorState>
   private readonly library: PlanLibrary | undefined
@@ -86,19 +91,28 @@ export class Autosaver {
       if (state.planId !== previous.planId) {
         // Another plan was opened: nothing to save until it changes.
         this.cancel()
+        this.generation++
         this.setStatus(state.pristine ? 'idle' : 'saved')
         return
       }
       if (state.pristine || state.gesture) return
+      this.generation++
       this.setStatus(this.library ? 'pending' : 'unavailable')
       clearTimeout(this.timer)
       this.timer = setTimeout(() => void this.saveNow(), this.delayMs)
     })
+    // Save when the page is hidden (D20): switching apps on a phone fires
+    // visibilitychange, and may never fire pagehide before the tab is killed.
     const onHide = () => void this.flush()
+    const onVisibility = () => {
+      if (document.visibilityState === 'hidden') onHide()
+    }
     window.addEventListener('pagehide', onHide)
+    document.addEventListener('visibilitychange', onVisibility)
     return () => {
       unsubscribe()
       window.removeEventListener('pagehide', onHide)
+      document.removeEventListener('visibilitychange', onVisibility)
     }
   }
 
@@ -127,6 +141,7 @@ export class Autosaver {
     }
     const plan = state.plan
     const library = this.library
+    const generation = this.generation
     this.saving = this.saving.then(async () => {
       let result: SaveResult
       try {
@@ -142,6 +157,9 @@ export class Autosaver {
       )
       if (result === 'saved') this.setRetryFailed(false)
       else if (byHand) this.setRetryFailed(true)
+      // A newer change (or another plan) is waiting: this save doesn't
+      // cover it, so the status stays as that change left it.
+      if (result === 'saved' && generation !== this.generation) return
       this.setStatus(result)
     })
     await this.saving
