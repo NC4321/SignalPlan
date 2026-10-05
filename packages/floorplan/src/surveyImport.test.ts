@@ -207,6 +207,45 @@ describe('parseReadings: awkward files (D72)', () => {
   it('knows "Signal strength (dBm)" as the dBm column', () => {
     expect(rowsOf(`BSSID,Signal strength (dBm)\n${A},-60`)[0]!.dbm).toBe(-60)
   })
+
+  it('reads plain decimals, with a point or one decimal comma', () => {
+    const rows = rowsOf(
+      [
+        'bssid;dbm;x;y',
+        `${A};-60.5;1,25;2`,
+        `${A};−61 dBm;1e1;2.5e-1`,
+        `${A};-62,0;0;-3`,
+      ].join('\n'),
+    )
+    expect(rows.map(({ dbm, x, y }) => [dbm, x, y])).toEqual([
+      [-60.5, 1.25, 2],
+      [-61, 10, 0.25],
+      [-62, 0, -3],
+    ])
+  })
+
+  it('refuses numbers only JavaScript would read: hex, binary, two commas', () => {
+    for (const [cell, message] of [
+      ['0x10', 'A position needs both x and y, in metres.'],
+      ['0b11', 'A position needs both x and y, in metres.'],
+      ['0o7', 'A position needs both x and y, in metres.'],
+      ['1,234,5', 'A position needs both x and y, in metres.'],
+      ['Infinity', 'A position needs both x and y, in metres.'],
+      ['+1', 'A position needs both x and y, in metres.'],
+      ['.5', 'A position needs both x and y, in metres.'],
+    ]) {
+      expect(parseReadings(`bssid;dbm;x;y\n${A};-60;${cell};1`)).toEqual({
+        ok: false,
+        issues: [{ path: 'line 2', message }],
+      })
+    }
+    expect(parseReadings(`bssid,dbm\n${A},-0x3c`)).toEqual({
+      ok: false,
+      issues: [{ path: 'line 2', message: 'No signal in dBm.' }],
+    })
+    // A channel in hex gives no band hint rather than channel 16's.
+    expect(rowsOf(`bssid,dbm,channel\n${A},-60,0x6`)[0]!.band).toBeUndefined()
+  })
 })
 
 describe('prepareImport (D72)', () => {
@@ -272,6 +311,69 @@ describe('prepareImport (D72)', () => {
       { spotId: 'spot1' },
       { floorId: 'down', x: 2.02, y: 3 },
     ])
+  })
+
+  it('refuses positions far outside the walls, as a file in millimetres', () => {
+    const p = plan()
+    p.floors[0]!.nodes = [
+      { id: 'n1', x: 0, y: 0 },
+      { id: 'n2', x: 10, y: 8 },
+    ]
+    const rows = rowsOf(
+      [
+        'BSSID,RSSI,x,y',
+        `${A},-50,60,8`, // 50 m past the walls: a garden, kept
+        `${A},-50,2500,3100`,
+        `${A},-60,7500,3100`,
+      ].join('\n'),
+    )
+    const hint =
+      'Was the file saved in millimetres or centimetres? Positions are in metres, up to 50 m outside the walls.'
+    expect(prepareImport(p, rows, { floorId: 'down' })).toEqual({
+      ok: false,
+      issues: [
+        {
+          path: 'line 3',
+          message: `Position 2500, 3100 is 4 km outside the walls. ${hint}`,
+        },
+        {
+          path: 'line 4',
+          message: `Position 7500, 3100 is 8.2 km outside the walls. ${hint}`,
+        },
+      ],
+    })
+    // An empty floor is checked against the other floors' walls.
+    const upstairs = rowsOf(`bssid,dbm,x,y,floor\n${A},-60,130,8,up`)
+    expect(prepareImport(p, upstairs, { floorId: 'down' })).toEqual({
+      ok: false,
+      issues: [
+        {
+          path: 'line 2',
+          message: `Position 130, 8 is 120 m outside the walls. ${hint}`,
+        },
+      ],
+    })
+  })
+
+  it('refuses positions that would make a plan with no walls too big to open', () => {
+    const p = plan()
+    const rows = rowsOf(
+      `BSSID,RSSI,x,y\n${A},-50,2500,3100\n${A},-60,7500,3100`,
+    )
+    const result = prepareImport(p, rows, { floorId: 'down' })
+    expect(result).toEqual({
+      ok: false,
+      issues: [
+        {
+          path: '',
+          message:
+            'These positions would make the plan 7.5 km across. Was the file saved in millimetres or centimetres? Positions are in metres, and SignalPlan opens plans up to 2 km across.',
+        },
+      ],
+    })
+    // One spot far away still leaves a plan that opens.
+    const one = rowsOf(`BSSID,RSSI,x,y\n${A},-50,1500,1`)
+    expect(prepareImport(p, one, { floorId: 'down' }).ok).toBe(true)
   })
 
   it('refuses a floor name two floors share', () => {
