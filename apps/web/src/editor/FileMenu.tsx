@@ -18,7 +18,7 @@ import { MAX_PLAN_FILE_BYTES, readTextFile } from './readFile.ts'
 import { useScan } from './scanContext.ts'
 import { useSurveyImport } from './surveyImportContext.ts'
 import { useTracing } from './tracingContext.ts'
-import { isTyping, MOD_KEY } from './util.ts'
+import { inOpenDialog, isTyping, MOD_KEY } from './util.ts'
 
 /**
  * New, Open, Save, Share, My plans and the sample home (D21, D88). Every edited plan is
@@ -127,7 +127,9 @@ export function FileMenu() {
     const onKey = (event: KeyboardEvent) => {
       if (!(event.ctrlKey || event.metaKey) || event.altKey) return
       const key = event.key.toLowerCase()
-      if (isTyping(event) && key !== 's') return
+      // Ctrl/⌘+S saves from anywhere; Ctrl/⌘+O not while typing or in a
+      // dialog, where opening a file would replace the plan behind it.
+      if ((isTyping(event) || inOpenDialog(event)) && key !== 's') return
       if (key === 's') {
         event.preventDefault()
         void saveToFile()

@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { openEditor } from './helpers.ts'
+import { openEditor, summaryCount } from './helpers.ts'
 
 test('? opens the shortcuts, Esc closes them and focus returns', async ({
   page,
@@ -42,4 +42,60 @@ test('typing ? in a text field types it', async ({ page }) => {
   await expect(
     page.getByRole('dialog', { name: 'Keyboard shortcuts' }),
   ).toBeHidden()
+})
+
+test('keys in an open dialog leave the plan behind it alone', async ({
+  page,
+}) => {
+  await openEditor(page)
+  const walls = await summaryCount(page, 'Walls')
+  const canvas = page.locator('.editor-canvas')
+  await canvas.focus()
+  await page.keyboard.press('Tab')
+  const panel = page.getByRole('complementary', { name: 'Properties' })
+  await expect(
+    panel.getByRole('heading', { name: 'Wall', exact: true }),
+  ).toBeVisible()
+
+  await page.keyboard.press('?')
+  const dialog = page.getByRole('dialog', { name: 'Keyboard shortcuts' })
+  await expect(dialog).toBeVisible()
+  for (const key of ['Delete', 'Backspace', 'w', 'Control+Z', 'PageUp']) {
+    await page.keyboard.press(key)
+  }
+  await expect(dialog).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(dialog).toBeHidden()
+
+  // The wall is still selected, the tool unchanged and nothing to undo.
+  await expect(
+    panel.getByRole('heading', { name: 'Wall', exact: true }),
+  ).toBeVisible()
+  await expect(
+    page.getByRole('button', { name: 'Select', exact: true }),
+  ).toHaveAttribute('aria-pressed', 'true')
+  await expect(page.getByRole('button', { name: 'Undo' })).toBeDisabled()
+  await page.keyboard.press('Escape')
+  expect(await summaryCount(page, 'Walls')).toBe(walls)
+})
+
+test('Esc in a dialog closes it and leaves the tool as it was', async ({
+  page,
+}) => {
+  await openEditor(page)
+  await page.locator('.editor-canvas').focus()
+  await page.keyboard.press('w')
+  const wallTool = page.getByRole('button', { name: 'Wall', exact: true })
+  await expect(wallTool).toHaveAttribute('aria-pressed', 'true')
+
+  await page.keyboard.press('?')
+  const dialog = page.getByRole('dialog', { name: 'Keyboard shortcuts' })
+  await expect(dialog).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(dialog).toBeHidden()
+  await expect(wallTool).toHaveAttribute('aria-pressed', 'true')
+
+  // With the dialog closed, Esc reaches the editor again.
+  await page.keyboard.press('Escape')
+  await expect(wallTool).toHaveAttribute('aria-pressed', 'false')
 })
