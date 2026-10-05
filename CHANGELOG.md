@@ -86,6 +86,12 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ### Fixed
 
+- The status bar could say Saved while a newer change was still waiting to be saved. It now stays on saving until that change is saved too.
+
+- Changes are now saved as soon as the page is hidden, as D20 says, not only when it's unloaded, so switching apps on a phone straight after an edit no longer loses it.
+
+- A tracing image that failed to load once (say a passing storage error) stayed missing until a reload. It's now tried again. Decoded images a plan no longer uses are freed, so they don't pile up when you open other plans.
+
 - `docs/MODEL.md` quoted the optimizer's how-many times from before walls were sorted by direction (D56): the big house's 3.3–5.6 s and the 22–33 s on a slow phone. It now gives the current 2.63 s and 3.86 s, and the 15–23 s as an estimate, not a measurement (D96). It also lists that predictions are downlink only.
 
 ## [0.3.0] - 2026-09-28

@@ -26,7 +26,7 @@ import {
   type Camera,
 } from './camera.ts'
 import { useEditor, useEditorStore } from './context.ts'
-import { useBackgroundImage } from './images.ts'
+import { forgetImagesOutside, useBackgroundImage } from './images.ts'
 import { LengthInput } from './LengthInput.tsx'
 import { BAND_LABELS } from './coverageText.ts'
 import { BLANK_BOUNDS } from './persistence.ts'
@@ -265,6 +265,9 @@ export function EditorCanvas({
   )
   const background = floor.background
   const backgroundImage = useBackgroundImage(background, library)
+  // Free decoded tracing images the open plan no longer uses: another plan
+  // was opened, or a floor's image was replaced or removed.
+  useEffect(() => forgetImagesOutside(plan), [plan])
   const accessPoints = useMemo(
     () => plan.accessPoints.filter((ap) => ap.floorId === floorId),
     [plan.accessPoints, floorId],
