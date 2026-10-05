@@ -5,8 +5,9 @@
  *                         Reddit, Slack, Discord, iMessage, X and the like: the
  *                         sample home's heatmap in the app as it opens, under a
  *                         band with the name and what it does
- *   apple-touch-icon.png  180×180, favicon.svg on white, for an iPhone or iPad
- *                         home screen
+ *   apple-touch-icon.png  180×180, favicon.svg filling the square on its own
+ *                         dark background (the device rounds the corners),
+ *                         for an iPhone or iPad home screen
  *
  * index.html points at both (og:image with the deployed address, so the
  * preview only changes once the new image is deployed). To rerun them:
@@ -116,8 +117,8 @@ const app = await captureApp({ width: 1280, height: 553 })
     viewport: { width: 180, height: 180 },
   })
   await page.setContent(`<!doctype html><html><body style="margin:0;
-    width:180px;height:180px;display:grid;place-items:center;background:#fff">
-    <img src="${svgSrc}" style="width:124px;height:119px" alt="">
+    width:180px;height:180px;background:#1f1e24">
+    <img src="${svgSrc}" style="display:block;width:180px;height:180px" alt="">
   </body></html>`)
   await page.locator('img').evaluate((img) => img.decode())
   save('apple-touch-icon.png', await page.screenshot())

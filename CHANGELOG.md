@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ### Added
 
+- A logo: the corner of two walls with signal arcs spreading from an access point, in the heatmap's colours, as the favicon, the home-screen icon, on the link-preview card and above the README (D97).
+
 - Link previews: a link to the app shows a card with its name, what it does and a picture of the sample home's heatmap on Reddit, Slack, Discord, iMessage, X and other sites that read Open Graph tags. Also a canonical address, a theme colour that matches the top bar in light and dark, and a home-screen icon for iPhone and iPad. `scripts/og-image.mjs` makes both images from the built app.
 
 - Phase 9 exit gate, automated part: one end-to-end test of a stranger's first visit, from a fresh browser through all four guide steps to a room drawn from scratch with its own access point and its coverage, with axe-core finding no serious problems at each step (a shared link opening in a fresh browser was already tested). The usability script now covers the guide and asks each person what SignalPlan is for within 30 seconds; watching first-time users completes the gate.
