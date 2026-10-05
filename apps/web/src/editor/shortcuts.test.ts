@@ -22,6 +22,13 @@ describe('shortcuts', () => {
     }
   })
 
+  it('names each shortcut by distinct keys, its key in the overlay', () => {
+    for (const group of shortcutGroups('Ctrl')) {
+      const keys = group.shortcuts.map((s) => s.keys.join('+'))
+      expect(new Set(keys).size, group.title).toBe(keys.length)
+    }
+  })
+
   it('ignores keys that pick no tool, inherited names included', () => {
     for (const key of ['x', 'calibrate', 'constructor', 'hasOwnProperty']) {
       expect(toolForKey(key), key).toBeUndefined()

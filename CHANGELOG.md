@@ -92,6 +92,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 - Typed lengths accept more common forms, as D16 promises: `12'6` and `12' 6 1/2` without the closing ", `5 ft 6`, `12ft6in`, and a decimal comma (`3,5`) as the dBm fields already do. They used to show "Try 12'6"…" instead.
 
+- Keyboard shortcuts no longer act on the plan behind an open dialog. Delete, undo, tool keys, Page Up/Down and Space did, and Esc that closed a dialog also reset the tool, stopped a search or ended a wall. The shortcuts list no longer logs a duplicate-key warning.
+
 - The status bar could say Saved while a newer change was still waiting to be saved. It now stays on saving until that change is saved too.
 
 - Changes are now saved as soon as the page is hidden, as D20 says, not only when it's unloaded, so switching apps on a phone straight after an edit no longer loses it.
