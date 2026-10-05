@@ -145,9 +145,10 @@ import {
   describeNeighbourLocation,
   describePositionCheck,
   formatRadius,
-  locateNeighbour,
+  describeUnplacedNeighbour,
   neighbourSpotCount,
   toNeighbourLocation,
+  tryLocateNeighbour,
 } from './locate.ts'
 import { useScan } from './scanContext.ts'
 import { keyForTool } from './shortcuts.ts'
@@ -2041,8 +2042,14 @@ function NeighbourLocationFields({
   const spots = neighbourSpotCount(plan, network)
   const hidden = <span className="visually-hidden"> {label}</span>
   const locate = () => {
-    const found = locateNeighbour(plan, network)
-    if (!found) return
+    const result = tryLocateNeighbour(plan, network)
+    if (!('location' in result)) {
+      store.setState({
+        notice: `${label}: ${describeUnplacedNeighbour(result.unplaced, location !== undefined, units)}`,
+      })
+      return
+    }
+    const found = result.location
     edit('Locate neighbour’s network', (draft) => {
       setNeighbourLocation(draft, id, toNeighbourLocation(found))
     })
