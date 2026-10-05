@@ -277,7 +277,9 @@ function App({
                 >
                   <UpdateNotice />
                 </StorageNotice>
-                <Toolbar />
+                <nav className="tools-region" aria-label="Drawing tools">
+                  <Toolbar />
+                </nav>
                 <main className="stage">
                   <h1 className="visually-hidden">SignalPlan editor</h1>
                   {view === '3d' ? (

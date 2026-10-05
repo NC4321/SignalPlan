@@ -1,3 +1,4 @@
+import { AxeBuilder } from '@axe-core/playwright'
 import { expect, test, type Page } from '@playwright/test'
 import {
   clickPlan,
@@ -12,6 +13,14 @@ const canvas = (page: Page) =>
   page.getByRole('application', { name: /^Floor plan/ })
 const announcement = (page: Page) =>
   page.locator('[aria-live="polite"]').filter({ hasText: /./ }).last()
+
+test('every part of the editor sits in a landmark', async ({ page }) => {
+  await openEditor(page)
+  const { violations } = await new AxeBuilder({ page })
+    .withRules(['region'])
+    .analyze()
+  expect(violations.map((v) => v.nodes.map((n) => n.target))).toEqual([])
+})
 
 test.describe('axe-core finds no serious problems', () => {
   test('in the editor and properties panel', async ({ page }) => {
