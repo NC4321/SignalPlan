@@ -110,6 +110,27 @@ describe('createScorer', () => {
     expect(scorer.areaM2).toBeCloseTo(8, 9)
   })
 
+  it('gives every floor the cell size the largest needs (D100)', () => {
+    // 600 × 400 m is too many cells at 25 cm, so that floor takes 50 cm,
+    // and the small floor does too, so each cell counts the same area.
+    const small = twoRooms('drywall')
+    const huge: Floor = {
+      ...twoRooms('drywall'),
+      id: 'huge',
+      elevationM: 3,
+    }
+    huge.nodes = huge.nodes.map((n) => ({ ...n, x: n.x * 150, y: n.y * 200 }))
+    huge.openings = []
+    const scorer = createScorer({
+      ...problem(small, -67),
+      plan: { ...plan(small, []), floors: [small, huge] },
+    })!
+    expect(scorer.floors.map((f) => f.grid.cellM)).toEqual([0.5, 0.5])
+    // 4 × 2 m in 0.25 m² cells, and 600 × 400 m.
+    expect(scorer.cellCount).toBe(32 + 1200 * 800)
+    expect(scorer.areaM2).toBeCloseTo(8 + 600 * 400, 6)
+  })
+
   it('covers exactly the room behind no metal wall', () => {
     // In the left room, the farthest cell centre from (1, 1) is a corner
     // cell at (0.125, 0.125), 1.24 m away. The nearest right-room cell is

@@ -1,7 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import sampleHome from '../fixtures/sample-home.json' with { type: 'json' }
 import { SCHEMA_VERSION, type Plan } from './schema.ts'
-import { loadPlan, parsePlan, type ParseResult } from './validate.ts'
+import {
+  loadPlan,
+  MAX_PLAN_SIZE_M,
+  parsePlan,
+  planSizeM,
+  type ParseResult,
+} from './validate.ts'
 
 /** A one-room plan: a 4 m × 3 m box with a door on the top wall. */
 function box(): Plan {
@@ -307,6 +313,45 @@ describe('loadPlan', () => {
   it('reports invalid JSON', () => {
     expect(issuesOf(loadPlan('{ not json'))[0]?.message).toMatch(
       /not valid JSON/,
+    )
+  })
+
+  it('refuses a plan saved in millimetres, saying so', () => {
+    const plan = JSON.parse(JSON.stringify(sampleHome)) as Plan
+    for (const floor of plan.floors) {
+      for (const node of floor.nodes) {
+        node.x *= 1000
+        node.y *= 1000
+      }
+      for (const opening of floor.openings) {
+        opening.offsetM *= 1000
+        opening.widthM *= 1000
+      }
+    }
+    for (const ap of plan.accessPoints) {
+      ap.x *= 1000
+      ap.y *= 1000
+    }
+    // It is a valid plan, only far too large.
+    expect(parsePlan(plan).ok).toBe(true)
+    expect(issuesOf(loadPlan(JSON.stringify(plan)))).toEqual([
+      {
+        path: '',
+        message:
+          'This plan is 15 km across. Was it saved in millimetres? SignalPlan opens plans up to 2 km across.',
+      },
+    ])
+  })
+
+  it('opens a plan up to the size limit, and refuses one just past it', () => {
+    const plan = box()
+    plan.floors[0]!.nodes[1]!.x = MAX_PLAN_SIZE_M
+    plan.floors[0]!.nodes[2]!.x = MAX_PLAN_SIZE_M
+    expect(planSizeM(plan)).toBe(MAX_PLAN_SIZE_M)
+    expect(loadPlan(JSON.stringify(plan)).ok).toBe(true)
+    plan.accessPoints[0]!.x = -1
+    expect(issuesOf(loadPlan(JSON.stringify(plan)))[0]?.message).toMatch(
+      /^This plan is 2.1 km across\. Was it saved in millimetres\?/,
     )
   })
 })

@@ -41,6 +41,7 @@ export {
   DEFAULT_CELL_M,
   evaluateCoverage,
   gridForFloor,
+  MAX_GRID_CELLS,
   predictDbm,
   RECEIVER_HEIGHT_M,
   type Coverage,

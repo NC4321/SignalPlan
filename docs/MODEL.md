@@ -26,7 +26,7 @@ Distance is measured in 3D, from the access point's mounting height to a receive
 
 ## From equation to heatmap
 
-The engine evaluates the equation at the centre of every cell in a regular grid covering the floor's walls and access points plus a 1 m margin (on a floor with no walls yet, 5 m around each access point). The default cell size is **10 cm**. For each cell it:
+The engine evaluates the equation at the centre of every cell in a regular grid covering the floor's walls and access points plus a 1 m margin (on a floor with no walls yet, 5 m around each access point). The default cell size is **10 cm**. A grid has at most **a million cells** (about 100 m × 100 m at 10 cm): a larger floor gets the first coarser size of 20 cm, 25 cm, 50 cm, 1 m, 2 m… that fits, so a 600 m × 400 m floor gets 50 cm cells and its recompute stays near the drag budget rather than taking seconds ([D100](DECISIONS.md#d100-a-cap-on-the-coverage-grid-and-on-plan-size--2026-10-05)). Everything that reads a grid takes its cell size from the grid; the optimizer gives every floor the cell size the largest needs, so each cell counts the same area. For each cell it:
 
 1. finds every wall segment on the straight line from each access point (`crossings.ts`; a corner or door edge counts once, using the lossier material),
 2. computes the predicted signal from each access point with a radio in the selected band, and

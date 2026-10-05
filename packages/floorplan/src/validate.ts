@@ -5,6 +5,19 @@ import { planSchema, type Floor, type Plan } from './schema.ts'
 /** Walls shorter than this are almost certainly a slip of the mouse. */
 export const MIN_WALL_LENGTH_M = 0.01
 
+/**
+ * The longest a wall can be typed, in metres: longer than any wall in a
+ * building, short of the largest plan SignalPlan opens (D100).
+ */
+export const MAX_WALL_LENGTH_M = 1000
+
+/**
+ * The widest plan SignalPlan opens, in metres (D100). Larger than any
+ * building, and a plan saved in millimetres by mistake is 1,000 times its
+ * size, so a 5 m room comes out at 5 km.
+ */
+export const MAX_PLAN_SIZE_M = 2000
+
 /** Slack for floating-point comparisons of lengths, in metres. */
 const EPSILON_M = 1e-6
 
@@ -26,7 +39,48 @@ export function loadPlan(json: string): ParseResult {
     const detail = error instanceof Error ? `: ${error.message}` : ''
     return fail('', `The file is not valid JSON${detail}`)
   }
-  return parsePlan(data)
+  const result = parsePlan(data)
+  if (!result.ok) return result
+  const size = planSizeM(result.plan)
+  return size > MAX_PLAN_SIZE_M
+    ? fail(
+        '',
+        `This plan is ${formatSize(size)} across. Was it saved in millimetres? SignalPlan opens plans up to ${formatSize(MAX_PLAN_SIZE_M)} across.`,
+      )
+    : result
+}
+
+/**
+ * How far a plan reaches, in metres: the larger side of the box around every
+ * floor's corners, access points, survey spots and openings in the floor.
+ */
+export function planSizeM(plan: Plan): number {
+  const xs: number[] = []
+  const ys: number[] = []
+  const add = ({ x, y }: { x: number; y: number }) => {
+    xs.push(x)
+    ys.push(y)
+  }
+  for (const floor of plan.floors) {
+    floor.nodes.forEach(add)
+    floor.surveySpots?.forEach(add)
+    floor.floorOpenings?.forEach(({ points }) => points.forEach(add))
+  }
+  plan.accessPoints.forEach(add)
+  if (xs.length === 0) return 0
+  const span = (values: number[]) =>
+    values.reduce((a, b) => Math.max(a, b)) -
+    values.reduce((a, b) => Math.min(a, b))
+  return Math.max(span(xs), span(ys))
+}
+
+/**
+ * A plan's size in words, "15 km" or "2.1 km", rounded up so a plan just
+ * past the limit never reads as the limit itself.
+ */
+function formatSize(metres: number): string {
+  const km = metres / 1000
+  return `${km >= 10 ? Math.ceil(km) : Math.ceil(km * 10) / 10} km`
 }
 
 /** Parses an already-decoded plan object: migration, shape and structure. */

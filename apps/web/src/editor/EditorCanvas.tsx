@@ -312,8 +312,8 @@ export function EditorCanvas({
         : {
             minX: grid.originX,
             minY: grid.originY,
-            maxX: grid.originX + grid.cols,
-            maxY: grid.originY + grid.rows,
+            maxX: grid.originX + grid.cols * grid.cellM,
+            maxY: grid.originY + grid.rows * grid.cellM,
           }
     store.getState().setCamera(fitCamera(bounds, size.width, size.height))
   }, [camera, size, floor, store])

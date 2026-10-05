@@ -63,9 +63,23 @@ export interface Coverage {
 const OPEN_FLOOR_REACH_M = 5
 
 /**
+ * The most cells a grid may have (D100). About a megapixel keeps a drag's
+ * recompute near the 200 ms budget (D11) on a floor of a few walls; past it,
+ * cells get coarser rather than the grid larger.
+ */
+export const MAX_GRID_CELLS = 1_000_000
+
+/** Steps a coarsened cell size takes within each power of ten (D100). */
+const COARSER_STEPS = [1, 2, 2.5, 5]
+
+/**
  * The grid covering a floor's walls and access points plus a 1 m margin,
  * snapped to whole cells. On a floor with no walls yet, it reaches 5 m around
  * each access point so there is coverage to see before any walls are drawn.
+ *
+ * `cellM` is the finest cell size. A floor that would need more than
+ * `MAX_GRID_CELLS` of them gets the first coarser size, 2, 2.5, 5, 10, 20…
+ * times it, that fits (D100), so read the size from the grid's `cellM`.
  */
 export function gridForFloor(
   floor: Floor,
@@ -77,18 +91,27 @@ export function gridForFloor(
     ...floor.nodes.map((node) => ({ ...node, margin: MARGIN_M })),
     ...accessPoints.map((ap) => ({ x: ap.x, y: ap.y, margin })),
   ]
-  if (points.length === 0) {
-    return { originX: 0, originY: 0, cellM, cols: 0, rows: 0 }
-  }
+  const empty = { originX: 0, originY: 0, cellM, cols: 0, rows: 0 }
+  if (points.length === 0) return empty
   const minX = Math.min(...points.map((p) => p.x - p.margin))
   const minY = Math.min(...points.map((p) => p.y - p.margin))
   const maxX = Math.max(...points.map((p) => p.x + p.margin))
   const maxY = Math.max(...points.map((p) => p.y + p.margin))
-  const originX = Math.floor(minX / cellM) * cellM
-  const originY = Math.floor(minY / cellM) * cellM
-  const cols = Math.ceil((maxX - originX) / cellM)
-  const rows = Math.ceil((maxY - originY) / cellM)
-  return { originX, originY, cellM, cols, rows }
+  if (!(cellM > 0) || ![minX, minY, maxX, maxY].every(Number.isFinite)) {
+    return empty
+  }
+  for (let decade = 1; ; decade *= 10) {
+    for (const step of COARSER_STEPS) {
+      const size = cellM * (step * decade)
+      const originX = Math.floor(minX / size) * size
+      const originY = Math.floor(minY / size) * size
+      const cols = Math.ceil((maxX - originX) / size)
+      const rows = Math.ceil((maxY - originY) / size)
+      if (cols * rows <= MAX_GRID_CELLS) {
+        return { originX, originY, cellM: size, cols, rows }
+      }
+    }
+  }
 }
 
 export function cellCentre(grid: Grid, col: number, row: number): Point {

@@ -90,6 +90,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ### Fixed
 
+- Plans far too large no longer break coverage. A plan saved in millimetres opened as one 15 km across and failed with "Couldn't work out coverage… Undo your last change", with nothing to undo. Opening a file or a link wider than 2 km now says "This plan is 15 km across. Was it saved in millimetres?". A large floor's coverage grid has at most a million cells, so floors over about 100 m × 100 m get coarser cells instead of a recompute of several seconds on every drag; a 600 m × 400 m floor gets 50 cm cells. A wall's typed length goes up to 1000 m, and a coverage failure with nothing to undo says to open another plan (D100).
+
 - Typed lengths accept more common forms, as D16 promises: `12'6` and `12' 6 1/2` without the closing ", `5 ft 6`, `12ft6in`, and a decimal comma (`3,5`) as the dBm fields already do. They used to show "Try 12'6"…" instead.
 
 - `docs/MODEL.md` quoted the optimizer's how-many times from before walls were sorted by direction (D56): the big house's 3.3–5.6 s and the 22–33 s on a slow phone. It now gives the current 2.63 s and 3.86 s, and the 15–23 s as an estimate, not a measurement (D96). It also lists that predictions are downlink only.

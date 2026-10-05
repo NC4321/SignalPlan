@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs'
+import { fileURLToPath } from 'node:url'
 import { expect, test, type Page } from '@playwright/test'
 import { openEditor, screenPoint, summaryCount } from './helpers.ts'
 
@@ -195,6 +197,102 @@ test('explains why a file can’t be opened', async ({ page }) => {
   await expect(dialog).toContainText('floors')
   await dialog.getByRole('button', { name: 'OK' }).click()
   await expect(dialog).toBeHidden()
+})
+
+test('says a plan saved in millimetres looks too large', async ({ page }) => {
+  await openEditor(page)
+  const sample = JSON.parse(
+    readFileSync(
+      fileURLToPath(
+        new URL(
+          '../../../packages/floorplan/fixtures/sample-home.json',
+          import.meta.url,
+        ),
+      ),
+      'utf8',
+    ),
+  )
+  // As a CAD export in millimetres would write it.
+  for (const floor of sample.floors) {
+    for (const node of floor.nodes) {
+      node.x *= 1000
+      node.y *= 1000
+    }
+    for (const opening of floor.openings) {
+      opening.offsetM *= 1000
+      opening.widthM *= 1000
+    }
+  }
+  for (const ap of sample.accessPoints) {
+    ap.x *= 1000
+    ap.y *= 1000
+  }
+  await page.getByLabel('Open a plan file').setInputFiles({
+    name: 'bungalow-mm.signalplan.json',
+    mimeType: 'application/json',
+    buffer: Buffer.from(JSON.stringify(sample)),
+  })
+  const dialog = page.getByRole('dialog', { name: 'This file can’t be opened' })
+  await expect(dialog).toContainText(
+    'This plan is 15 km across. Was it saved in millimetres? SignalPlan opens plans up to 2 km across.',
+  )
+  await dialog.getByRole('button', { name: 'OK' }).click()
+  // The plan that was open stays open, with its coverage.
+  expect(await summaryCount(page, 'Walls')).toBeGreaterThan(0)
+  await expect(page.locator('.coverage-failure')).toHaveCount(0)
+})
+
+test('works out coverage for a very large floor', async ({ page }) => {
+  await openEditor(page)
+  const corners = [
+    [0, 0],
+    [600, 0],
+    [600, 400],
+    [0, 400],
+  ]
+  const plan = {
+    schemaVersion: 1,
+    name: 'Warehouse',
+    floors: [
+      {
+        id: 'f',
+        name: 'Floor',
+        elevationM: 0,
+        heightM: 8,
+        nodes: corners.map(([x, y], i) => ({ id: `n${i}`, x, y })),
+        walls: corners.map((_, i) => ({
+          id: `w${i}`,
+          from: `n${i}`,
+          to: `n${(i + 1) % 4}`,
+          material: 'concrete',
+        })),
+        openings: [],
+      },
+    ],
+    accessPoints: [
+      {
+        id: 'ap',
+        name: 'Router',
+        floorId: 'f',
+        x: 300,
+        y: 200,
+        heightM: 3,
+        radios: [{ band: '2.4GHz' }, { band: '5GHz' }, { band: '6GHz' }],
+      },
+    ],
+  }
+  await page.getByLabel('Open a plan file').setInputFiles({
+    name: 'warehouse.signalplan.json',
+    mimeType: 'application/json',
+    buffer: Buffer.from(JSON.stringify(plan)),
+  })
+  await expect(
+    panel(page).getByRole('heading', { level: 2 }).first(),
+  ).toHaveText('Warehouse')
+  const near = await screenPoint(page, 305, 200)
+  await page.mouse.move(near.x, near.y)
+  await expect(page.locator('.readout')).toContainText(/dBm/)
+  await expect(page.locator('.coverage-failure')).toHaveCount(0)
 })
 
 test('offers to rescue a saved plan that no longer opens', async ({ page }) => {

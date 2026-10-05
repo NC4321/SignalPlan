@@ -290,17 +290,17 @@ export function locateSource(
       COARSE_CELL_M,
       used.filter((s) => s.floorId === storey.floor.id),
     )
-    const pad = outsideAllowed ? Math.ceil(OUTSIDE_REACH_M / COARSE_CELL_M) : 0
+    const pad = outsideAllowed ? Math.ceil(OUTSIDE_REACH_M / grid.cellM) : 0
     const inside =
       outsideAllowed || storey.floor.walls.length === 0
         ? undefined
         : floorAreaMask(storey.floor, grid)
     const paths = floorPaths[from]!
     for (let row = -pad; row < grid.rows + pad; row++) {
-      const y = grid.originY + (row + 0.5) * COARSE_CELL_M
+      const y = grid.originY + (row + 0.5) * grid.cellM
       for (let col = -pad; col < grid.cols + pad; col++) {
         if (inside && !inside[row * grid.cols + col]) continue
-        const x = grid.originX + (col + 0.5) * COARSE_CELL_M
+        const x = grid.originX + (col + 0.5) * grid.cellM
         candidates.push({ floor: from, x, y, squares: squaresAt(paths, x, y) })
       }
     }
