@@ -86,6 +86,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ### Changed
 
+- The editor does less work as the pointer moves. Hovering no longer redraws the plan unless the tool draws at the pointer, and the canvas keeps its backing store between draws. Dragging an access point no longer rebuilds the map, its heatmap bitmap and summary until new coverage arrives. Hovering with Select costs about half as much on the main thread, and dragging an access point about 10% less (D102).
+
 - Engine: a floor's loss now depends on the angle the signal passes through it, as ITU-R P.2040 gives it, up to 75° from straight up. Signal to rooms well across the floor above or below meets the floor at a shallow angle and loses more than head on (a timber floor: 2.7 dB straight through, 6.6 dB at 75° on 5 GHz). Against ITU-R P.1238-13, the upper floor of the two-storey sample home goes from 2.3 / 5.5 dB optimistic to 0.7 / 3.4 dB on 2.4 / 5 GHz; the main floor doesn't change. Walls stay head-on (D60).
 
 ### Fixed
