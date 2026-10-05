@@ -1,5 +1,7 @@
 <div align="center">
 
+<img src="apps/web/public/favicon.svg" width="80" height="80" alt="">
+
 # SignalPlan
 
 **Plan your home's Wi-Fi before you buy a single router.**
