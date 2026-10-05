@@ -8,23 +8,28 @@ import {
   sinrDb,
   sourceTunings,
   summariseCoverage,
+  PHONE_EIRP_DBM,
+  uplinkDbm,
+  uplinkShares,
   viewShares,
   type Coverage,
   type Rate,
   type ViewSettings,
 } from '@signalplan/engine'
-import type { CoverageTarget, Plan } from '@signalplan/floorplan'
+import type { Band, CoverageTarget, Plan } from '@signalplan/floorplan'
 import { BAND_LABELS, coverageMessage } from './editor/coverageText.ts'
 import { formatArea, type Units } from './editor/units.ts'
 import { QUALITY_BANDS, qualityOf, targetBand } from './quality.ts'
 
 /**
- * What the heatmap shows (D61, D64, D66): signal strength, how many access
- * points compete for a device, which one it would be on, or signal over
- * interference and noise. Not saved, like the band.
+ * What the heatmap shows (D61, D64, D66, D99): signal strength, the phone's
+ * signal at the access point (upload), how many access points compete for a
+ * device, which one it would be on, or signal over interference and noise.
+ * Not saved, like the band.
  */
 export const MAP_KINDS = [
   'signal',
+  'upload',
   'overlap',
   'roaming',
   'interference',
@@ -33,6 +38,7 @@ export type MapKind = (typeof MAP_KINDS)[number]
 
 export const MAP_LABELS: Record<MapKind, string> = {
   signal: 'Signal',
+  upload: 'Upload',
   overlap: 'Overlap',
   roaming: 'Roaming',
   interference: 'Interference',
@@ -137,6 +143,10 @@ export interface MapData {
   edges: Uint8Array | undefined
   /** SINR in dB per cell, for the Interference view. */
   sinr: Float32Array | undefined
+  /** The phone's signal at its access point in dBm per cell, for the Upload view. */
+  uplink: Float32Array | undefined
+  /** The coverage target's level in dBm (D27). */
+  targetDbm: number
   /** How many access points leave their channel on Auto; 0 outside Interference. */
   autoChannels: number
   /**
@@ -160,7 +170,10 @@ export function mapData(
   coverage: Coverage,
   kind: MapKind,
   settings: ViewSettings,
-  plan: Pick<Plan, 'accessPoints' | 'region' | 'neighbourNetworks'>,
+  plan: Pick<
+    Plan,
+    'accessPoints' | 'region' | 'neighbourNetworks' | 'coverageTarget'
+  >,
 ): MapData {
   const accessPointNames = coverage.accessPointIds.map(
     (id) => plan.accessPoints.find((ap) => ap.id === id)?.name ?? id,
@@ -186,6 +199,8 @@ export function mapData(
     owners,
     edges,
     sinr: tunings ? sinrDb(coverage, tunings, background) : undefined,
+    uplink: kind === 'upload' ? uplinkDbm(coverage, plan) : undefined,
+    targetDbm: targetBand(plan.coverageTarget).minDbm,
     autoChannels: tunings ? autoChannelCount(tunings) : 0,
     neighbours: background.filter((b) => !b.cells).length,
     locatedNeighbours: background.filter((b) => b.cells).length,
@@ -224,6 +239,14 @@ export function cellColour(data: MapData, i: number): Rgb | 'none' {
   switch (data.kind) {
     case 'signal':
       return qualityOf(data.coverage.dbm[i]!)?.rgb ?? 'none'
+    case 'upload': {
+      // Hatched where download reaches the target and upload doesn't.
+      const up = data.uplink![i]!
+      if (up < data.targetDbm && data.coverage.dbm[i]! >= data.targetDbm) {
+        return hatch(data, i)
+      }
+      return qualityOf(up)?.rgb ?? 'none'
+    }
     case 'overlap': {
       const count = data.counts![i]!
       return count === 0 ? 'none' : OVERLAP_RGB[Math.min(count, 3) - 1]!
@@ -280,29 +303,50 @@ export function mapLegend(
   autoChannels = 0,
   neighbours = 0,
   locatedNeighbours = 0,
+  target?: CoverageTarget,
+  band?: Band,
 ): Legend {
   const threshold = `${settings.roamThresholdDbm} dBm`
+  const qualityRows: LegendRow[] = QUALITY_BANDS.map((q, i) => ({
+    label: q.label,
+    detail:
+      i === 0
+        ? `≥ ${q.minDbm} dBm`
+        : `${q.minDbm} to ${QUALITY_BANDS[i - 1]!.minDbm} dBm`,
+    swatch: { kind: 'fill', rgb: q.rgb } as const,
+  }))
+  const noSignal: LegendRow = {
+    label: 'No signal',
+    detail: `< ${QUALITY_BANDS.at(-1)!.minDbm} dBm`,
+    swatch: { kind: 'none' },
+  }
   switch (kind) {
     case 'signal':
       return {
         title: 'Signal quality',
-        rows: [
-          ...QUALITY_BANDS.map((q, i) => ({
-            label: q.label,
-            detail:
-              i === 0
-                ? `≥ ${q.minDbm} dBm`
-                : `${q.minDbm} to ${QUALITY_BANDS[i - 1]!.minDbm} dBm`,
-            swatch: { kind: 'fill', rgb: q.rgb } as const,
-          })),
-          {
-            label: 'No signal',
-            detail: `< ${QUALITY_BANDS.at(-1)!.minDbm} dBm`,
-            swatch: { kind: 'none' },
-          },
-        ],
+        rows: [...qualityRows, noSignal],
         note: undefined,
       }
+    case 'upload': {
+      const goal = targetBand(target)
+      const phone =
+        band === undefined
+          ? 'a phone'
+          : `a phone sending ${PHONE_EIRP_DBM[band]} dBm on ${BAND_LABELS[band]}`
+      return {
+        title: 'Upload signal',
+        rows: [
+          ...qualityRows,
+          {
+            label: 'Upload short',
+            detail: `Download ${goal.label} or better`,
+            swatch: { kind: 'hatch' },
+          },
+          noSignal,
+        ],
+        note: `What the access point receives from ${phone}, a typical phone's power, over the same walls and floors. Hatched where download reaches ${goal.label} (${goal.minDbm} dBm) and upload doesn't.`,
+      }
+    }
     case 'overlap':
       return {
         title: 'Overlap',
@@ -381,9 +425,10 @@ export function mapLegend(
 
 /**
  * The summary line for a map (D27, D64). Signal gives the share at the plan's
- * target, rounded down. Overlap, Roaming and Interference give the share with
- * competing access points, in gaps or too noisy for any rate, rounded up, so
- * 0% only ever means none.
+ * target, rounded down. Upload, Overlap, Roaming and Interference give the
+ * share where download reaches the target but upload doesn't, with competing
+ * access points, in gaps or too noisy for any rate, rounded up, so 0% only
+ * ever means none.
  */
 export function mapMessage(
   data: MapData,
@@ -395,14 +440,21 @@ export function mapMessage(
   if (data.kind === 'signal') {
     return coverageMessage(coverage, target, units, floorName)
   }
+  const goal = targetBand(target)
   const band = BAND_LABELS[coverage.band]
-  const { areaM2 } = summariseCoverage(coverage, targetBand(target).minDbm)
+  const { areaM2 } = summariseCoverage(coverage, goal.minDbm)
   const area = formatArea(areaM2, units)
   const percent = (share: number) => `${Math.ceil(share * 100)}%`
   const closeWalls =
     'Close the outer walls to see how much of the floor is covered.'
   let message: string
-  if (data.kind === 'interference') {
+  if (data.kind === 'upload') {
+    const shares = uplinkShares(coverage, data.uplink!, goal.minDbm)
+    message =
+      shares === undefined
+        ? closeWalls
+        : `${percent(shares.downloadOnly)} of ${area} has download at ${goal.label} or better but upload below it on ${band}.`
+  } else if (data.kind === 'interference') {
     const unusable = unusableShare(coverage, data.sinr!)
     message =
       unusable === undefined

@@ -36,6 +36,34 @@ test('switches between Signal, Overlap and Roaming (D64)', async ({ page }) => {
   await expect(summary(page)).toContainText('is a gap below -70 dBm on 5 GHz.')
 })
 
+test('shows where upload falls short of download (D99)', async ({ page }) => {
+  await show(page).selectOption({ label: 'Upload' })
+  await expect(
+    panel(page).getByRole('heading', { name: 'Upload signal' }),
+  ).toBeVisible()
+  await expect(panel(page).locator('.legend')).toContainText('Upload short')
+  await expect(panel(page).locator('.legend-note')).toContainText(
+    'a phone sending 10 dBm on 5 GHz',
+  )
+  const short = async () =>
+    Number(/^(\d+)%/.exec(await summary(page).innerText())![1])
+  await expect(summary(page)).toContainText(
+    'of 150 m² has download at Fair or better but upload below it on 5 GHz.',
+  )
+  // The router sends 13 dB more than a phone, so some of the floor that
+  // reaches Fair for download doesn't for upload.
+  const atFair = await short()
+  expect(atFair).toBeGreaterThan(0)
+
+  // At Weak, a lower target, the summary follows the plan's target.
+  await panel(page)
+    .getByLabel('Coverage target')
+    .selectOption({ label: 'Weak: browsing and email' })
+  await expect(summary(page)).toContainText(
+    'has download at Weak or better but upload below it on 5 GHz.',
+  )
+})
+
 test('changes the roaming threshold as an undoable plan setting', async ({
   page,
 }) => {

@@ -597,6 +597,8 @@ function MapLegend({ map }: { map: MapData | undefined }) {
     map ? map.autoChannels : 0,
     map ? map.neighbours : 0,
     map ? map.locatedNeighbours : 0,
+    plan.coverageTarget,
+    map?.coverage.band,
   )
   return (
     <>
