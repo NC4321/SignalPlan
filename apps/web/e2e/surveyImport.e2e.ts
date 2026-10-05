@@ -124,6 +124,32 @@ test('says what’s wrong with a bad file and imports nothing (D72)', async ({
   await expect(panel(page)).toContainText('No spots yet on any floor.')
 })
 
+test('refuses a file in millimetres, saying so, and imports nothing', async ({
+  page,
+}) => {
+  await page.keyboard.press('s')
+  await importFile(
+    page,
+    'Import readings…',
+    'millimetres.csv',
+    [
+      'BSSID,RSSI,x,y',
+      `${ROUTER_5},-50,2500,3100`,
+      `${ROUTER_5},-60,7500,3100`,
+    ].join('\n'),
+  )
+  const dialog = page.getByRole('dialog', {
+    name: 'These readings can’t be imported',
+  })
+  await expect(dialog).toContainText('line 2')
+  await expect(dialog).toContainText('line 3')
+  await expect(dialog).toContainText(
+    /Position 2500, 3100 is [\d.]+ km outside the walls\. Was the file saved in millimetres or centimetres\?/,
+  )
+  await dialog.getByRole('button', { name: 'OK' }).click()
+  await expect(panel(page)).toContainText('No spots yet on any floor.')
+})
+
 test('an undo in the mapping dialog leaves the plan behind it alone', async ({
   page,
 }) => {

@@ -5,7 +5,12 @@ import {
   type SurveySpot,
 } from './schema.ts'
 import { addSurveySpot, findSurveySpot, parseBssids } from './survey.ts'
-import type { PlanIssue } from './validate.ts'
+import {
+  formatSize,
+  MAX_PLAN_SIZE_M,
+  planSizeM,
+  type PlanIssue,
+} from './validate.ts'
 
 /**
  * Importing survey readings from a CSV or JSON file (D72). The file is read
@@ -77,6 +82,13 @@ function fieldOf(column: string): Field | undefined {
   return undefined
 }
 
+/**
+ * A plain decimal number, with a decimal point or a single decimal comma as
+ * elsewhere in SignalPlan, and an optional exponent. Not hex (`0x10`),
+ * binary (`0b11`), `Infinity` or anything else `Number()` would take.
+ */
+const DECIMAL = /^-?\d+([.,]\d+)?(e-?\d+)?$/i
+
 /** A number from a cell such as `-67`, `−67 dBm` or `5,18`. */
 function numberOf(value: unknown): number | undefined {
   if (typeof value === 'number')
@@ -86,9 +98,8 @@ function numberOf(value: unknown): number | undefined {
     .trim()
     .replace(/[−‒–]/g, '-')
     .replace(/\s*(dbm|mhz|ghz|m)$/i, '')
-    .replace(',', '.')
-  if (text === '') return undefined
-  const n = Number(text)
+  if (!DECIMAL.test(text)) return undefined
+  const n = Number(text.replace(',', '.'))
   return Number.isFinite(n) ? n : undefined
 }
 
@@ -340,6 +351,49 @@ export type PrepareResult =
 /** A position this close to an existing spot, in metres, is that spot. */
 export const SAME_SPOT_M = 0.01
 
+/**
+ * How far outside a floor's walls, in metres, a new spot may be: room for a
+ * garden or a drive, while a file in millimetres or centimetres puts spots
+ * far beyond it.
+ */
+export const MAX_SPOT_OUTSIDE_M = 50
+
+const UNITS_HINT = 'Was the file saved in millimetres or centimetres?'
+
+/** The box around a floor's corners, or every floor's when it has none. */
+function wallBounds(plan: Plan, floorId: string) {
+  const own = plan.floors.find((f) => f.id === floorId)?.nodes ?? []
+  const nodes =
+    own.length > 0 ? own : plan.floors.flatMap((floor) => floor.nodes)
+  if (nodes.length === 0) return undefined
+  const xs = nodes.map((n) => n.x)
+  const ys = nodes.map((n) => n.y)
+  return {
+    minX: Math.min(...xs),
+    maxX: Math.max(...xs),
+    minY: Math.min(...ys),
+    maxY: Math.max(...ys),
+  }
+}
+
+/** How far a point is outside a floor's walls, in metres; 0 inside. */
+function distanceOutside(
+  plan: Plan,
+  floorId: string,
+  x: number,
+  y: number,
+): number {
+  const box = wallBounds(plan, floorId)
+  if (!box) return 0
+  const dx = Math.max(box.minX - x, 0, x - box.maxX)
+  const dy = Math.max(box.minY - y, 0, y - box.maxY)
+  return Math.hypot(dx, dy)
+}
+
+/** A distance in words for an error: "120 m" or "7.5 km". */
+const formatDistance = (metres: number) =>
+  metres < 1000 ? `${Math.ceil(metres)} m` : formatSize(metres)
+
 const nameKey = (text: string) => text.toLowerCase().replace(/\s+/g, '')
 
 /** The access point and band each BSSID in the plan belongs to. */
@@ -420,6 +474,14 @@ export function prepareImport(
               Math.abs(s.x - row.x!) < SAME_SPOT_M &&
               Math.abs(s.y - row.y!) < SAME_SPOT_M,
           )
+        const outside = same ? 0 : distanceOutside(plan, floorId, row.x, row.y)
+        if (outside > MAX_SPOT_OUTSIDE_M) {
+          issues.push({
+            path: row.where,
+            message: `Position ${row.x}, ${row.y} is ${formatDistance(outside)} outside the walls. ${UNITS_HINT} Positions are in metres, up to ${MAX_SPOT_OUTSIDE_M} m outside the walls.`,
+          })
+          continue
+        }
         targeted.push({
           row,
           target: same ? { spotId: same.id } : { floorId, x: row.x, y: row.y },
@@ -438,6 +500,34 @@ export function prepareImport(
     }
   }
   if (issues.length > 0) return { ok: false, issues }
+
+  // A plan with no walls has no bounds to check against, so check that the
+  // new spots leave a plan that still opens (D100).
+  const size = planSizeM({
+    ...plan,
+    floors: plan.floors.map((floor) => ({
+      ...floor,
+      surveySpots: [
+        ...(floor.surveySpots ?? []),
+        ...targeted.flatMap(({ target }) =>
+          'floorId' in target && target.floorId === floor.id
+            ? [{ id: '', x: target.x, y: target.y, readings: [] }]
+            : [],
+        ),
+      ],
+    })),
+  })
+  if (size > MAX_PLAN_SIZE_M) {
+    return {
+      ok: false,
+      issues: [
+        {
+          path: '',
+          message: `These positions would make the plan ${formatSize(size)} across. ${UNITS_HINT} Positions are in metres, and SignalPlan opens plans up to ${formatSize(MAX_PLAN_SIZE_M)} across.`,
+        },
+      ],
+    }
+  }
 
   const owners = bssidOwners(plan)
   const ignored = new Set(plan.ignoredBssids)

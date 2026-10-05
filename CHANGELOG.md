@@ -92,6 +92,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ### Fixed
 
+- Import readings refuses a file whose positions aren't in metres: a new spot more than 50 m outside the walls, or spots that would make the plan more than 2 km across, stop the import with "Was the file saved in millimetres or centimetres?", instead of adding spots kilometres away and leaving a plan that won't open again (D100). Numbers in a readings file must be plain decimals, so `0x10`, `0b11` and `Infinity` are refused rather than read as 16, 3 and infinity.
+
 - Scan your network reads more scans as they really come: `iw`'s 160 MHz networks (signalled as 80 MHz with a second centre segment) as 160 MHz rather than 80, and 6 GHz widths from the HE operation; an `iw` network with no signal line is skipped and listed instead of rejecting the whole scan; `netsh` from Turkish Windows, which writes the signal as `%86`; and WiFi Analyzer exports re-saved as CSV whose network names hold a comma. `nmcli` output with its fields in another order is refused, naming the order needed, instead of skipping every network or naming one "36". Deeply nested JSON pasted in is refused as not a scan, and any error reading a scan now shows in the dialog rather than nothing happening.
 
 - Locating a neighbour's network, or checking where an access point is, no longer puts it kilometres off the plan with a radius of a metre or two. When the readings are heard faintly and about the same everywhere, as a far-off neighbour's are, the editor now says so: "heard too weakly to place. It's probably more than 10 m past the walls." (D103).

@@ -78,7 +78,7 @@ export function planSizeM(plan: Plan): number {
  * A plan's size in words, "15 km" or "2.1 km", rounded up so a plan just
  * past the limit never reads as the limit itself.
  */
-function formatSize(metres: number): string {
+export function formatSize(metres: number): string {
   const km = metres / 1000
   return `${km >= 10 ? Math.ceil(km) : Math.ceil(km * 10) / 10} km`
 }
