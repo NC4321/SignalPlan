@@ -40,9 +40,15 @@ export function failure(kind: Failure['kind'], reason: unknown): Failure {
   return { kind, detail }
 }
 
-/** What to try, given what failed. */
-export function advice(kind: Failure['kind']): string {
-  return kind === 'plan'
+/**
+ * What to try, given what failed. A plan that fails with nothing to undo, as
+ * one just opened, can't be fixed by undoing, so another plan is the way out.
+ */
+export function advice(kind: Failure['kind'], canUndo = true): string {
+  if (kind === 'worker') {
+    return 'Try again; if it keeps failing, reload the page.'
+  }
+  return canUndo
     ? 'Undo your last change, or reload the page.'
-    : 'Try again; if it keeps failing, reload the page.'
+    : 'Open another plan from the File menu.'
 }

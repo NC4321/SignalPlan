@@ -49,6 +49,7 @@ import {
   FLOOR_MATERIALS,
   OVERLAP_MARGIN_RANGE_DB,
   ROAM_THRESHOLD_RANGE_DBM,
+  MAX_WALL_LENGTH_M,
   MIN_WALL_LENGTH_M,
   NEW_ACCESS_POINT_HEIGHT_M,
   polygonArea,
@@ -1464,6 +1465,7 @@ function WallSection({ wall, floor }: { wall: Wall; floor: Floor }) {
         label="Length"
         metres={length}
         units={units}
+        max={MAX_WALL_LENGTH_M}
         onCommit={(metres) =>
           edit('Change wall length', (target) =>
             setWallLength(target, wall.id, metres),
