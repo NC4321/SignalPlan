@@ -7,12 +7,16 @@ import {
   checkPosition,
   describeNeighbourLocation,
   describePositionCheck,
+  describeUnplacedCheck,
+  describeUnplacedNeighbour,
   formatRadius,
   locateNeighbour,
   neighbourBssids,
   neighbourSpotCount,
   outsideFloor,
   toNeighbourLocation,
+  tryCheckPosition,
+  tryLocateNeighbour,
 } from './locate.ts'
 import { createEditorStore } from './store.ts'
 
@@ -88,6 +92,77 @@ function withNeighbour(spots = Infinity): Plan {
   }
 }
 
+/**
+ * An empty 10 m square room with three spots, where a neighbour's network
+ * and the room's own access point are each heard at −95 dBm: faintly and
+ * the same everywhere, as a far-off neighbour is.
+ */
+function faintRoom(): Plan {
+  const corners = [
+    [0, 0],
+    [10, 0],
+    [10, 10],
+    [0, 10],
+  ]
+  const result = parsePlan({
+    schemaVersion: 1,
+    name: 'Room',
+    floors: [
+      {
+        id: 'f',
+        name: 'Floor',
+        elevationM: 0,
+        heightM: 2.5,
+        nodes: corners.map(([x, y], i) => ({ id: `n${i}`, x, y })),
+        walls: corners.map((_, i) => ({
+          id: `w${i}`,
+          from: `n${i}`,
+          to: `n${(i + 1) % 4}`,
+          material: 'drywall',
+        })),
+        openings: [],
+        surveySpots: [
+          [2, 2],
+          [8, 2],
+          [5, 8],
+        ].map(([x, y], i) => ({
+          id: `s${i}`,
+          x,
+          y,
+          readings: [{ apId: 'ap', band: '5GHz', dbm: -95 }],
+          neighbourReadings: [
+            { bssid: '02:aa:bb:cc:dd:10', band: '5GHz', dbm: -95 },
+          ],
+        })),
+      },
+    ],
+    accessPoints: [
+      {
+        id: 'ap',
+        name: 'Router',
+        floorId: 'f',
+        x: 5,
+        y: 5,
+        heightM: 1,
+        radios: [{ band: '5GHz' }],
+      },
+    ],
+    neighbourNetworks: [
+      {
+        id: 'nn1',
+        name: 'Smith',
+        band: '5GHz',
+        channel: 36,
+        channelWidthMHz: 20,
+        strengthDbm: -95,
+        bssid: '02:aa:bb:cc:dd:10',
+      },
+    ],
+  })
+  if (!result.ok) throw new Error('invalid')
+  return result.plan
+}
+
 describe('locating a neighbour (D85)', () => {
   it('takes the BSSIDs that look like the network’s device', () => {
     const plan = withNeighbour()
@@ -119,6 +194,22 @@ describe('locating a neighbour (D85)', () => {
     expect(text).toContain('Located, outside the walls, to within ')
     expect(text).toContain(formatRadius(location.uncertaintyM, 'metric'))
     expect(text).toContain('sending about 18 dBm')
+  })
+
+  it('says plainly when it’s heard too weakly to place (D103)', () => {
+    const plan = faintRoom()
+    const network = plan.neighbourNetworks![0]!
+    expect(tryLocateNeighbour(plan, network)).toEqual({ unplaced: 'too-weak' })
+    expect(locateNeighbour(plan, network)).toBeUndefined()
+    expect(describeUnplacedNeighbour('too-weak', false, 'metric')).toBe(
+      'heard too weakly to place. It’s probably more than 10 m past the walls. It still counts at one strength everywhere.',
+    )
+    expect(describeUnplacedNeighbour('too-far', true, 'imperial')).toBe(
+      'heard too weakly to place. It’s probably more than 33 ft past the walls. Its last location is kept.',
+    )
+    expect(describeUnplacedNeighbour('too-strong', false, 'metric')).toMatch(
+      /^heard too strongly to place\. No spot within 10 m of the walls fits its scans\./,
+    )
   })
 
   it('rounds the radius up to whole metres or feet', () => {
@@ -208,6 +299,20 @@ describe('checking an access point’s position (D85)', () => {
     store.getState().checkPosition(ap.id)
     store.getState().applyPositionCheck()
     expect(store.getState().plan.accessPoints[0]!.x).toBe(ap.x + 7)
+  })
+
+  it('says when its readings are too weak to place it (D103)', () => {
+    const plan = faintRoom()
+    const ap = router(plan)
+    expect(tryCheckPosition(plan, ap.id)).toBe('too-weak')
+    expect(checkPosition(plan, ap.id)).toBeUndefined()
+    const store = createEditorStore(plan)
+    store.getState().checkPosition(ap.id)
+    expect(store.getState().positionCheck).toBeUndefined()
+    expect(store.getState().notice).toBe(describeUnplacedCheck('too-weak'))
+    expect(store.getState().notice).toMatch(
+      /^Its readings are heard too weakly to place it anywhere inside the walls/,
+    )
   })
 
   it('says when there are too few readings', () => {

@@ -123,9 +123,12 @@ export {
   MODEL_SIGMA_DB,
   OUTSIDE_REACH_M,
   regionLimit,
+  tryLocateSource,
   type LocateOptions,
+  type LocateResult,
   type Location,
   type Sighting,
+  type Unplaced,
 } from './locate.ts'
 export { freeSpacePathLoss, SPEED_OF_LIGHT } from './pathLoss.ts'
 export {
