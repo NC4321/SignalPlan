@@ -12,6 +12,7 @@ import {
   useSaveStatus,
 } from './editor/autosave.ts'
 import { StorageNotice } from './editor/StorageNotice.tsx'
+import { UpdateNotice } from './editor/UpdateNotice.tsx'
 import { CalibrationBar } from './editor/CalibrationBar.tsx'
 import { ScanPlacementBar, ScanProvider } from './editor/ScanProvider.tsx'
 import { SurveyImportProvider } from './editor/SurveyImportProvider.tsx'
@@ -270,7 +271,9 @@ function App({
                   problem={saveProblem}
                   retryFailed={retryFailed}
                   autosaver={autosaver}
-                />
+                >
+                  <UpdateNotice />
+                </StorageNotice>
                 <Toolbar />
                 <main className="stage">
                   <h1 className="visually-hidden">SignalPlan editor</h1>
