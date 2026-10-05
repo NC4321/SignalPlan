@@ -1037,6 +1037,11 @@ button.danger-fill {
   flex: 1 1 20rem;
 }
 
+/* A new version is ready (D98): the same line, in the accent colour. */
+.update-notice {
+  border-bottom-color: var(--accent);
+}
+
 /* Calibration (D22): a bar along the bottom of the plan while it's active. */
 .calibration-bar {
   position: absolute;

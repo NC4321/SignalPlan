@@ -192,6 +192,8 @@ pnpm check                            # typecheck, lint, format check and unit t
 pnpm --filter @signalplan/web e2e     # browser tests (Playwright)
 ```
 
+Installing and working offline (a Workbox service worker and a web app manifest) is built but off behind a switch: a browser turns it on with `/?offline=on` and off with `/?offline=off`, and `OFFLINE_FOR_EVERYONE` in [`apps/web/src/offline.ts`](apps/web/src/offline.ts) opens it to everyone (D98). Its icons are drawn from the favicon by [`scripts/pwa-icons.mjs`](scripts/pwa-icons.mjs).
+
 The demo GIFs are recorded by [`scripts/record-demo.mjs`](scripts/record-demo.mjs). Contributions are welcome; see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## License
