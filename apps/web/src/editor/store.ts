@@ -42,7 +42,11 @@ import {
   type CoverageGoal,
   type OptimizerState,
 } from './optimizer.ts'
-import { checkPosition, type PositionCheck } from './locate.ts'
+import {
+  describeUnplacedCheck,
+  tryCheckPosition,
+  type PositionCheck,
+} from './locate.ts'
 import type { Units } from './units.ts'
 
 enablePatches()
@@ -811,13 +815,12 @@ export function createEditorStore(
     },
     dismissChannelPlan: () => set({ channelPlan: undefined }),
     checkPosition: (apId) => {
-      const check = checkPosition(get().plan, apId)
-      set({
-        positionCheck: check,
-        notice: check
-          ? undefined
-          : 'Its readings are too few to check its position: it needs them at 3 spots on one band.',
-      })
+      const check = tryCheckPosition(get().plan, apId)
+      set(
+        typeof check === 'string'
+          ? { positionCheck: undefined, notice: describeUnplacedCheck(check) }
+          : { positionCheck: check, notice: undefined },
+      )
     },
     applyPositionCheck: () => {
       const { positionCheck } = get()

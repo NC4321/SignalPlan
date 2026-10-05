@@ -98,6 +98,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 - Scan your network reads more scans as they really come: `iw`'s 160 MHz networks (signalled as 80 MHz with a second centre segment) as 160 MHz rather than 80, and 6 GHz widths from the HE operation; an `iw` network with no signal line is skipped and listed instead of rejecting the whole scan; `netsh` from Turkish Windows, which writes the signal as `%86`; and WiFi Analyzer exports re-saved as CSV whose network names hold a comma. `nmcli` output with its fields in another order is refused, naming the order needed, instead of skipping every network or naming one "36". Deeply nested JSON pasted in is refused as not a scan, and any error reading a scan now shows in the dialog rather than nothing happening.
 
+- Locating a neighbour's network, or checking where an access point is, no longer puts it kilometres off the plan with a radius of a metre or two. When the readings are heard faintly and about the same everywhere, as a far-off neighbour's are, the editor now says so: "heard too weakly to place. It's probably more than 10 m past the walls." (D103).
+
 - The tool palette sits inside a navigation landmark, so screen-reader users can jump to it and axe-core's region rule passes.
 
 - The length you type while drawing a wall is capped at 1000 m, the same as the Length field in the panel (D100).
