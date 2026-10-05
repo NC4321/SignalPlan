@@ -92,9 +92,13 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ### Fixed
 
+- Scan your network reads more scans as they really come: `iw`'s 160 MHz networks (signalled as 80 MHz with a second centre segment) as 160 MHz rather than 80, and 6 GHz widths from the HE operation; an `iw` network with no signal line is skipped and listed instead of rejecting the whole scan; `netsh` from Turkish Windows, which writes the signal as `%86`; and WiFi Analyzer exports re-saved as CSV whose network names hold a comma. `nmcli` output with its fields in another order is refused, naming the order needed, instead of skipping every network or naming one "36". Deeply nested JSON pasted in is refused as not a scan, and any error reading a scan now shows in the dialog rather than nothing happening.
+
 - The tool palette sits inside a navigation landmark, so screen-reader users can jump to it and axe-core's region rule passes.
 
 - The length you type while drawing a wall is capped at 1000 m, the same as the Length field in the panel (D100).
+
+- Calibrate no longer offers a fit for spots stacked in one place: ten spots at the same point used to count as ten, and the fit came back with the exponent at its limit and a perfect 0.00 dB held out. Spots now count towards the ten only when at least 1 m apart, the readings must be at a spread of distances from the access points so how fast signal fades can be told from the phone's offset, and a band that isn't ready says which of these it still needs (D101).
 
 - Plans far too large no longer break coverage. A plan saved in millimetres opened as one 15 km across and failed with "Couldn't work out coverage… Undo your last change", with nothing to undo. Opening a file or a link wider than 2 km now says "This plan is 15 km across. Was it saved in millimetres?". A large floor's coverage grid has at most a million cells, so floors over about 100 m × 100 m get coarser cells instead of a recompute of several seconds on every drag; a 600 m × 400 m floor gets 50 cm cells. A wall's typed length goes up to 1000 m, and a coverage failure with nothing to undo says to open another plan (D100).
 

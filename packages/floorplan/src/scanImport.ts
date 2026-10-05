@@ -4,7 +4,7 @@ import {
   type Band,
   type ChannelWidth,
 } from './schema.ts'
-import { meanPowerDbm } from './surveyImport.ts'
+import { csvRows, meanPowerDbm } from './surveyImport.ts'
 import type { PlanIssue } from './validate.ts'
 
 /**
@@ -208,8 +208,9 @@ const linesOf = (text: string) =>
  * translated with Windows itself, so this reads the layout, not the words:
  * an unindented `… n : name` starts a network, an indented line whose value
  * is a MAC address starts a BSSID, and among the lines indented under that,
- * the first value ending in % is the signal, a value like `5 GHz` the band
- * (Windows 11), and the first whole number after the signal the channel.
+ * the first percentage is the signal (`86 %`, or `%86` as Turkish Windows
+ * writes it), a value like `5 GHz` the band (Windows 11), and the first
+ * whole number after the signal the channel.
  */
 function readNetsh(text: string, out: Collected) {
   let ssid = ''
@@ -266,8 +267,8 @@ function readNetsh(text: string, out: Collected) {
     }
     if (!current) continue
     if (current.percent === undefined) {
-      const percent = /^(\d{1,3})\s*%$/.exec(value)
-      if (percent) current.percent = Number(percent[1])
+      const percent = /^(?:%\s*(\d{1,3})|(\d{1,3})\s*%)$/.exec(value)
+      if (percent) current.percent = Number(percent[1] ?? percent[2])
       continue
     }
     const band = bandOfText(value)
@@ -295,9 +296,14 @@ function nmcliFields(line: string): string[] {
   return fields
 }
 
+const NMCLI_ORDER =
+  'Expected BSSID:SSID:CHAN:FREQ:SIGNAL, as nmcli -t -f BSSID,SSID,CHAN,FREQ,SIGNAL gives.'
+
 /**
  * `nmcli -t -f BSSID,SSID,CHAN,FREQ,SIGNAL dev wifi list` on Linux, with
- * an optional sixth field, BANDWIDTH, where NetworkManager has it.
+ * an optional sixth field, BANDWIDTH, where NetworkManager has it. Terse
+ * output has no header, so fields asked for in another order are caught by
+ * their values: CHAN a whole number, FREQ like `5180 MHz`, SIGNAL 0 to 100.
  */
 function readNmcli(text: string, out: Collected) {
   for (const { line, n } of linesOf(text)) {
@@ -306,14 +312,24 @@ function readNmcli(text: string, out: Collected) {
     const fields = nmcliFields(line)
     const bssid = macOf(fields[0] ?? '')
     if (!bssid || fields.length < 5 || fields.length > 6) {
-      out.issues.push({
-        path: where,
-        message:
-          'Expected BSSID:SSID:CHAN:FREQ:SIGNAL, as nmcli -t -f BSSID,SSID,CHAN,FREQ,SIGNAL gives.',
-      })
+      out.issues.push({ path: where, message: NMCLI_ORDER })
       continue
     }
     const [, ssid, chan, freq, signal, bandwidth] = fields
+    const wrong = !/^\d{1,3}$/.test(chan!.trim())
+      ? `CHAN “${chan}” isn’t a channel number`
+      : !/^\d+\s*MHz$/i.test(freq!.trim())
+        ? `FREQ “${freq}” isn’t a frequency like 5180 MHz`
+        : !/^\d{1,3}$/.test(signal!.trim()) || Number(signal) > 100
+          ? `SIGNAL “${signal}” isn’t a percentage from 0 to 100`
+          : undefined
+    if (wrong) {
+      out.issues.push({
+        path: where,
+        message: `${wrong}, so the fields may be in another order. ${NMCLI_ORDER}`,
+      })
+      continue
+    }
     const mhz = numberIn(freq!)
     const percent = numberIn(signal!)
     out.add({
@@ -333,9 +349,13 @@ function readNmcli(text: string, out: Collected) {
 
 /**
  * `iw dev <interface> scan` on Linux: a block per `BSS <mac>` line with its
- * frequency, signal in dBm and SSID, and the width from the VHT operation
- * element (80 or 160 MHz), or else the HT operation element (40 MHz with a
- * secondary channel, 20 MHz without).
+ * frequency, signal in dBm and SSID, and the width as the Windows script
+ * reads it (D81): on 6 GHz from the HE operation's 6 GHz information, else
+ * from the VHT operation element (80 MHz, or 160 when its second centre
+ * segment is set, as 802.11-2020 signals 160 MHz; or 160 by the older,
+ * deprecated widths 2 and 3), or else the HT operation element (40 MHz with
+ * a secondary channel, 20 MHz without). A BSS without a signal line is
+ * skipped rather than failing the whole scan.
  */
 function readIw(text: string, out: Collected) {
   let current:
@@ -346,16 +366,28 @@ function readIw(text: string, out: Collected) {
         mhz?: number | undefined
         dbm?: number | undefined
         vhtWidth?: number | undefined
+        vhtSegment2?: number | undefined
+        he6Width?: ChannelWidth | undefined
         htSecondary?: boolean | undefined
         htAny?: boolean | undefined
       }
     | undefined
   const finish = () => {
     if (!current) return
-    const { where, bssid, ssid, mhz, dbm, vhtWidth, htSecondary, htAny } =
-      current
+    const { where, bssid, ssid, mhz, dbm, vhtWidth, vhtSegment2 } = current
+    const { he6Width, htSecondary, htAny } = current
+    current = undefined
+    if (dbm === undefined) {
+      out.skipped.push({
+        where,
+        reason: `BSSID ${bssid} has no signal line in iw’s output.`,
+      })
+      return
+    }
+    const band = mhz === undefined ? undefined : bandOfScanFrequency(mhz)
     let widthMHz: ChannelWidth | undefined
-    if (vhtWidth === 1) widthMHz = 80
+    if (band === '6GHz' && he6Width !== undefined) widthMHz = he6Width
+    else if (vhtWidth === 1) widthMHz = vhtSegment2 ? 160 : 80
     else if (vhtWidth === 2 || vhtWidth === 3) widthMHz = 160
     else if (htSecondary !== undefined) {
       widthMHz = htSecondary && htAny !== false ? 40 : 20
@@ -364,12 +396,11 @@ function readIw(text: string, out: Collected) {
       where,
       bssid,
       ssid,
-      band: mhz === undefined ? undefined : bandOfScanFrequency(mhz),
+      band,
       channel: mhz === undefined ? undefined : channelOfFrequency(mhz),
       widthMHz,
       dbm,
     })
-    current = undefined
   }
   let section = ''
   for (const { line, n } of linesOf(text)) {
@@ -392,6 +423,17 @@ function readIw(text: string, out: Collected) {
     else if (/^SSID:/.test(value)) current.ssid = value.slice(5).trim()
     else if (section === 'vht operation' && /^channel width:/.test(value)) {
       current.vhtWidth = numberIn(value)
+    } else if (
+      section === 'vht operation' &&
+      /^center freq segment 2:/.test(value)
+    ) {
+      current.vhtSegment2 = numberIn(value.replace(/^.*?:/, ''))
+    } else if (section === 'he operation' && /^Channel Width:/.test(value)) {
+      // 6 GHz Operation Information: `20 MHz` … `80+80 or 160 MHz`.
+      const mhz = /(\d+)\s*MHz/.exec(value)
+      current.he6Width = /160/.test(value)
+        ? 160
+        : widthOf(mhz ? Number(mhz[1]) : undefined)
     } else if (
       section === 'ht operation' &&
       /^secondary channel offset:/.test(value)
@@ -426,12 +468,16 @@ const columnKey = (name: string) => name.toLowerCase().replace(/[^a-z0-9]/g, '')
  * such as `80MHz (5170 - 5250)`.
  */
 function readAnalyzer(text: string, out: Collected) {
-  const lines = linesOf(text).filter(({ line }) => line.trim() !== '')
-  const header = lines[0]?.line ?? ''
+  // Quoted cells, as a spreadsheet re-saves them, may hold the delimiter.
+  const rowsBy = (d: string) =>
+    csvRows(text, d).filter(({ cells }) => cells.some((c) => c.trim() !== ''))
   const delimiter = ['|', ',', ';', '\t'].reduce((best, d) =>
-    header.split(d).length > header.split(best).length ? d : best,
+    (rowsBy(d)[0]?.cells.length ?? 0) > (rowsBy(best)[0]?.cells.length ?? 0)
+      ? d
+      : best,
   )
-  const names = header.split(delimiter).map(columnKey)
+  const [header, ...rows] = rowsBy(delimiter)
+  const names = (header?.cells ?? []).map(columnKey)
   const column = (field: keyof typeof ANALYZER_COLUMNS) =>
     names.findIndex((name) =>
       (ANALYZER_COLUMNS[field] as readonly string[]).includes(name),
@@ -451,11 +497,9 @@ function readAnalyzer(text: string, out: Collected) {
     })
     return
   }
-  for (const { line, n } of lines.slice(1)) {
-    const cells = line
-      .split(delimiter)
-      .map((c) => c.trim().replace(/^"|"$/g, ''))
-    const where = `line ${n}`
+  for (const row of rows) {
+    const cells = row.cells.map((c) => c.trim())
+    const where = `line ${row.line}`
     const bssid = macOf(cells[at.bssid] ?? '')
     if (!bssid) {
       out.issues.push({
@@ -490,16 +534,19 @@ function readAnalyzer(text: string, out: Collected) {
  */
 function readSystemProfiler(data: unknown, out: Collected) {
   const networks: { network: Record<string, unknown>; where: string }[] = []
-  const walk = (value: unknown, path: string) => {
+  // system_profiler nests a handful deep; deeper is never its output, and
+  // walking it would overflow the stack.
+  const walk = (value: unknown, path: string, depth = 0) => {
+    if (depth > 32) return
     if (Array.isArray(value)) {
-      value.forEach((item, i) => walk(item, `${path}[${i}]`))
+      value.forEach((item, i) => walk(item, `${path}[${i}]`, depth + 1))
     } else if (typeof value === 'object' && value !== null) {
       const record = value as Record<string, unknown>
       if ('spairport_network_channel' in record) {
         networks.push({ network: record, where: path })
       }
       for (const [key, item] of Object.entries(record)) {
-        walk(item, path ? `${path}.${key}` : key)
+        walk(item, path ? `${path}.${key}` : key, depth + 1)
       }
     }
   }
@@ -644,7 +691,11 @@ export function parseScan(text: string): ScanResult {
     if (typeof data === 'object' && data !== null && 'signalplanScan' in data) {
       format = 'signalplan'
       readSignalplan(data as Record<string, unknown>, out)
-    } else if (JSON.stringify(data).includes('"SPAirPortDataType"')) {
+    } else if (
+      typeof data === 'object' &&
+      data !== null &&
+      'SPAirPortDataType' in data
+    ) {
       format = 'system-profiler'
       readSystemProfiler(data, out)
     }

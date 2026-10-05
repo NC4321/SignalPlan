@@ -3,6 +3,8 @@ import { describe, expect, it } from 'vitest'
 import {
   calibrateBand,
   defaultValues,
+  MIN_DISTANCE_SPREAD_DB,
+  MIN_SPOT_SEPARATION_M,
   MIN_SPOTS,
   predictPath,
   surveyPaths,
@@ -19,6 +21,8 @@ import {
 import { FLOOR_LOSS_DB, MATERIAL_LOSS_DB } from './materials.ts'
 import { predictReadings } from './survey.ts'
 import {
+  ap,
+  room,
   simulate,
   surveyedBigHouse,
   surveyedTwoStorey,
@@ -204,6 +208,127 @@ describe('surveyReadiness', () => {
     expect(readiness.spots).toBe(25)
     expect(readiness.floors.map((f) => f.roomsWithSpots)).toEqual([25, 0])
     expect(readiness.ready).toBe(false)
+  })
+})
+
+describe('surveyReadiness: separate places and distances (D101)', () => {
+  /** Two 5 × 6 m rooms, the access point in the right-hand one. */
+  const twoRooms = (spots: [number, number, number][]): Plan => ({
+    schemaVersion: 1,
+    name: 'Two rooms',
+    floors: [
+      {
+        ...room(10, 6, { x: 5, material: 'drywall' }),
+        surveySpots: spots.map(([x, y, dbm], i) => ({
+          id: `s${i}`,
+          x,
+          y,
+          readings: [{ apId: 'ap-8-3', band: '5GHz', dbm }],
+        })),
+      },
+    ],
+    accessPoints: [ap(8, 3)],
+  })
+
+  it('counts ten spots at one place as one', () => {
+    // The room rule alone passes: one of two rooms has spots.
+    const plan = twoRooms(Array.from({ length: 10 }, () => [3, 3, -50]))
+    const readiness = surveyReadiness(plan, surveyPaths(plan, '5GHz'))
+    expect(readiness).toMatchObject({
+      spots: 10,
+      separateSpots: 1,
+      spotsNeeded: MIN_SPOTS,
+      ready: false,
+    })
+    expect(readiness.floors[0]).toMatchObject({
+      rooms: 2,
+      roomsWithSpots: 1,
+      roomsNeeded: 1,
+    })
+    // Every reading at one distance: n and the offset can't be told apart.
+    expect(readiness.distanceSpreadDb).toBeLessThan(1e-9)
+    // So no fit: it used to stop n at its limit and claim 0.00 dB held out.
+    expect(calibrateBand(plan, '5GHz').fit).toBeUndefined()
+  })
+
+  it('counts nine spots at one place and one elsewhere as two', () => {
+    const plan = twoRooms([
+      ...Array.from({ length: 9 }, (): [number, number, number] => [3, 3, -50]),
+      [7, 5, -45],
+    ])
+    const readiness = surveyReadiness(plan, surveyPaths(plan, '5GHz'))
+    expect(readiness).toMatchObject({
+      spots: 10,
+      separateSpots: 2,
+      ready: false,
+    })
+    expect(calibrateBand(plan, '5GHz').fit).toBeUndefined()
+  })
+
+  it(`counts spots ${MIN_SPOT_SEPARATION_M} m apart separately, and closer ones as one`, () => {
+    const row = (step: number) =>
+      twoRooms(
+        Array.from({ length: 10 }, (_, i): [number, number, number] => [
+          0.5 + i * step,
+          1,
+          -50,
+        ]),
+      )
+    const apart = row(MIN_SPOT_SEPARATION_M)
+    expect(
+      surveyReadiness(apart, surveyPaths(apart, '5GHz')).separateSpots,
+    ).toBe(10)
+    // 0.9 m steps: every other spot is within 1 m of one counted.
+    const close = row(0.9)
+    expect(
+      surveyReadiness(close, surveyPaths(close, '5GHz')).separateSpots,
+    ).toBe(5)
+  })
+
+  it('counts the same point on two floors as two places', () => {
+    const plan = surveyedTwoStorey()
+    const readiness = surveyReadiness(plan, surveyPaths(plan, '5GHz'))
+    // Both floors have spots at the same x and y.
+    expect(readiness.separateSpots).toBe(50)
+  })
+
+  it('needs readings at a spread of distances, not all at one', () => {
+    // Ten spots 1.6 m apart on a circle 2.5 m around the access point, in
+    // one open room: separate places, but all at the same distance.
+    const plan: Plan = {
+      schemaVersion: 1,
+      name: 'Open',
+      floors: [
+        {
+          ...room(10, 10),
+          surveySpots: Array.from({ length: 10 }, (_, i) => ({
+            id: `c${i}`,
+            x: 5 + 2.5 * Math.cos((i * Math.PI) / 5),
+            y: 5 + 2.5 * Math.sin((i * Math.PI) / 5),
+            readings: [{ apId: 'ap-5-5', band: '5GHz' as Band, dbm: -50 }],
+          })),
+        },
+      ],
+      accessPoints: [ap(5, 5)],
+    }
+    const readiness = surveyReadiness(plan, surveyPaths(plan, '5GHz'))
+    expect(readiness.separateSpots).toBe(10)
+    expect(readiness.floors[0]!.roomsWithSpots).toBe(1)
+    expect(readiness.distanceSpreadDb).toBeLessThan(1e-9)
+    expect(readiness.distanceSpreadNeededDb).toBe(MIN_DISTANCE_SPREAD_DB)
+    expect(readiness.ready).toBe(false)
+  })
+
+  it('still offers a fit for a survey with a spot in each room', () => {
+    for (const plan of [surveyedBigHouse(), surveyedTwoStorey()]) {
+      for (const band of ['2.4GHz', '5GHz', '6GHz'] as Band[]) {
+        const readiness = surveyReadiness(plan, surveyPaths(plan, band))
+        expect(readiness.separateSpots).toBe(readiness.spots)
+        // 2.2–2.7 dB: well clear of the threshold.
+        expect(readiness.distanceSpreadDb).toBeGreaterThan(2)
+        expect(readiness.ready).toBe(true)
+      }
+    }
   })
 })
 

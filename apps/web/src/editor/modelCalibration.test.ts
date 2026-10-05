@@ -143,6 +143,29 @@ describe('the words Calibrate shows', () => {
     ])
   })
 
+  it('says when spots are at the same place, or all at one distance (D101)', () => {
+    // Ten spots all where the first one is: enough spots, one place.
+    const plan = surveyed()
+    const first = plan.floors[0]!.surveySpots![0]!
+    const crowded: Plan = {
+      ...plan,
+      floors: plan.floors.map((f) => ({
+        ...f,
+        surveySpots: Array.from({ length: 10 }, (_, i) => ({
+          ...first,
+          id: `same${i}`,
+        })),
+      })),
+    }
+    const { readiness, fit } = calibrateBand(crowded, '5GHz')
+    expect(fit).toBeUndefined()
+    expect(readinessLines(crowded, readiness)).toEqual([
+      'Needs readings at 10 spots at least 1 m apart; has 10, at 1 separate place.',
+      'Needs readings both near and far from the access points, to tell how fast signal fades from how your phone reads.',
+      'Spots in 1 of 7 rooms; needs 4.',
+    ])
+  })
+
   it('lists each fitted value next to its default', () => {
     const { fit } = calibrateBand(surveyed(), '5GHz')
     const rows = fitRows(fit!)

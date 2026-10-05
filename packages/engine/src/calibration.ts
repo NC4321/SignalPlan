@@ -35,8 +35,32 @@ import {
  */
 export type { BandCalibration, Calibration } from '@signalplan/floorplan'
 
-/** Fitting is offered from this many spots with readings on the band (D75). */
+/**
+ * Fitting is offered from this many spots with readings on the band (D75),
+ * counting only spots at least `MIN_SPOT_SEPARATION_M` apart (D101).
+ */
 export const MIN_SPOTS = 10
+
+/**
+ * Spots closer than this on the same floor count as one place towards
+ * `MIN_SPOTS` (D101): within a metre the path to each access point is the
+ * same to the model, so a second spot there adds a repeat, not a new
+ * position.
+ */
+export const MIN_SPOT_SEPARATION_M = 1
+
+/**
+ * The spread of the readings' distances from their access points, as the
+ * standard deviation of 10·log10 d in dB, below which the fit isn't offered
+ * (D101). The exponent and the device offset are only told apart by how
+ * readings change with distance: if every reading is at about the same
+ * distance, any n fits as well as any other once the offset makes up the
+ * difference. At 1.5 dB, moving n across its whole range (1.47–2.39) moves
+ * the predictions by under 1.4 dB RMS relative to each other, less than
+ * half the 3 dB a phone's readings scatter by. Surveys with a spot in each
+ * room spread 2.2–2.7 dB.
+ */
+export const MIN_DISTANCE_SPREAD_DB = 1.5
 
 /** ...and spots in at least this share of the rooms on each floor. */
 export const MIN_ROOM_SHARE = 0.5
@@ -460,7 +484,19 @@ export interface FloorReadiness {
 export interface SurveyReadiness {
   /** Spots with a reading on the band that the model can compare. */
   spots: number
+  /**
+   * Of those, how many are at separate places, at least
+   * `MIN_SPOT_SEPARATION_M` from each other (D101). These count towards
+   * `spotsNeeded`.
+   */
+  separateSpots: number
   spotsNeeded: number
+  /**
+   * The standard deviation of 10·log10 of the readings' distances from
+   * their access points, in dB, and the least the fit needs (D101).
+   */
+  distanceSpreadDb: number
+  distanceSpreadNeededDb: number
   /** Each floor with rooms, in the plan's order. */
   floors: FloorReadiness[]
   ready: boolean
@@ -468,9 +504,11 @@ export interface SurveyReadiness {
 
 /**
  * Whether there are enough spots, spread widely enough, to fit a band:
- * `MIN_SPOTS` spots with readings on it, and on every floor with rooms,
- * spots in at least `MIN_ROOM_SHARE` of them (D75). Rooms are the floor's
- * enclosed areas, with doors and windows closed (`floorRooms`).
+ * `MIN_SPOTS` spots with readings on it at separate places, and on every
+ * floor with rooms, spots in at least `MIN_ROOM_SHARE` of them (D75), and
+ * readings at a spread of distances from the access points (D101). Rooms
+ * are the floor's enclosed areas, with doors and windows closed
+ * (`floorRooms`).
  */
 export function surveyReadiness(
   plan: Plan,
@@ -478,7 +516,20 @@ export function surveyReadiness(
 ): SurveyReadiness {
   const spotIds = new Set(paths.map((p) => p.spotId))
   const floors: FloorReadiness[] = []
+  let separateSpots = 0
   for (const floor of plan.floors) {
+    // Spots on the band, each counted unless it's within the separation of
+    // one already counted on this floor.
+    const places: { x: number; y: number }[] = []
+    for (const spot of floor.surveySpots ?? []) {
+      if (!spotIds.has(spot.id)) continue
+      const near = places.some(
+        (p) => Math.hypot(p.x - spot.x, p.y - spot.y) < MIN_SPOT_SEPARATION_M,
+      )
+      if (!near) places.push(spot)
+    }
+    separateSpots += places.length
+
     const grid = gridForFloor(floor, DEFAULT_CELL_M)
     const { rooms, roomOf } = floorRooms(floor, grid)
     const counted = rooms.flatMap((room, i) =>
@@ -502,14 +553,28 @@ export function surveyReadiness(
       emptyRooms: counted.filter((i) => !visited.has(i)).map((i) => rooms[i]!),
     })
   }
+  const distanceSpreadDb = standardDeviation(
+    paths.map((p) => 10 * p.logDistance),
+  )
   return {
     spots: spotIds.size,
+    separateSpots,
     spotsNeeded: MIN_SPOTS,
+    distanceSpreadDb,
+    distanceSpreadNeededDb: MIN_DISTANCE_SPREAD_DB,
     floors,
     ready:
-      spotIds.size >= MIN_SPOTS &&
+      separateSpots >= MIN_SPOTS &&
+      distanceSpreadDb >= MIN_DISTANCE_SPREAD_DB &&
       floors.every((f) => f.roomsWithSpots >= f.roomsNeeded),
   }
+}
+
+function standardDeviation(values: readonly number[]): number {
+  if (values.length === 0) return 0
+  const mean = values.reduce((total, v) => total + v, 0) / values.length
+  const squares = values.reduce((total, v) => total + (v - mean) ** 2, 0)
+  return Math.sqrt(squares / values.length)
 }
 
 /** The fit on one band, once there are enough spots. */
