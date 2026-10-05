@@ -92,6 +92,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 - Typed lengths accept more common forms, as D16 promises: `12'6` and `12' 6 1/2` without the closing ", `5 ft 6`, `12ft6in`, and a decimal comma (`3,5`) as the dBm fields already do. They used to show "Try 12'6"…" instead.
 
+- Keyboard shortcuts no longer act on the plan behind an open dialog. Delete, undo, tool keys, Page Up/Down and Space did, and Esc that closed a dialog also reset the tool, stopped a search or ended a wall. The shortcuts list no longer logs a duplicate-key warning.
+
 - Pressing Delete or an arrow key while dragging no longer makes the item vanish until the next pointer move and leaves an undo step that does nothing: the key is ignored until the drag ends.
 
 - Opening a plan (New plan, the sample, a file, My plans or a share link) no longer keeps the last plan's tool, calibration clicks, floors hidden in 3D, status note or a scan waiting to be placed, which the next click would have imported into the new plan. View settings such as the band, units and 2D or 3D stay.

@@ -124,7 +124,7 @@ test('says what’s wrong with a bad file and imports nothing (D72)', async ({
   await expect(panel(page)).toContainText('No spots yet on any floor.')
 })
 
-test('an undo while mapping is caught at Import, not half-applied (D72)', async ({
+test('an undo in the mapping dialog leaves the plan behind it alone', async ({
   page,
 }) => {
   await page.keyboard.press('s')
@@ -141,11 +141,17 @@ test('an undo while mapping is caught at Import, not half-applied (D72)', async 
   await dialog
     .getByRole('combobox', { name: new RegExp(ROUTER_5) })
     .selectOption({ label: 'Wi-Fi 6E router, 5 GHz' })
-  // With focus on a button, undo removes the spot the rows were going to.
+  // Keys in a dialog are the dialog's: undo doesn't remove the spot the rows
+  // are going to, so the import goes through.
   await dialog.getByRole('button', { name: 'Cancel' }).focus()
   await page.keyboard.press('ControlOrMeta+z')
   await dialog.getByRole('button', { name: 'Import' }).click()
+  await expect(dialog).toBeHidden()
   await expect(
     page.getByRole('dialog', { name: 'These readings can’t be imported' }),
-  ).toContainText('No spot or position')
+  ).toBeHidden()
+  await expect(page.getByRole('button', { name: 'Undo' })).toHaveAttribute(
+    'title',
+    /Undo Import/,
+  )
 })
