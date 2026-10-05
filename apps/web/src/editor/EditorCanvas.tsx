@@ -139,7 +139,6 @@ export function EditorCanvas({
     b: Point
   }>()
   const calibrationPoints = useEditor((s) => s.calibrationPoints)
-  const pointer = useEditor((s) => s.pointer)
   const optimizer = useEditor((s) => s.optimizer)
   // A suggestion covers the whole home (D55): this floor shows its own spots.
   const suggestion =
@@ -200,6 +199,14 @@ export function EditorCanvas({
   const drag = useRef<Drag>(undefined)
   const touches = useRef(new Map<number, Point>())
   const [cursor, setCursor] = useState<Cursor>('default')
+  // The pointer is written to the store on every move. Only the tools that
+  // draw at it subscribe, so hovering with the others doesn't redraw.
+  const cursorDefault = cursor === 'default'
+  const drawsPointer =
+    tool === 'calibrate' ||
+    ((tool === 'accessPoint' || tool === 'survey' || placingScan) &&
+      cursorDefault)
+  const pointer = useEditor((s) => (drawsPointer ? s.pointer : undefined))
 
   const floor = plan.floors.find((f) => f.id === floorId)!
   const band = useEditor((s) => s.band)
@@ -229,15 +236,13 @@ export function EditorCanvas({
   // The pin under a mouse or pen, for its card of readings (D73). It's found
   // from the pointer each time, so zooming or moving the pin updates it.
   const [hovering, setHovering] = useState(false)
+  // Subscribes to the pin under the pointer, not the pointer itself.
+  const spot = useEditor((s) => {
+    if (!hovering || !s.camera || !s.pointer) return undefined
+    const spots = s.plan.floors.find((f) => f.id === s.floorId)?.surveySpots
+    return surveySpotAt(s.camera, spots ?? [], toScreen(s.camera, s.pointer))
+  })
   const surveyCard = useMemo(() => {
-    const spot =
-      hovering && camera && pointer
-        ? surveySpotAt(
-            camera,
-            floor.surveySpots ?? [],
-            toScreen(camera, pointer),
-          )
-        : undefined
     if (!spot) return undefined
     return {
       at: spot,
@@ -245,15 +250,7 @@ export function EditorCanvas({
       title: `${surveySpotName(spot.id)}, ${BAND_LABELS[band]}`,
       lines: spotCardLines(spot, band, errors.readings, plan.accessPoints),
     }
-  }, [
-    floor.surveySpots,
-    hovering,
-    camera,
-    pointer,
-    band,
-    errors,
-    plan.accessPoints,
-  ])
+  }, [spot, band, errors, plan.accessPoints])
   const ghost = useEditor(ghostFloor)
   const ghostScene = useMemo(
     () =>
@@ -379,9 +376,15 @@ export function EditorCanvas({
     const context = element?.getContext('2d')
     if (!element || !context || !camera || size.width === 0) return
     const ratio = window.devicePixelRatio || 1
-    element.width = Math.round(size.width * ratio)
-    element.height = Math.round(size.height * ratio)
+    // Setting the size clears and reallocates the backing store, so only
+    // when it changes; otherwise clear it and start from default state.
+    const width = Math.round(size.width * ratio)
+    const height = Math.round(size.height * ratio)
+    if (element.width !== width) element.width = width
+    if (element.height !== height) element.height = height
     context.setTransform(ratio, 0, 0, ratio, 0, 0)
+    context.clearRect(0, 0, size.width, size.height)
+    context.save()
     const style = getComputedStyle(element)
     draw(context, (name) => style.getPropertyValue(name).trim(), {
       camera,
@@ -431,12 +434,12 @@ export function EditorCanvas({
           : undefined,
       // No ghost while over (or dragging) an existing access point.
       accessPointPreview:
-        tool === 'accessPoint' && cursor === 'default' ? pointer : undefined,
+        tool === 'accessPoint' && cursorDefault ? pointer : undefined,
       surveySpots,
       surveyCard,
       emptyRooms,
       surveyPreview:
-        (tool === 'survey' || placingScan) && cursor === 'default'
+        (tool === 'survey' || placingScan) && cursorDefault
           ? pointer
           : undefined,
       suggestions: [
@@ -455,6 +458,7 @@ export function EditorCanvas({
           ? { anchor, ...preview, material: wallMaterial }
           : undefined,
     })
+    context.restore()
   }, [
     camera,
     size,
@@ -480,7 +484,7 @@ export function EditorCanvas({
     outline,
     tool,
     placingScan,
-    cursor,
+    cursorDefault,
     preview,
     anchor,
     wallMaterial,
