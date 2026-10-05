@@ -2,7 +2,7 @@ import { Fragment, useEffect, useState } from 'react'
 import { useEditorStore } from './context.ts'
 import { Dialog } from './Dialog.tsx'
 import { shortcutGroups, type Shortcut } from './shortcuts.ts'
-import { isTyping, MOD_NAME } from './util.ts'
+import { inOpenDialog, isTyping, MOD_NAME } from './util.ts'
 
 /**
  * The keyboard shortcuts overlay (D89): the top bar's "?" button, or the ?
@@ -15,7 +15,7 @@ export function ShortcutsHelp() {
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (event.key !== '?' || event.ctrlKey || event.metaKey) return
-      if (event.altKey || isTyping(event)) return
+      if (event.altKey || isTyping(event) || inOpenDialog(event)) return
       event.preventDefault()
       setOpen(true)
     }
@@ -61,35 +61,38 @@ export function ShortcutsHelp() {
         }
       >
         {/* Scrollable on small screens, so it takes focus first: the list
-            opens at the top, and arrow keys scroll it. */}
-        <div
-          className="shortcut-groups"
-          tabIndex={0}
-          role="region"
-          aria-label="Shortcuts"
-        >
-          {shortcutGroups(MOD_NAME).map((group) => (
-            <section key={group.title}>
-              <h3>{group.title}</h3>
-              <dl className="shortcuts">
-                {group.shortcuts.map((shortcut) => (
-                  <Fragment key={shortcut.does}>
-                    <dt>
-                      <Keys keys={shortcut.keys} />
-                      {shortcut.or && (
-                        <>
-                          {' or '}
-                          <Keys keys={shortcut.or} />
-                        </>
-                      )}
-                    </dt>
-                    <dd>{shortcut.does}</dd>
-                  </Fragment>
-                ))}
-              </dl>
-            </section>
-          ))}
-        </div>
+            opens at the top, and arrow keys scroll it. Built only while open,
+            so the closed dialog costs nothing as the editor re-renders. */}
+        {open && (
+          <div
+            className="shortcut-groups"
+            tabIndex={0}
+            role="region"
+            aria-label="Shortcuts"
+          >
+            {shortcutGroups(MOD_NAME).map((group) => (
+              <section key={group.title}>
+                <h3>{group.title}</h3>
+                <dl className="shortcuts">
+                  {group.shortcuts.map((shortcut) => (
+                    <Fragment key={shortcut.keys.join('+')}>
+                      <dt>
+                        <Keys keys={shortcut.keys} />
+                        {shortcut.or && (
+                          <>
+                            {' or '}
+                            <Keys keys={shortcut.or} />
+                          </>
+                        )}
+                      </dt>
+                      <dd>{shortcut.does}</dd>
+                    </Fragment>
+                  ))}
+                </dl>
+              </section>
+            ))}
+          </div>
+        )}
       </Dialog>
     </>
   )
