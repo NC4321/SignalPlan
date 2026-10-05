@@ -136,12 +136,13 @@ Opening a link decodes it and validates the plan as opening a file does, then op
 
 `parsePlan` and `loadPlan` return either the plan or a list of issues, each with a path such as `floors[0].walls[3].to` and a readable message. They check:
 
-- **Shape:** required fields, types, known materials and bands, finite numbers.
+- **Shape:** required fields, types, known materials and bands, finite numbers. Positions are within 1,000 km of the origin (`MAX_COORDINATE_M`), elevations from −1,000 m to 1,000 m, floor-to-ceiling heights up to 100 m and mounting heights up to 100 m ([D104](DECISIONS.md#d104-bounds-on-positions-and-heights-and-a-cap-on-walls-per-floor--2026-10-05)).
 - **References:** walls point at nodes on the same floor, openings at walls on the same floor, access points and neighbours' locations at existing floors, survey readings at existing access points.
 - **Geometry:** walls are at least 1 cm long, openings fit inside their wall and don't overlap.
 - **Uniqueness:** ids are unique within each list (survey spot ids across all floors), each access point has at most one radio per band, each survey spot has at most one reading per access point and band and one neighbour reading per BSSID, and each BSSID is on one radio or one neighbour network and not also in `ignoredBssids`.
 - **Channels:** a radio with a `channel` also has a `channelWidthMHz`.
-- **Size:** `loadPlan`, which opens files and share links, also refuses a plan more than 2 km across (`MAX_PLAN_SIZE_M`), asking whether it was saved in millimetres ([D100](DECISIONS.md#d100-a-cap-on-the-coverage-grid-and-on-plan-size--2026-10-05)).
+- **Counts:** a floor has at most 2,000 walls (`MAX_WALLS_PER_FLOOR`), 4,000 corners and 4,000 doors and windows, so a short share link can't hold a plan that takes seconds to show (D104).
+- **Size:** `loadPlan`, which opens files and share links, also refuses a plan more than 2 km across (`MAX_PLAN_SIZE_M`), counting where neighbours were located, asking whether it was saved in millimetres ([D100](DECISIONS.md#d100-a-cap-on-the-coverage-grid-and-on-plan-size--2026-10-05)).
 
 ## Versions and migrations
 

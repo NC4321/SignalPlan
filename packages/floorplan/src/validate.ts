@@ -18,6 +18,22 @@ export const MAX_WALL_LENGTH_M = 1000
  */
 export const MAX_PLAN_SIZE_M = 2000
 
+/**
+ * The most walls one floor can have (D104). About 60 times the largest
+ * fixture (33) and several times a large house traced room by room, so
+ * only a generated plan reaches it. Coverage time grows with walls times
+ * cells: 2,000 walls take about 1 s a band on a million-cell grid, 5,000
+ * walls several seconds, and a link of a few dozen kilobytes can hold that
+ * many.
+ */
+export const MAX_WALLS_PER_FLOOR = 2000
+
+/** Corners one floor can have: two per wall when no walls share one (D104). */
+export const MAX_NODES_PER_FLOOR = 2 * MAX_WALLS_PER_FLOOR
+
+/** Doors and windows one floor can have: two per wall (D104). */
+export const MAX_OPENINGS_PER_FLOOR = 2 * MAX_WALLS_PER_FLOOR
+
 /** Slack for floating-point comparisons of lengths, in metres. */
 const EPSILON_M = 1e-6
 
@@ -52,7 +68,8 @@ export function loadPlan(json: string): ParseResult {
 
 /**
  * How far a plan reaches, in metres: the larger side of the box around every
- * floor's corners, access points, survey spots and openings in the floor.
+ * floor's corners, access points, survey spots and openings in the floor,
+ * and where neighbours' networks were located.
  */
 export function planSizeM(plan: Plan): number {
   const xs: number[] = []
@@ -67,6 +84,9 @@ export function planSizeM(plan: Plan): number {
     floor.floorOpenings?.forEach(({ points }) => points.forEach(add))
   }
   plan.accessPoints.forEach(add)
+  plan.neighbourNetworks?.forEach(({ location }) => {
+    if (location) add(location)
+  })
   if (xs.length === 0) return 0
   const span = (values: number[]) =>
     values.reduce((a, b) => Math.max(a, b)) -
@@ -155,6 +175,30 @@ function checkFloor(
   path: string,
   report: (path: string, message: string) => void,
 ) {
+  const counts = [
+    ['nodes', 'corners', floor.nodes.length, MAX_NODES_PER_FLOOR],
+    ['walls', 'walls', floor.walls.length, MAX_WALLS_PER_FLOOR],
+    [
+      'openings',
+      'doors and windows',
+      floor.openings.length,
+      MAX_OPENINGS_PER_FLOOR,
+    ],
+  ] as const
+  let tooMany = false
+  for (const [key, what, count, max] of counts) {
+    if (count > max) {
+      report(
+        `${path}.${key}`,
+        `Floor has ${count.toLocaleString('en')} ${what}. SignalPlan opens floors with up to ${max.toLocaleString('en')} ${what}.`,
+      )
+      tooMany = true
+    }
+  }
+  // Checking every wall of a floor that size could take a while, and the
+  // count is the one problem worth saying.
+  if (tooMany) return
+
   checkUniqueIds(floor.nodes, `${path}.nodes`, report)
   checkUniqueIds(floor.walls, `${path}.walls`, report)
   checkUniqueIds(floor.openings, `${path}.openings`, report)
