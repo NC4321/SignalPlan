@@ -4,9 +4,12 @@ import {
   DEFAULT_CELL_M,
   floorAreaMask,
   gridForFloor,
-  locateSource,
   MIN_LOCATE_SPOTS,
+  OUTSIDE_REACH_M,
+  tryLocateSource,
+  type LocateResult,
   type Location,
+  type Unplaced,
 } from '@signalplan/engine'
 import {
   BANDS,
@@ -52,17 +55,49 @@ export function neighbourSpotCount(plan: Plan, network: NeighbourNetwork) {
     .length
 }
 
-/** Where the scans put a neighbour's network, if heard at 3 spots or more. */
-export function locateNeighbour(
+/**
+ * Where the scans put a neighbour's network, or why they can't place it:
+ * heard at fewer than 3 spots, or heard too weakly or strongly for any
+ * position within OUTSIDE_REACH_M of the walls to fit (D103).
+ */
+export function tryLocateNeighbour(
   plan: Plan,
   network: NeighbourNetwork,
-): Location | undefined {
+): LocateResult {
   const sightings = bssidSightings(
     plan,
     neighbourBssids(plan, network),
     network.band,
   )
-  return locateSource(plan, network.band, sightings, { outside: true })
+  return tryLocateSource(plan, network.band, sightings, { outside: true })
+}
+
+/** Where the scans put a neighbour's network, if they can place it. */
+export function locateNeighbour(
+  plan: Plan,
+  network: NeighbourNetwork,
+): Location | undefined {
+  const result = tryLocateNeighbour(plan, network)
+  return 'location' in result ? result.location : undefined
+}
+
+/**
+ * What the editor says when the scans can't place a neighbour's network,
+ * after its label: why, and what it does instead.
+ */
+export function describeUnplacedNeighbour(
+  reason: Unplaced,
+  located: boolean,
+  units: Units,
+): string {
+  const reach = formatRadius(OUTSIDE_REACH_M, units)
+  const why =
+    reason === 'few-spots'
+      ? `heard by scans at too few spots to place it. It needs ${MIN_LOCATE_SPOTS}.`
+      : reason === 'too-strong'
+        ? `heard too strongly to place. No spot within ${reach} of the walls fits its scans.`
+        : `heard too weakly to place. It’s probably more than ${reach} past the walls.`
+  return `${why} ${located ? 'Its last location is kept.' : 'It still counts at one strength everywhere.'}`
 }
 
 /**
@@ -192,22 +227,46 @@ export function checkBand(plan: Plan, apId: string): Band | undefined {
 
 /**
  * Where an access point's readings put it: inside the walls, at its own
- * mounting height, on the band read at the most spots.
+ * mounting height, on the band read at the most spots. Or why they can't
+ * place it: too few, or too weak or strong for anywhere inside (D103).
  */
-export function checkPosition(
+export function tryCheckPosition(
   plan: Plan,
   apId: string,
-): PositionCheck | undefined {
+): PositionCheck | Unplaced {
   const ap = plan.accessPoints.find((a) => a.id === apId)
   const band = checkBand(plan, apId)
-  if (!ap || !band) return undefined
-  const location = locateSource(
+  if (!ap || !band) return 'few-spots'
+  const result = tryLocateSource(
     plan,
     band,
     accessPointSightings(plan, apId, band),
     { heightM: ap.heightM, outside: false },
   )
-  return location && { apId, band, location }
+  return 'location' in result
+    ? { apId, band, location: result.location }
+    : result.unplaced
+}
+
+/** Where an access point's readings put it, if they can place it. */
+export function checkPosition(
+  plan: Plan,
+  apId: string,
+): PositionCheck | undefined {
+  const result = tryCheckPosition(plan, apId)
+  return typeof result === 'string' ? undefined : result
+}
+
+/** What the editor says when an access point's readings can't place it. */
+export function describeUnplacedCheck(reason: Unplaced): string {
+  switch (reason) {
+    case 'few-spots':
+      return `Its readings are too few to check its position: it needs them at ${MIN_LOCATE_SPOTS} spots on one band.`
+    case 'too-strong':
+      return 'Its readings are heard too strongly to place it anywhere inside the walls, so its position can’t be checked.'
+    default:
+      return 'Its readings are heard too weakly to place it anywhere inside the walls, so its position can’t be checked. Check they’re of this access point.'
+  }
 }
 
 /**

@@ -20,10 +20,20 @@ const surveyed = JSON.parse(
 )
 
 /**
- * The surveyed home with a neighbour's 5 GHz network heard by scans at
- * every spot, fading with distance from (−4, 4), west of the house.
+ * What each spot of the surveyed home hears from a neighbour's 5 GHz
+ * network at (−4, 4), west of the house, sending 18 dBm: the model's own
+ * prediction through the walls (`predictReadings`), in spot order.
  */
-function withNeighbour() {
+const NEXT_DOOR_DBM = [
+  -54.9, -53.9, -61.6, -61.2, -86.3, -67.1, -68.2, -54.5, -104.7, -55.8, -90.1,
+]
+
+/**
+ * The surveyed home with a neighbour's 5 GHz network heard by scans at
+ * every spot: by default the one next door; given `far`, one 60 m west,
+ * fading with distance alone, so it's heard about as weakly everywhere.
+ */
+function withNeighbour(far = false) {
   const plan = structuredClone(surveyed)
   plan.neighbourNetworks = [
     {
@@ -36,16 +46,20 @@ function withNeighbour() {
       bssid: '10:20:30:40:50:60',
     },
   ]
-  for (const spot of plan.floors[0].surveySpots) {
-    const d = Math.hypot(spot.x + 4, spot.y - 4)
-    spot.neighbourReadings = [
-      {
-        bssid: '10:20:30:40:50:60',
-        band: '5GHz',
-        dbm: Math.round((-38 - 20 * Math.log10(d)) * 10) / 10,
-      },
-    ]
-  }
+  plan.floors[0].surveySpots.forEach(
+    (spot: { x: number; y: number; neighbourReadings: unknown }, i: number) => {
+      const d = Math.hypot(spot.x + 60, spot.y - 4)
+      spot.neighbourReadings = [
+        {
+          bssid: '10:20:30:40:50:60',
+          band: '5GHz',
+          dbm: far
+            ? Math.round((-38 - 20 * Math.log10(d)) * 10) / 10
+            : NEXT_DOOR_DBM[i],
+        },
+      ]
+    },
+  )
   return plan
 }
 
@@ -90,6 +104,24 @@ test('locates a neighbour from its scans, and clears it again (D85)', async ({
 
   await row.getByRole('button', { name: 'Clear location Smith, 5 GHz' }).click()
   await expect(row).toContainText('enough to locate it.')
+})
+
+test('says when a neighbour is heard too weakly to place (D103)', async ({
+  page,
+}) => {
+  // 60 m away, it's heard about as weakly at every spot.
+  await openPlan(page, withNeighbour(true))
+  const row = panel(page).getByRole('group', { name: 'Smith, 5 GHz' })
+  await row
+    .getByRole('button', { name: 'Locate from scans Smith, 5 GHz' })
+    .click()
+  await expect(page.locator('.status-notice')).toHaveText(
+    'Smith, 5 GHz: heard too weakly to place. It’s probably more than 10 m past the walls. It still counts at one strength everywhere.',
+  )
+  await expect(row).not.toContainText('Located')
+  await expect(
+    row.getByRole('button', { name: 'Clear location Smith, 5 GHz' }),
+  ).toHaveCount(0)
 })
 
 test('checks where an access point is against its readings (D85)', async ({

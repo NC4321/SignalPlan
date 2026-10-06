@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { PlanLibrary } from './editor/library.ts'
 import { blankPlan, planToFile, samplePlan } from './editor/persistence.ts'
 import { rescueFile } from './rescue.ts'
-import { workerFailureText } from './workerFailure.ts'
+import { advice, workerFailureText } from './workerFailure.ts'
 
 let library: PlanLibrary
 let counter = 0
@@ -89,5 +89,15 @@ describe('workerFailureText', () => {
         'the background calculation stopped unexpectedly',
       )
     }
+  })
+})
+
+describe('advice', () => {
+  it('says to undo a plan failure only when there is something to undo', () => {
+    expect(advice('plan')).toBe('Undo your last change, or reload the page.')
+    expect(advice('plan', false)).toBe('Open another plan from the File menu.')
+    expect(advice('worker', false)).toBe(
+      'Try again; if it keeps failing, reload the page.',
+    )
   })
 })

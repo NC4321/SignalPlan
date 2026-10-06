@@ -5,8 +5,10 @@ export {
   defaultValues,
   MIN_CROSSING_READINGS,
   MIN_CROSSING_SPOTS,
+  MIN_DISTANCE_SPREAD_DB,
   MIN_ROOM_AREA_M2,
   MIN_ROOM_SHARE,
+  MIN_SPOT_SEPARATION_M,
   MIN_SPOTS,
   predictPath,
   surveyPaths,
@@ -41,6 +43,7 @@ export {
   DEFAULT_CELL_M,
   evaluateCoverage,
   gridForFloor,
+  MAX_GRID_CELLS,
   predictDbm,
   RECEIVER_HEIGHT_M,
   type Coverage,
@@ -120,9 +123,12 @@ export {
   MODEL_SIGMA_DB,
   OUTSIDE_REACH_M,
   regionLimit,
+  tryLocateSource,
   type LocateOptions,
+  type LocateResult,
   type Location,
   type Sighting,
+  type Unplaced,
 } from './locate.ts'
 export { freeSpacePathLoss, SPEED_OF_LIGHT } from './pathLoss.ts'
 export {

@@ -110,6 +110,33 @@ describe('gestures', () => {
     store.getState().endGesture('Nothing')
     expect(store.getState().past).toEqual([])
   })
+
+  it('ignores edits while a gesture is open, such as Delete mid-drag', () => {
+    const store = createEditorStore(sample())
+    const id = store.getState().plan.accessPoints[0]!.id
+    store.getState().beginGesture()
+    store.getState().updateGesture(moveRouterTo(4))
+    store.getState().edit('Delete', (plan) => {
+      plan.accessPoints = plan.accessPoints.filter((ap) => ap.id !== id)
+    })
+    // The preview is untouched, so the router doesn't vanish mid-drag.
+    expect(store.getState().plan.accessPoints.map((ap) => ap.id)).toContain(id)
+    expect(store.getState().past).toEqual([])
+
+    store.getState().updateGesture(moveRouterTo(5))
+    store.getState().endGesture('Move router')
+    expect(routerX(store.getState().plan)).toBe(5)
+    expect(store.getState().past.map((e) => e.label)).toEqual(['Move router'])
+  })
+
+  it('accepts edits again once the gesture ends', () => {
+    const store = createEditorStore(sample())
+    store.getState().beginGesture()
+    store.getState().cancelGesture()
+    store.getState().edit('Move router', moveRouterTo(2))
+    expect(routerX(store.getState().plan)).toBe(2)
+    expect(store.getState().past).toHaveLength(1)
+  })
 })
 
 describe('selection', () => {
@@ -281,6 +308,59 @@ describe('loadPlan', () => {
     store.getState().loadPlan(fresh)
     expect(store.getState().plan).toBe(fresh)
     expect(store.getState().past).toEqual([])
+  })
+
+  it('resets what belonged to the plan that was open', () => {
+    const store = createEditorStore(sample())
+    const floorId = store.getState().plan.floors[0]!.id
+    store.getState().setTool('calibrate')
+    store.getState().addCalibrationPoint({ x: 1, y: 1 })
+    store.getState().setPlaceScan(() => {})
+    store.getState().setView3d({ hiddenFloors: [floorId] })
+    store.getState().setNotice('Scan not imported.')
+
+    store.getState().loadPlan(sample(), { pristine: true })
+    const state = store.getState()
+    expect(state.tool).toBe('select')
+    expect(state.calibrationPoints).toEqual([])
+    expect(state.placeScan).toBeUndefined()
+    expect(state.view3d.hiddenFloors).toEqual([])
+    expect(state.notice).toBeUndefined()
+  })
+
+  it('drops the floor opening tool when opening a plan with one floor', () => {
+    const store = createEditorStore(sample())
+    store.getState().addFloor('above')
+    store.getState().setTool('floorOpening')
+    expect(store.getState().tool).toBe('floorOpening')
+    store.getState().loadPlan(sample())
+    expect(store.getState().tool).toBe('select')
+  })
+
+  it('keeps the view settings, which are the person’s, not the plan’s', () => {
+    const store = createEditorStore(sample(), { units: 'imperial' })
+    store.getState().setBand('2.4GHz')
+    store.getState().setShow('interference')
+    store.getState().setView('3d')
+    store.getState().setView3d({ spreadM: 3, fullWalls: true })
+    store.getState().setShowHeatmap(false)
+    store.getState().setShowGhost(false)
+    store.getState().setWallMaterial('brick')
+
+    store.getState().loadPlan(sample())
+    const state = store.getState()
+    expect(state.band).toBe('2.4GHz')
+    expect(state.show).toBe('interference')
+    expect(state.units).toBe('imperial')
+    expect(state.view).toBe('3d')
+    expect(state.view3d).toEqual({
+      hiddenFloors: [],
+      spreadM: 3,
+      fullWalls: true,
+    })
+    expect(state.showHeatmap).toBe(false)
+    expect(state.showGhost).toBe(false)
+    expect(state.wallMaterial).toBe('brick')
   })
 })
 

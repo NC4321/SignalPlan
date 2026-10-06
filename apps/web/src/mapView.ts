@@ -160,6 +160,40 @@ export interface MapData {
   accessPointNames: string[]
 }
 
+/** The parts of a plan that `mapData` reads. */
+export type MapPlan = Pick<
+  Plan,
+  'accessPoints' | 'region' | 'neighbourNetworks' | 'coverageTarget'
+>
+
+/**
+ * True if `mapData` reads the same from both plans: each access point's id,
+ * name and radios, the region, the neighbours' networks and the coverage
+ * target. Positions don't count, so dragging an access point keeps the map
+ * until new coverage comes.
+ */
+export function sameMapPlan(a: MapPlan, b: MapPlan): boolean {
+  if (
+    a.region !== b.region ||
+    a.neighbourNetworks !== b.neighbourNetworks ||
+    a.coverageTarget !== b.coverageTarget
+  ) {
+    return false
+  }
+  if (a.accessPoints === b.accessPoints) return true
+  return (
+    a.accessPoints.length === b.accessPoints.length &&
+    a.accessPoints.every((ap, i) => {
+      const other = b.accessPoints[i]!
+      return (
+        ap.id === other.id &&
+        ap.name === other.name &&
+        ap.radios === other.radios
+      )
+    })
+  )
+}
+
 /**
  * `plan` is the plan the coverage was worked out for, suggestion included,
  * so the Roaming legend names every access point on the map in its colour
@@ -170,10 +204,7 @@ export function mapData(
   coverage: Coverage,
   kind: MapKind,
   settings: ViewSettings,
-  plan: Pick<
-    Plan,
-    'accessPoints' | 'region' | 'neighbourNetworks' | 'coverageTarget'
-  >,
+  plan: MapPlan,
 ): MapData {
   const accessPointNames = coverage.accessPointIds.map(
     (id) => plan.accessPoints.find((ap) => ap.id === id)?.name ?? id,

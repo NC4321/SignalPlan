@@ -70,6 +70,18 @@ test('rejects an invalid typed length', async ({ page }) => {
   await expect(page.getByRole('alert')).toContainText('Try 3.5')
 })
 
+test('rejects a typed length longer than a wall can be', async ({ page }) => {
+  const before = await walls(page)
+  await page.keyboard.press('w')
+  await clickPlan(page, 17, 6)
+  await page.keyboard.type('1500')
+  await page.keyboard.press('Enter')
+  await expect(page.getByRole('alert')).toContainText('A wall can be up to')
+  // Close the box, end the wall and go back to Select to read the count.
+  for (let i = 0; i < 3; i++) await page.keyboard.press('Escape')
+  expect(await walls(page)).toBe(before)
+})
+
 test('joins a new wall to an existing one (T junction)', async ({ page }) => {
   const before = await walls(page)
   await page.keyboard.press('w')

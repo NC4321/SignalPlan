@@ -364,3 +364,186 @@ describe('groupScanDevices', () => {
     expect(devices[2]!.ssids).toEqual([])
   })
 })
+
+describe('parseScan on output seen in the wild', () => {
+  const T = '\t'
+  const iwBss = (
+    mac: string,
+    freq: number,
+    signal: string | undefined,
+    rest: string[] = [],
+  ) =>
+    [
+      `BSS ${mac}(on wlp2s0)`,
+      `${T}last seen: 412.304s [boottime]`,
+      `${T}TSF: 98765432 usec (0d, 00:01:38)`,
+      `${T}freq: ${freq}.0`,
+      `${T}beacon interval: 100 TUs`,
+      `${T}capability: ESS Privacy SpectrumMgmt (0x1111)`,
+      ...(signal === undefined ? [] : [`${T}signal: ${signal} dBm`]),
+      `${T}last seen: 24 ms ago`,
+      `${T}SSID: HomeNet`,
+      ...rest,
+    ].join('\n')
+
+  it('reads iw’s 160 MHz as 802.11-2020 signals it: width 1 with a second segment', () => {
+    const text = iwBss(HOME_5, 5180, '-52.00', [
+      `${T}HT operation:`,
+      `${T}${T} * primary channel: 36`,
+      `${T}${T} * secondary channel offset: above`,
+      `${T}${T} * STA channel width: any`,
+      `${T}VHT operation:`,
+      `${T}${T} * channel width: 1 (80 MHz)`,
+      `${T}${T} * center freq segment 1: 42`,
+      `${T}${T} * center freq segment 2: 50`,
+      `${T}${T} * VHT basic MCS set: 0xfffc`,
+    ])
+    expect(entries(parseScan(text))[0]).toMatchObject({
+      channel: 36,
+      widthMHz: 160,
+    })
+  })
+
+  it('reads a 6 GHz width from iw’s HE operation', () => {
+    const he = (width: string) =>
+      iwBss(HOME_5, 6135, '-60.00', [
+        `${T}HE Operation:`,
+        `${T}${T} * HE Operation Parameters: (0x023ff0)`,
+        `${T}${T}${T} * 6 GHz Operation Information Present`,
+        `${T}${T} * 6 GHz Operation Information`,
+        `${T}${T}${T} * Primary Channel: 37`,
+        `${T}${T}${T} * Channel Width: ${width}`,
+        `${T}${T}${T} * Center Frequency Segment 0: 39`,
+        `${T}${T}${T} * Minimum Rate: 6`,
+      ])
+    expect(entries(parseScan(he('80 MHz')))[0]).toMatchObject({
+      band: '6GHz',
+      channel: 37,
+      widthMHz: 80,
+    })
+    expect(entries(parseScan(he('80+80 or 160 MHz')))[0]!.widthMHz).toBe(160)
+  })
+
+  it('skips an iw BSS without a signal line and keeps the rest', () => {
+    const text = [
+      iwBss(HOME_5, 5180, '-52.00'),
+      iwBss(NEXT_DOOR, 2437, undefined),
+    ].join('\n')
+    const result = parseScan(text)
+    expect(entries(result).map((e) => e.bssid)).toEqual([HOME_5])
+    expect(result.ok && result.skipped).toEqual([
+      {
+        where: 'line 10',
+        reason: `BSSID ${NEXT_DOOR} has no signal line in iw’s output.`,
+      },
+    ])
+  })
+
+  it('reads netsh with the percent sign first, as Turkish Windows writes it', () => {
+    const text = [
+      '',
+      'Arabirim adı : Wi-Fi',
+      'Şu anda 1 ağ görünür.',
+      '',
+      'SSID 1 : HomeNet',
+      '    Ağ türü                 : Altyapı',
+      '    Kimlik doğrulama        : WPA2-Kişisel',
+      '    Şifreleme               : CCMP',
+      '    BSSID 1                 : a4:2b:b0:12:34:56',
+      '         Sinyal             : %86',
+      '         Radyo türü         : 802.11ac',
+      '         Kanal              : 36',
+      '',
+    ].join('\r\n')
+    const result = parseScan(text)
+    expect(result.ok && result.format).toBe('netsh')
+    expect(entries(result)[0]).toMatchObject({
+      bssid: HOME_5,
+      ssid: 'HomeNet',
+      band: '5GHz',
+      channel: 36,
+      dbm: -57,
+      approximate: true,
+    })
+  })
+
+  it('says it isn’t a scan for deeply nested JSON, rather than throwing', () => {
+    const deep = '['.repeat(100_000) + ']'.repeat(100_000)
+    expect(() => parseScan(deep)).not.toThrow()
+    expect(parseScan(deep).ok).toBe(false)
+    const deepObject =
+      '{"a":'.repeat(50_000) + '{"SPAirPortDataType":[]}' + '}'.repeat(50_000)
+    expect(() => parseScan(deepObject)).not.toThrow()
+    expect(parseScan(deepObject).ok).toBe(false)
+  })
+
+  it('refuses nmcli fields in another order, naming the order it needs', () => {
+    // -f BSSID,SSID,FREQ,CHAN,SIGNAL
+    const swapped = parseScan(
+      [
+        'A4\\:2B\\:B0\\:12\\:34\\:56:HomeNet:5180 MHz:36:86',
+        'A4\\:2B\\:B0\\:12\\:34\\:55:HomeNet:2437 MHz:6:97',
+      ].join('\n'),
+    )
+    expect(swapped.ok).toBe(false)
+    expect(!swapped.ok && swapped.issues).toHaveLength(2)
+    expect(!swapped.ok && swapped.issues[0]).toEqual({
+      path: 'line 1',
+      message:
+        'CHAN “5180 MHz” isn’t a channel number, so the fields may be in another order. Expected BSSID:SSID:CHAN:FREQ:SIGNAL, as nmcli -t -f BSSID,SSID,CHAN,FREQ,SIGNAL gives.',
+    })
+    // -f BSSID,CHAN,SSID,FREQ,SIGNAL would otherwise name the network “36”.
+    const chanFirst = parseScan(
+      'A4\\:2B\\:B0\\:12\\:34\\:56:36:HomeNet:5180 MHz:86',
+    )
+    expect(!chanFirst.ok && chanFirst.issues[0]!.message).toMatch(
+      /^CHAN “HomeNet” isn’t a channel number.*BSSID:SSID:CHAN:FREQ:SIGNAL/,
+    )
+    // -f BSSID,SSID,CHAN,SIGNAL,FREQ
+    const signalFirst = parseScan(
+      'A4\\:2B\\:B0\\:12\\:34\\:56:HomeNet:36:86:5180 MHz',
+    )
+    expect(!signalFirst.ok && signalFirst.issues[0]!.message).toMatch(
+      /^FREQ “86” isn’t a frequency like 5180 MHz/,
+    )
+    const tooStrong = parseScan(
+      'A4\\:2B\\:B0\\:12\\:34\\:56:HomeNet:36:5180 MHz:186',
+    )
+    expect(!tooStrong.ok && tooStrong.issues[0]!.message).toMatch(
+      /^SIGNAL “186” isn’t a percentage from 0 to 100/,
+    )
+    // A hidden network's empty SSID is still fine.
+    expect(
+      entries(parseScan('A4\\:2B\\:B0\\:12\\:34\\:56::36:5180 MHz:86'))[0],
+    ).toMatchObject({ bssid: HOME_5, channel: 36 })
+  })
+
+  it('reads WiFi Analyzer re-saved as CSV, with the delimiter in quoted SSIDs', () => {
+    const tail = (bssid: string, rest: string) => `${bssid},${rest}`
+    const text = [
+      'Time Stamp,SSID,BSSID,Strength,Primary Channel,Primary Frequency,Center Channel,Center Frequency,Width (Range),Distance,802.11mc,Security',
+      `2026/10/03 12:00:00,"Home,-40",${tail(HOME_5, '-56dBm,36,5180MHz,42,5210MHz,80MHz (5170 - 5250),~3.1m,false,[WPA2-PSK-CCMP]')}`,
+      `2026/10/03 12:00:00,"Home,2437",${tail(HOME_24, '-41dBm,6,2437MHz,6,2437MHz,20MHz (2427 - 2447),~1.0m,false,[WPA2-PSK-CCMP]')}`,
+      `2026/10/03 12:00:00,"Flat 2, 5G",${tail(NEXT_DOOR, '-84dBm,149,5745MHz,151,5755MHz,40MHz (5735 - 5775),~40m,false,[WPA2-PSK-CCMP]')}`,
+      `2026/10/03 12:00:00,"Say ""hi""",${tail('10:20:30:40:50:61', '-80dBm,149,5745MHz,151,5755MHz,40MHz (5735 - 5775),~40m,false,[WPA2-PSK-CCMP]')}`,
+    ].join('\r\n')
+    const result = parseScan(text)
+    expect(result.ok && result.format).toBe('wifi-analyzer')
+    expect(
+      entries(result).map((e) => [
+        e.where,
+        e.ssid,
+        e.bssid,
+        e.band,
+        e.channel,
+        e.widthMHz,
+        e.dbm,
+      ]),
+    ).toEqual([
+      ['line 2', 'Home,-40', HOME_5, '5GHz', 36, 80, -56],
+      ['line 3', 'Home,2437', HOME_24, '2.4GHz', 6, 20, -41],
+      ['line 4', 'Flat 2, 5G', NEXT_DOOR, '5GHz', 149, 40, -84],
+      ['line 5', 'Say "hi"', '10:20:30:40:50:61', '5GHz', 149, 40, -80],
+    ])
+  })
+})

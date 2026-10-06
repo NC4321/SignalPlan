@@ -1,6 +1,6 @@
 import { withChannelPlan } from './editor/channelPlan.ts'
 import { viewSettings } from '@signalplan/engine'
-import { mapData, type MapData } from './mapView.ts'
+import { mapData, sameMapPlan, type MapData, type MapPlan } from './mapView.ts'
 import { adjacentFloorId, type PlanIssue } from '@signalplan/floorplan'
 import { useEffect, useMemo, useState } from 'react'
 import { useEditor, useEditorStore } from './editor/context.ts'
@@ -12,6 +12,7 @@ import {
   useSaveStatus,
 } from './editor/autosave.ts'
 import { StorageNotice } from './editor/StorageNotice.tsx'
+import { UpdateNotice } from './editor/UpdateNotice.tsx'
 import { CalibrationBar } from './editor/CalibrationBar.tsx'
 import { ScanPlacementBar, ScanProvider } from './editor/ScanProvider.tsx'
 import { SurveyImportProvider } from './editor/SurveyImportProvider.tsx'
@@ -34,7 +35,7 @@ import {
   describeSelection,
   onlySurveySpots,
 } from './editor/selectTool.ts'
-import { isTyping } from './editor/util.ts'
+import { inOpenDialog, isTyping } from './editor/util.ts'
 import { toolForKey } from './editor/shortcuts.ts'
 import {
   createOptimizer,
@@ -160,19 +161,22 @@ function App({
     () => ({ overlapMarginDb, roamThresholdDbm }),
     [overlapMarginDb, roamThresholdDbm],
   )
+  // Kept while what the map reads is unchanged, so a drag doesn't redo the
+  // map (and the heatmap bitmap) until new coverage arrives.
+  const mapPlan = useMapPlan(shownPlan)
   const map = useMemo(
-    () => (shown ? mapData(shown, show, settings, shownPlan) : undefined),
-    [shown, show, settings, shownPlan],
+    () => (shown ? mapData(shown, show, settings, mapPlan) : undefined),
+    [shown, show, settings, mapPlan],
   )
   const floorMaps = useMemo(
     () =>
       new Map(
         [...floorsCoverage].map(([id, c]) => [
           id,
-          mapData(c, show, settings, shownPlan),
+          mapData(c, show, settings, mapPlan),
         ]),
       ),
-    [floorsCoverage, show, settings, shownPlan],
+    [floorsCoverage, show, settings, mapPlan],
   )
   const summary = useCoverageMessage(map)
   const coverageText = !summary
@@ -186,7 +190,10 @@ function App({
   // Global shortcuts: undo, redo and tools.
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
-      if (isTyping(event)) return
+      // Keys in an open dialog are the dialog's (Esc closes it), not the plan's.
+      if (event.defaultPrevented || isTyping(event) || inOpenDialog(event)) {
+        return
+      }
       const mod = event.ctrlKey || event.metaKey
       const key = event.key.toLowerCase()
       const state = store.getState()
@@ -270,8 +277,12 @@ function App({
                   problem={saveProblem}
                   retryFailed={retryFailed}
                   autosaver={autosaver}
-                />
-                <Toolbar />
+                >
+                  <UpdateNotice />
+                </StorageNotice>
+                <nav className="tools-region" aria-label="Drawing tools">
+                  <Toolbar />
+                </nav>
                 <main className="stage">
                   <h1 className="visually-hidden">SignalPlan editor</h1>
                   {view === '3d' ? (
@@ -367,6 +378,28 @@ function App({
       </SurveyImportProvider>
     </TracingProvider>
   )
+}
+
+/**
+ * The parts of `plan` that `mapData` reads, as the same object for as long
+ * as they are unchanged (moving an access point doesn't change them).
+ */
+function useMapPlan(plan: MapPlan): MapPlan {
+  const [kept, setKept] = useState<MapPlan>(() => pickMapPlan(plan))
+  if (sameMapPlan(kept, plan)) return kept
+  // Updated during render, as React suggests for state from earlier renders.
+  const next = pickMapPlan(plan)
+  setKept(next)
+  return next
+}
+
+function pickMapPlan(plan: MapPlan): MapPlan {
+  return {
+    accessPoints: plan.accessPoints,
+    region: plan.region,
+    neighbourNetworks: plan.neighbourNetworks,
+    coverageTarget: plan.coverageTarget,
+  }
 }
 
 export default App

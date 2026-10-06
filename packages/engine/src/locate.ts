@@ -107,6 +107,12 @@ const REFINED_MINIMA = 3
 const SEPARATE_MINIMA_M = 2
 
 /**
+ * A best position this close to the edge of the area searched is on it:
+ * the readings would put it further out if they could.
+ */
+const EDGE_M = 0.05
+
+/**
  * One spot where the source was heard: the spot's floor and position, and
  * its signal there in dBm, as a phone shows it.
  */
@@ -166,6 +172,24 @@ export interface Location {
 }
 
 /**
+ * Why a source can't be placed:
+ *
+ * - `few-spots`: it wasn't heard at MIN_LOCATE_SPOTS spots on the plan's
+ *   floors.
+ * - `too-weak`: the readings are weaker than the least power, 0 dBm, gives
+ *   anywhere in the area searched, so the fit runs to its edge.
+ * - `too-far`: the fit runs to the edge of the area searched, a
+ *   neighbour's OUTSIDE_REACH_M past the walls: the source is likely
+ *   further off, heard about as weakly everywhere.
+ * - `too-strong`: the readings ask for more than the region's limit and
+ *   the fit runs to the edge, so no position in the area explains them.
+ */
+export type Unplaced = 'few-spots' | 'too-weak' | 'too-far' | 'too-strong'
+
+/** Where a source is, or why it can't be placed. */
+export type LocateResult = { location: Location } | { unplaced: Unplaced }
+
+/**
  * A located source's signal at a sighting, for any EIRP: EIRP + `gainDb`.
  * `gainDb` is −[PL(1 m) + 10·n·log10(d) + losses] + the device offset.
  */
@@ -183,8 +207,8 @@ type Gains = (floor: number, x: number, y: number) => Float64Array
  * The refinement and the uncertainty work paths out from the spots, which
  * gives the same losses faster; the result is then worked out exactly as
  * `predictReadings` would. Positions nearly as good are those whose squared
- * error is within `regionLimit`. Undefined with sightings at fewer than
- * MIN_LOCATE_SPOTS spots on the plan's floors.
+ * error is within `regionLimit`. Undefined when it can't be placed
+ * (`tryLocateSource` says why).
  */
 export function locateSource(
   plan: Plan,
@@ -192,6 +216,28 @@ export function locateSource(
   sightings: readonly Sighting[],
   options: LocateOptions = {},
 ): Location | undefined {
+  const result = tryLocateSource(plan, band, sightings, options)
+  return 'location' in result ? result.location : undefined
+}
+
+/**
+ * As `locateSource`, but says why a source can't be placed. The search,
+ * refinement included, stays inside the first pass's area: each floor's
+ * grid, and OUTSIDE_REACH_M past it when the source may be outside, or
+ * the floor inside its walls when it may not (D83, D103). Readings heard
+ * about as weakly everywhere, as a far-off neighbour's are, fit best ever
+ * further away, so a best position on the edge of that area isn't placed:
+ * when the source may be outside, or its power reached a limit. Nor is a
+ * neighbour whose power reached a limit and whose nearly-as-good positions
+ * reach the edge, since its radius would stop at the edge, not at the
+ * readings.
+ */
+export function tryLocateSource(
+  plan: Plan,
+  band: Band,
+  sightings: readonly Sighting[],
+  options: LocateOptions = {},
+): LocateResult {
   const calibration = options.calibration ?? plan.calibration?.[band] ?? {}
   const heightM = options.heightM ?? NEW_ACCESS_POINT_HEIGHT_M
   const outsideAllowed = options.outside ?? false
@@ -199,7 +245,7 @@ export function locateSource(
   const storeyOf = new Map(stack.map((storey, i) => [storey.floor.id, i]))
   const used = sightings.filter((s) => storeyOf.has(s.floorId))
   const spots = new Set(used.map((s) => `${s.floorId} ${s.x} ${s.y}`))
-  if (spots.size < MIN_LOCATE_SPOTS) return undefined
+  if (spots.size < MIN_LOCATE_SPOTS) return { unplaced: 'few-spots' }
 
   const profile = BAND_PROFILES[band]
   const exponent = calibration.pathLossExponent ?? profile.pathLossExponent
@@ -280,32 +326,61 @@ export function locateSource(
     return fit(gains).squares
   }
 
-  // First pass: every floor on a coarse grid.
-  const candidates: { floor: number; x: number; y: number; squares: number }[] =
-    []
+  // First pass: every floor on a coarse grid. Each floor's area searched
+  // is kept, so the refinement stays inside it.
+  const candidates: {
+    floor: number
+    x: number
+    y: number
+    squares: number
+    edge: boolean
+  }[] = []
   const floorPaths = stack.map((_, from) => pathsTo(from))
+  const searched: ((x: number, y: number) => boolean)[] = []
   stack.forEach((storey, from) => {
     const grid = gridForFloor(
       storey.floor,
       COARSE_CELL_M,
       used.filter((s) => s.floorId === storey.floor.id),
     )
-    const pad = outsideAllowed ? Math.ceil(OUTSIDE_REACH_M / COARSE_CELL_M) : 0
+    const pad = outsideAllowed ? Math.ceil(OUTSIDE_REACH_M / grid.cellM) : 0
     const inside =
       outsideAllowed || storey.floor.walls.length === 0
         ? undefined
         : floorAreaMask(storey.floor, grid)
     const paths = floorPaths[from]!
+    const minX = grid.originX - pad * grid.cellM
+    const minY = grid.originY - pad * grid.cellM
+    const maxX = grid.originX + (grid.cols + pad) * grid.cellM
+    const maxY = grid.originY + (grid.rows + pad) * grid.cellM
+    const walled = inside ? insideWalls(storey.floor) : undefined
+    searched[from] = (x, y) =>
+      x >= minX &&
+      x <= maxX &&
+      y >= minY &&
+      y <= maxY &&
+      (walled === undefined || walled(x, y))
     for (let row = -pad; row < grid.rows + pad; row++) {
-      const y = grid.originY + (row + 0.5) * COARSE_CELL_M
+      const y = grid.originY + (row + 0.5) * grid.cellM
       for (let col = -pad; col < grid.cols + pad; col++) {
         if (inside && !inside[row * grid.cols + col]) continue
-        const x = grid.originX + (col + 0.5) * COARSE_CELL_M
-        candidates.push({ floor: from, x, y, squares: squaresAt(paths, x, y) })
+        const x = grid.originX + (col + 0.5) * grid.cellM
+        const edge =
+          row === -pad ||
+          col === -pad ||
+          row === grid.rows + pad - 1 ||
+          col === grid.cols + pad - 1
+        candidates.push({
+          floor: from,
+          x,
+          y,
+          squares: squaresAt(paths, x, y),
+          edge,
+        })
       }
     }
   })
-  if (candidates.length === 0) return undefined
+  if (candidates.length === 0) return { unplaced: 'few-spots' }
 
   // Refine the best few separate minima, each on its own floor.
   const sorted = [...candidates].sort((a, b) => a.squares - b.squares)
@@ -322,7 +397,10 @@ export function locateSource(
   let best: { floor: number; x: number; y: number; squares: number } | undefined
   for (const start of starts) {
     const paths = floorPaths[start.floor]!
-    const refined = refine(start, (x, y) => squaresAt(paths, x, y))
+    const allowed = searched[start.floor]!
+    const refined = refine(start, (x, y) =>
+      allowed(x, y) ? squaresAt(paths, x, y) : Number.POSITIVE_INFINITY,
+    )
     if (!best || refined.squares < best.squares) best = refined
   }
   const { floor: from, x, y, squares } = best!
@@ -334,6 +412,28 @@ export function locateSource(
   const scatter = n > 3 ? Math.sqrt(squares / (n - 3)) : 0
   const sigmaDb = Math.max(scatter, MODEL_SIGMA_DB)
   const within = regionLimit(n, squares)
+
+  // Readings the area searched can't hold: the fit runs to its edge.
+  const allowed = searched[from]!
+  const onEdge = NEIGHBOURS.some(
+    ([dx, dy]) => !allowed(x + dx * EDGE_M, y + dy * EDGE_M),
+  )
+  const regionOnEdge = candidates.some(
+    (c) => c.floor === from && c.edge && c.squares <= within,
+  )
+  if (
+    (onEdge && (outsideAllowed || result.atLimit)) ||
+    (outsideAllowed && result.atLimit && regionOnEdge)
+  ) {
+    return {
+      unplaced: !result.atLimit
+        ? 'too-far'
+        : result.eirp >= maxEirp
+          ? 'too-strong'
+          : 'too-weak',
+    }
+  }
+
   const otherFloors = new Set<number>()
   let minX = x
   let maxX = x
@@ -372,7 +472,7 @@ export function locateSource(
   const uncertaintyM = furthest + cell / Math.SQRT2
 
   const storey = stack[from]!
-  return {
+  const location: Location = {
     floorId: storey.floor.id,
     x,
     y,
@@ -389,18 +489,21 @@ export function locateSource(
     nearestWallM: nearestWallM(storey, x, y),
     spots: n,
   }
+  return { location }
 }
 
 /**
  * A pattern search from a start: tries the eight neighbours a step away,
  * moves to the best if it's better, and halves the step when none is.
+ * `cost` is ∞ outside the area searched, so it never moves out of it.
  */
 function refine<T extends { x: number; y: number; squares: number }>(
   start: T,
   cost: (x: number, y: number) => number,
 ): T {
   let { x, y } = start
-  let current = cost(x, y)
+  const startCost = cost(x, y)
+  let current = Number.isFinite(startCost) ? startCost : start.squares
   let step = COARSE_CELL_M / 2
   while (step >= REFINE_STOP_M) {
     let bestX = x
@@ -436,14 +539,26 @@ const NEIGHBOURS = [
   [-1, -1],
 ] as const
 
+/** Whether a point is inside a floor's walls, as the heatmap's grid finds. */
+function insideWalls(
+  floor: Storey['floor'],
+): (x: number, y: number) => boolean {
+  const grid = gridForFloor(floor, DEFAULT_CELL_M)
+  const mask = floorAreaMask(floor, grid)
+  return (x, y) => {
+    const col = Math.floor((x - grid.originX) / grid.cellM)
+    const row = Math.floor((y - grid.originY) / grid.cellM)
+    if (col < 0 || row < 0 || col >= grid.cols || row >= grid.rows) {
+      return false
+    }
+    return mask[row * grid.cols + col] === 1
+  }
+}
+
 function isOutside(storey: Storey, x: number, y: number): boolean {
   const { floor } = storey
   if (floor.walls.length === 0) return false
-  const grid = gridForFloor(floor, DEFAULT_CELL_M)
-  const col = Math.floor((x - grid.originX) / grid.cellM)
-  const row = Math.floor((y - grid.originY) / grid.cellM)
-  if (col < 0 || row < 0 || col >= grid.cols || row >= grid.rows) return true
-  return floorAreaMask(floor, grid)[row * grid.cols + col] === 0
+  return !insideWalls(floor)(x, y)
 }
 
 function nearestWallM(storey: Storey, x: number, y: number): number {

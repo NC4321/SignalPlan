@@ -99,8 +99,11 @@ export {
 export {
   checkStructure,
   loadPlan,
+  MAX_PLAN_SIZE_M,
+  MAX_WALL_LENGTH_M,
   MIN_WALL_LENGTH_M,
   parsePlan,
+  planSizeM,
   type ParseResult,
   type PlanIssue,
 } from './validate.ts'

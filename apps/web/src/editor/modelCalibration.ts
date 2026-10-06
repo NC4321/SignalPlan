@@ -1,4 +1,5 @@
 import {
+  MIN_SPOT_SEPARATION_M,
   predictReadings,
   type BandCalibrationResult,
   type BandFit,
@@ -116,6 +117,17 @@ export function readinessLines(
   if (readiness.spots < readiness.spotsNeeded) {
     lines.push(
       `Needs readings at ${readiness.spotsNeeded} spots or more; has ${readiness.spots}.`,
+    )
+  } else if (readiness.separateSpots < readiness.spotsNeeded) {
+    // Enough spots, but some at the same place (D101).
+    const places = readiness.separateSpots === 1 ? 'place' : 'places'
+    lines.push(
+      `Needs readings at ${readiness.spotsNeeded} spots at least ${MIN_SPOT_SEPARATION_M} m apart; has ${readiness.spots}, at ${readiness.separateSpots} separate ${places}.`,
+    )
+  }
+  if (readiness.distanceSpreadDb < readiness.distanceSpreadNeededDb) {
+    lines.push(
+      'Needs readings both near and far from the access points, to tell how fast signal fades from how your phone reads.',
     )
   }
   const named = plan.floors.length > 1

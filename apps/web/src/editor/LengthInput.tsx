@@ -1,9 +1,9 @@
-import type { Point } from '@signalplan/floorplan'
+import { MAX_WALL_LENGTH_M, type Point } from '@signalplan/floorplan'
 import { useEffect, useRef, useState } from 'react'
 import { toScreen, type Camera } from './camera.ts'
 import { bearingDeg, pointAtBearing } from './snap.ts'
-import { parseLength, type Units } from './units.ts'
-import { isTyping } from './util.ts'
+import { formatLength, parseLength, type Units } from './units.ts'
+import { inOpenDialog, isTyping } from './util.ts'
 
 /** Unit screen vector pointing from `toward` back past `anchor`. */
 function directionAway(camera: Camera, anchor: Point, toward: Point): Point {
@@ -47,6 +47,7 @@ export function LengthInput({
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (open || isTyping(event) || event.ctrlKey || event.metaKey) return
+      if (event.defaultPrevented || inOpenDialog(event)) return
       if (!STARTS_LENGTH.test(event.key)) return
       event.preventDefault()
       setLength(event.key)
@@ -73,6 +74,10 @@ export function LengthInput({
     const metres = parseLength(length, units)
     if (metres === undefined || metres <= 0) {
       setError(units === 'metric' ? 'Try 3.5 or 350 cm' : `Try 12'6" or 12.5`)
+      return
+    }
+    if (metres > MAX_WALL_LENGTH_M) {
+      setError(`A wall can be up to ${formatLength(MAX_WALL_LENGTH_M, units)}`)
       return
     }
     let bearing: number

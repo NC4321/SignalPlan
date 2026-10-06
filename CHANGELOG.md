@@ -8,6 +8,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 - Upload: a new map in the Show menu with the phone's signal at its access point, since a phone sends at much less power than a router (14, 10 and 12 dBm on 2.4, 5 and 6 GHz). It's hatched where download reaches the coverage target and upload doesn't, and the summary gives that share of the floor. MODEL.md's Upload section has the sources and what's left out (D99).
 
+- Install and work offline, hidden for now: SignalPlan can be installed as an app and keeps working without a connection after the first visit, with a line saying when a new version is ready to reload into. It's off for everyone until the owner opens it, and nothing on the page mentions it; a browser turns it on with `/?offline=on` and off again with `/?offline=off`. Plans stay where they were, in this browser's storage (D98).
+
 - A logo: the corner of two walls with signal arcs spreading from an access point, in the heatmap's colours, as the favicon, the home-screen icon, on the link-preview card and above the README (D97).
 
 - Link previews: a link to the app shows a card with its name, what it does and a picture of the sample home's heatmap on Reddit, Slack, Discord, iMessage, X and other sites that read Open Graph tags. Also a canonical address, a theme colour that matches the top bar in light and dark, and a home-screen icon for iPhone and iPad. `scripts/og-image.mjs` makes both images from the built app.
@@ -86,11 +88,41 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ### Changed
 
+- The editor does less work as the pointer moves. Hovering no longer redraws the plan unless the tool draws at the pointer, and the canvas keeps its backing store between draws. Dragging an access point no longer rebuilds the map, its heatmap bitmap and summary until new coverage arrives. Hovering with Select costs about half as much on the main thread, and dragging an access point about 10% less (D102).
+
 - Engine: a floor's loss now depends on the angle the signal passes through it, as ITU-R P.2040 gives it, up to 75° from straight up. Signal to rooms well across the floor above or below meets the floor at a shallow angle and loses more than head on (a timber floor: 2.7 dB straight through, 6.6 dB at 75° on 5 GHz). Against ITU-R P.1238-13, the upper floor of the two-storey sample home goes from 2.3 / 5.5 dB optimistic to 0.7 / 3.4 dB on 2.4 / 5 GHz; the main floor doesn't change. Walls stay head-on (D60).
 
 ### Fixed
 
+- Plans from a file or a share link can no longer carry nonsense positions or sizes: corners, access points and the rest must be within 1,000 km of the plan's origin, floors between −1,000 m and 1,000 m up and at most 100 m tall, and access points mounted at most 100 m above their floor; a floor may have up to 2,000 walls, 4,000 corners and 4,000 doors and windows, so a small link can't hold a plan that takes seconds to show; and a located neighbour counts towards the 2 km size limit. Each says what's wrong and the limit (D104).
+
+- Import readings refuses a file whose positions aren't in metres: a new spot more than 50 m outside the walls, or spots that would make the plan more than 2 km across, stop the import with "Was the file saved in millimetres or centimetres?", instead of adding spots kilometres away and leaving a plan that won't open again (D100). Numbers in a readings file must be plain decimals, so `0x10`, `0b11` and `Infinity` are refused rather than read as 16, 3 and infinity.
+
+- Scan your network reads more scans as they really come: `iw`'s 160 MHz networks (signalled as 80 MHz with a second centre segment) as 160 MHz rather than 80, and 6 GHz widths from the HE operation; an `iw` network with no signal line is skipped and listed instead of rejecting the whole scan; `netsh` from Turkish Windows, which writes the signal as `%86`; and WiFi Analyzer exports re-saved as CSV whose network names hold a comma. `nmcli` output with its fields in another order is refused, naming the order needed, instead of skipping every network or naming one "36". Deeply nested JSON pasted in is refused as not a scan, and any error reading a scan now shows in the dialog rather than nothing happening.
+
+- Locating a neighbour's network, or checking where an access point is, no longer puts it kilometres off the plan with a radius of a metre or two. When the readings are heard faintly and about the same everywhere, as a far-off neighbour's are, the editor now says so: "heard too weakly to place. It's probably more than 10 m past the walls." (D103).
+
+- The tool palette sits inside a navigation landmark, so screen-reader users can jump to it and axe-core's region rule passes.
+
+- The length you type while drawing a wall is capped at 1000 m, the same as the Length field in the panel (D100).
+
+- Calibrate no longer offers a fit for spots stacked in one place: ten spots at the same point used to count as ten, and the fit came back with the exponent at its limit and a perfect 0.00 dB held out. Spots now count towards the ten only when at least 1 m apart, the readings must be at a spread of distances from the access points so how fast signal fades can be told from the phone's offset, and a band that isn't ready says which of these it still needs (D101).
+
+- Plans far too large no longer break coverage. A plan saved in millimetres opened as one 15 km across and failed with "Couldn't work out coverage… Undo your last change", with nothing to undo. Opening a file or a link wider than 2 km now says "This plan is 15 km across. Was it saved in millimetres?". A large floor's coverage grid has at most a million cells, so floors over about 100 m × 100 m get coarser cells instead of a recompute of several seconds on every drag; a 600 m × 400 m floor gets 50 cm cells. A wall's typed length goes up to 1000 m, and a coverage failure with nothing to undo says to open another plan (D100).
+
 - Typed lengths accept more common forms, as D16 promises: `12'6` and `12' 6 1/2` without the closing ", `5 ft 6`, `12ft6in`, and a decimal comma (`3,5`) as the dBm fields already do. They used to show "Try 12'6"…" instead.
+
+- Keyboard shortcuts no longer act on the plan behind an open dialog. Delete, undo, tool keys, Page Up/Down and Space did, and Esc that closed a dialog also reset the tool, stopped a search or ended a wall. The shortcuts list no longer logs a duplicate-key warning.
+
+- The status bar could say Saved while a newer change was still waiting to be saved. It now stays on saving until that change is saved too.
+
+- Changes are now saved as soon as the page is hidden, as D20 says, not only when it's unloaded, so switching apps on a phone straight after an edit no longer loses it.
+
+- A tracing image that failed to load once (say a passing storage error) stayed missing until a reload. It's now tried again. Decoded images a plan no longer uses are freed, so they don't pile up when you open other plans.
+
+- Pressing Delete or an arrow key while dragging no longer makes the item vanish until the next pointer move and leaves an undo step that does nothing: the key is ignored until the drag ends.
+
+- Opening a plan (New plan, the sample, a file, My plans or a share link) no longer keeps the last plan's tool, calibration clicks, floors hidden in 3D, status note or a scan waiting to be placed, which the next click would have imported into the new plan. View settings such as the band, units and 2D or 3D stay.
 
 - `docs/MODEL.md` quoted the optimizer's how-many times from before walls were sorted by direction (D56): the big house's 3.3–5.6 s and the 22–33 s on a slow phone. It now gives the current 2.63 s and 3.86 s, and the 15–23 s as an estimate, not a measurement (D96). It also lists that predictions are downlink only.
 

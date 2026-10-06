@@ -1,7 +1,13 @@
 import type { Coverage } from '@signalplan/engine'
 import type { Plan } from '@signalplan/floorplan'
 import { describe, expect, it } from 'vitest'
-import { cellColour, mapData, mapLegend, mapMessage } from './mapView.ts'
+import {
+  cellColour,
+  mapData,
+  mapLegend,
+  mapMessage,
+  sameMapPlan,
+} from './mapView.ts'
 
 /**
  * One row of five 1 m² cells and two access points, A and B, as in the
@@ -89,6 +95,39 @@ describe('mapData', () => {
     expect(
       mapData(coverage, 'roaming', settings, shown).accessPointNames,
     ).toEqual(['Router', 'Access point 1'])
+  })
+})
+
+describe('sameMapPlan', () => {
+  const radios = [] as unknown as Plan['accessPoints'][number]['radios']
+  const ap = {
+    id: 'a',
+    name: 'Router',
+    x: 1,
+    y: 1,
+    radios,
+  } as Plan['accessPoints'][number]
+  const base = { accessPoints: [ap], region: 'EU' as const }
+
+  it('ignores where access points are, so a drag keeps the map', () => {
+    const moved = { ...base, accessPoints: [{ ...ap, x: 4, y: 2 }] }
+    expect(sameMapPlan(base, moved)).toBe(true)
+  })
+
+  it('sees a renamed or retuned access point, the region and neighbours', () => {
+    const renamed = { ...base, accessPoints: [{ ...ap, name: 'Den' }] }
+    const retuned = {
+      ...base,
+      accessPoints: [{ ...ap, radios: [] as unknown as typeof radios }],
+    }
+    expect(sameMapPlan(base, renamed)).toBe(false)
+    expect(sameMapPlan(base, retuned)).toBe(false)
+    expect(sameMapPlan(base, { ...base, accessPoints: [] })).toBe(false)
+    expect(sameMapPlan(base, { ...base, region: 'US' as const })).toBe(false)
+    expect(sameMapPlan(base, { ...base, neighbourNetworks: [] })).toBe(false)
+    expect(
+      sameMapPlan(base, { ...base, coverageTarget: 'excellent' as const }),
+    ).toBe(false)
   })
 })
 

@@ -204,8 +204,14 @@ input:focus-visible + *,
   display: none;
 }
 
-.toolbar {
+/* A landmark around the toolbar, so axe's region rule holds. */
+.tools-region {
   grid-area: tools;
+  display: flex;
+}
+
+.toolbar {
+  flex: 1;
   display: flex;
   flex-direction: column;
   gap: 0.25rem;
@@ -1035,6 +1041,11 @@ button.danger-fill {
 
 .storage-notice span {
   flex: 1 1 20rem;
+}
+
+/* A new version is ready (D98): the same line, in the accent colour. */
+.update-notice {
+  border-bottom-color: var(--accent);
 }
 
 /* Calibration (D22): a bar along the bottom of the plan while it's active. */

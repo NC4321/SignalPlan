@@ -1,4 +1,10 @@
-import type { AccessPoint, Band, Plan, SurveySpot } from '@signalplan/floorplan'
+import {
+  parsePlan,
+  type AccessPoint,
+  type Band,
+  type Plan,
+  type SurveySpot,
+} from '@signalplan/floorplan'
 import { describe, expect, it } from 'vitest'
 import {
   accessPointSightings,
@@ -6,10 +12,19 @@ import {
   chiSquaredQuantile95,
   locateSource,
   MODEL_SIGMA_DB,
+  OUTSIDE_REACH_M,
   regionLimit,
+  tryLocateSource,
   type Location,
+  type Sighting,
 } from './locate.ts'
-import { bigHouse, roomSpots, simulate, twoStoreyHouse } from './testPlans.ts'
+import {
+  bigHouse,
+  room,
+  roomSpots,
+  simulate,
+  twoStoreyHouse,
+} from './testPlans.ts'
 
 /**
  * Surveys with a hidden access point at a known position and power: the
@@ -180,6 +195,85 @@ describe('locateSource', () => {
     const found = locate(loud)!
     expect(found.eirpDbm).toBe(36)
     expect(found.eirpAtLimit).toBe(true)
+  })
+})
+
+describe('readings it can’t place (D103)', () => {
+  /** An empty 10 × 10 m room. */
+  const tenMetreRoom = () => {
+    const result = parsePlan({
+      schemaVersion: 1,
+      name: 'Room',
+      floors: [room(10, 10)],
+      accessPoints: [],
+    })
+    if (!result.ok) throw new Error('invalid')
+    return result.plan
+  }
+  const heard = (readings: [number, number, number][]): Sighting[] =>
+    readings.map(([x, y, dbm]) => ({ floorId: 'f', x, y, dbm }))
+  const threeWeak = heard([
+    [2, 2, -95],
+    [8, 2, -95],
+    [5, 8, -95],
+  ])
+  const fourWeak = heard([
+    [2, 2, -88],
+    [8, 2, -88],
+    [5, 8, -88],
+    [2, 8, -87],
+  ])
+
+  it('says a neighbour heard faintly everywhere is too weak to place', () => {
+    // Before, this put it 5 km away at 36 dBm, "to within 1.4 m".
+    const plan = tenMetreRoom()
+    const options = { outside: true }
+    expect(tryLocateSource(plan, '5GHz', threeWeak, options)).toEqual({
+      unplaced: 'too-weak',
+    })
+    expect(locateSource(plan, '5GHz', threeWeak, options)).toBeUndefined()
+  })
+
+  it('says the same of your own access point, inside the walls', () => {
+    const plan = tenMetreRoom()
+    const options = { outside: false }
+    expect(tryLocateSource(plan, '5GHz', threeWeak, options)).toEqual({
+      unplaced: 'too-weak',
+    })
+  })
+
+  it('doesn’t place a neighbour past where it searches', () => {
+    // Before, these put it at (−60, 63), 60 m past the walls.
+    const plan = tenMetreRoom()
+    const result = tryLocateSource(plan, '5GHz', fourWeak, { outside: true })
+    expect('unplaced' in result).toBe(true)
+  })
+
+  it('never places a source far off the plan with a small radius', () => {
+    // Weak, near-equal readings, the normal case for a neighbour.
+    const plan = tenMetreRoom()
+    for (let seed = 0; seed < 20; seed++) {
+      const readings = threeWeak.concat(fourWeak).map((s, i) => ({
+        ...s,
+        dbm: -80 - ((seed * 7 + i * 13) % 17),
+      }))
+      for (const outside of [true, false]) {
+        const found = locateSource(plan, '5GHz', readings, { outside })
+        if (!found) continue
+        const reach = outside ? OUTSIDE_REACH_M + 2 : 0.1
+        expect(found.x).toBeGreaterThan(-reach)
+        expect(found.x).toBeLessThan(10 + reach)
+        expect(found.y).toBeGreaterThan(-reach)
+        expect(found.y).toBeLessThan(10 + reach)
+      }
+    }
+  })
+
+  it('needs three spots, and says so', () => {
+    const plan = tenMetreRoom()
+    expect(tryLocateSource(plan, '5GHz', threeWeak.slice(0, 2))).toEqual({
+      unplaced: 'few-spots',
+    })
   })
 })
 
