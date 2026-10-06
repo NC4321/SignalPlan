@@ -597,6 +597,7 @@ const MapLegend = memo(function MapLegend({
   const show = useEditor((s) => s.show)
   const overlapMarginDb = useEditor((s) => s.plan.overlapMarginDb)
   const roamThresholdDbm = useEditor((s) => s.plan.roamThresholdDbm)
+  const coverageTarget = useEditor((s) => s.plan.coverageTarget)
   const names = map ? map.accessPointNames : []
   const legend = mapLegend(
     show,
@@ -605,6 +606,8 @@ const MapLegend = memo(function MapLegend({
     map ? map.autoChannels : 0,
     map ? map.neighbours : 0,
     map ? map.locatedNeighbours : 0,
+    coverageTarget,
+    map?.coverage.band,
   )
   return (
     <>

@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ### Added
 
+- Upload: a new map in the Show menu with the phone's signal at its access point, since a phone sends at much less power than a router (14, 10 and 12 dBm on 2.4, 5 and 6 GHz). It's hatched where download reaches the coverage target and upload doesn't, and the summary gives that share of the floor. MODEL.md's Upload section has the sources and what's left out (D99).
+
 - Install and work offline, hidden for now: SignalPlan can be installed as an app and keeps working without a connection after the first visit, with a line saying when a new version is ready to reload into. It's off for everyone until the owner opens it, and nothing on the page mentions it; a browser turns it on with `/?offline=on` and off again with `/?offline=off`. Plans stay where they were, in this browser's storage (D98).
 
 - A logo: the corner of two walls with signal arcs spreading from an access point, in the heatmap's colours, as the favicon, the home-screen icon, on the link-preview card and above the README (D97).

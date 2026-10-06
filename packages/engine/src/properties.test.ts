@@ -9,6 +9,7 @@ import {
 import fc from 'fast-check'
 import { describe, expect, it } from 'vitest'
 import { cellCentre, evaluateCoverage, predictDbm } from './coverage.ts'
+import { PHONE_EIRP_DBM, uplinkDbm } from './uplink.ts'
 import {
   indexedWallLoss,
   indexWalls,
@@ -403,6 +404,62 @@ describe('the grid fast path (#45)', () => {
                 predictDbm(segments, ap, radio, cellCentre(grid, col, row)),
               )
               expect(dbm[row * grid.cols + col]).toBe(expected)
+            }
+          }
+        },
+      ),
+      { ...RUNS, numRuns: 50 },
+    )
+  })
+})
+
+describe('upload (D99)', () => {
+  it('is the phone’s power sent back along the path to the access point it’s on', () => {
+    fc.assert(
+      fc.property(
+        fc.array(wall, { maxLength: 6 }),
+        band.chain((b) =>
+          fc.tuple(
+            accessPoint(0, fc.constant(b)),
+            accessPoint(1, fc.constant(b)),
+          ),
+        ),
+        (walls, aps) => {
+          const f = floor(walls)
+          const b = aps[0].radios[0]!.band
+          const p = plan(f, aps)
+          const coverage = evaluateCoverage(p, 'f', b, 0.5)
+          const uplink = uplinkDbm(coverage, p)
+          const segments = materialSegments(f)
+          const phone = { band: b, txPowerDbm: PHONE_EIRP_DBM[b] }
+          const { grid } = coverage
+          for (let row = 0; row < grid.rows; row++) {
+            for (let col = 0; col < grid.cols; col++) {
+              const i = row * grid.cols + col
+              const ap = aps[coverage.strongest[i]!]!
+              // From the phone in the cell to the access point, at the
+              // phone's power. The receiver is always 1 m up, so the phone
+              // goes as far the other side of it as the access point is,
+              // which keeps the height difference.
+              const expected = predictDbm(
+                segments,
+                {
+                  ...ap,
+                  ...cellCentre(grid, col, row),
+                  heightM: 2 - ap.heightM,
+                },
+                phone,
+                { x: ap.x, y: ap.y },
+              )
+              // The same path from the access point's end.
+              const back = predictDbm(
+                segments,
+                ap,
+                phone,
+                cellCentre(grid, col, row),
+              )
+              expect(back).toBeCloseTo(expected, 6)
+              expect(uplink[i]).toBeCloseTo(back, 3)
             }
           }
         },

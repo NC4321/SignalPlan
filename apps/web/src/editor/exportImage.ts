@@ -258,6 +258,8 @@ export function renderExport(
     map.autoChannels,
     map.neighbours,
     map.locatedNeighbours,
+    plan.coverageTarget,
+    band,
   )
   context.fillText(legend.title, x, y)
   y += 30

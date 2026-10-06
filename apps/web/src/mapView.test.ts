@@ -125,6 +125,9 @@ describe('sameMapPlan', () => {
     expect(sameMapPlan(base, { ...base, accessPoints: [] })).toBe(false)
     expect(sameMapPlan(base, { ...base, region: 'US' as const })).toBe(false)
     expect(sameMapPlan(base, { ...base, neighbourNetworks: [] })).toBe(false)
+    expect(
+      sameMapPlan(base, { ...base, coverageTarget: 'excellent' as const }),
+    ).toBe(false)
   })
 })
 
@@ -373,5 +376,65 @@ describe('Interference (D66)', () => {
     ])
     expect(legend.note).toMatch(/1 access point has its channel on Auto/)
     expect(mapLegend('interference', settings, [], 0).note).not.toMatch(/Auto/)
+  })
+})
+
+describe('Upload (D99)', () => {
+  /** A at the 5 GHz default of 23 dBm, B at 17 dBm. */
+  const radios = {
+    accessPoints: [
+      { id: 'a', name: 'Router', radios: [{ band: '5GHz' }] },
+      { id: 'b', name: 'Upstairs', radios: [{ band: '5GHz', txPowerDbm: 17 }] },
+    ] as Plan['accessPoints'],
+  }
+
+  it('colours the phone’s signal at the access point, hatching where only download reaches the target', () => {
+    // A phone sends 10 dBm on 5 GHz, so upload is 13 dB under A's signal
+    // and 7 dB under B's: −63, −73, −69 (B), −85, −93 dBm.
+    const data = mapData(row(), 'upload', settings, radios)
+    expect([...data.uplink!]).toEqual([-63, -73, -69, -85, -93])
+    expect([0, 1, 2, 3, 4].map((i) => cellColour(data, i))).toEqual([
+      [0x21, 0x91, 0x8c], // Fair both ways
+      [0xbd, 0xbd, 0xbd], // download −60, upload −73: hatched
+      [0xbd, 0xbd, 0xbd], // download −62, upload −69: hatched
+      [0x44, 0x01, 0x54], // download −72 is under Fair too: Poor upload
+      'none', // −93 dBm is below every band
+    ])
+  })
+
+  it('follows the coverage target', () => {
+    // At Weak (−75 dBm) only cell 3's −85 falls short, and its download
+    // (−72) reaches Weak.
+    const data = mapData(row(), 'upload', settings, {
+      ...radios,
+      coverageTarget: 'weak',
+    })
+    expect(data.targetDbm).toBe(-75)
+    expect(cellColour(data, 3)).toEqual([0xbd, 0xbd, 0xbd])
+    expect(cellColour(data, 1)).toEqual([0x3b, 0x52, 0x8b])
+  })
+
+  it('gives the share where download reaches the target and upload doesn’t, rounded up', () => {
+    const data = mapData(row(), 'upload', settings, radios)
+    expect(mapMessage(data, undefined, 'metric')).toBe(
+      '50% of 4 m² has download at Fair or better but upload below it on 5 GHz.',
+    )
+  })
+
+  it('says what the phone sends and what the hatch means', () => {
+    const legend = mapLegend('upload', settings, [], 0, 0, 0, 'good', '6GHz')
+    expect(legend.title).toBe('Upload signal')
+    expect(legend.rows.map((r) => r.label)).toEqual([
+      'Excellent',
+      'Good',
+      'Fair',
+      'Weak',
+      'Poor',
+      'Upload short',
+      'No signal',
+    ])
+    expect(legend.rows[5]!.swatch).toEqual({ kind: 'hatch' })
+    expect(legend.note).toContain('a phone sending 12 dBm on 6 GHz')
+    expect(legend.note).toContain('download reaches Good (-60 dBm)')
   })
 })

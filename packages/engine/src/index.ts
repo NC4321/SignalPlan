@@ -228,3 +228,9 @@ export {
   viewShares,
   type ViewSettings,
 } from './views.ts'
+export {
+  PHONE_EIRP_DBM,
+  sourceEirps,
+  uplinkDbm,
+  uplinkShares,
+} from './uplink.ts'

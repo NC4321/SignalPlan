@@ -398,6 +398,7 @@ function pickMapPlan(plan: MapPlan): MapPlan {
     accessPoints: plan.accessPoints,
     region: plan.region,
     neighbourNetworks: plan.neighbourNetworks,
+    coverageTarget: plan.coverageTarget,
   }
 }
 
