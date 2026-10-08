@@ -7,6 +7,7 @@ import {
   newScanAccessPoints,
   planScan,
   radioKey,
+  scanFloorId,
   unknownScanEntries,
   type ScanChoice,
   type ScanTuning,
@@ -381,6 +382,44 @@ describe('a new access point from a scan (D105)', () => {
       ['ap2', 3.5, 3],
       ['ap3', 5, 3],
     ])
+  })
+
+  it('makes one access point of a device answered a BSSID at a time, named from the BSSIDs answered new', () => {
+    // The dialog gives every BSSID of a device the same key, answered as one
+    // or one at a time; here the guest network goes to the existing router.
+    const plan = sample()
+    const answers = choices([
+      [HOME_5_GUEST, { apId: 'router' }],
+      [HOME_5, NEW],
+      [HOME_24, NEW],
+    ])
+    expect(newScanAccessPoints(plan, SCAN, answers)).toEqual([
+      {
+        key: HOME_5.bssid,
+        name: 'HomeNet',
+        bands: ['2.4GHz', '5GHz'],
+        bssids: [HOME_5.bssid, HOME_24.bssid],
+      },
+    ])
+    const guestFirst = choices([
+      [HOME_5_GUEST, NEW],
+      [HOME_5, { apId: 'router' }],
+    ])
+    expect(newScanAccessPoints(plan, SCAN, guestFirst)[0]!.name).toBe(
+      'HomeNet-Guest',
+    )
+  })
+
+  it('goes on the floor the scan was taken on', () => {
+    const plan = produce(sample(), (draft) => {
+      draft.floors.push({ ...draft.floors[0]!, id: 'up', name: 'Upstairs' })
+      draft.floors[1]!.surveySpots = [{ id: 'spot7', x: 2, y: 2, readings: [] }]
+    })
+    expect(scanFloorId(plan, undefined, 'main')).toBe('main')
+    expect(scanFloorId(plan, { floorId: 'up', x: 1, y: 1 }, 'main')).toBe('up')
+    expect(scanFloorId(plan, { spotId: 'spot7' }, 'main')).toBe('up')
+    // A spot deleted since (an undo) leaves the floor on show.
+    expect(scanFloorId(plan, { spotId: 'spot9' }, 'main')).toBe('main')
   })
 
   it('adds nothing for a BSSID the plan already knows', () => {

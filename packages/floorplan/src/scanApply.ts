@@ -10,6 +10,8 @@ import {
 } from './schema.ts'
 import { upsertScannedNeighbour } from './neighbours.ts'
 import { groupScanDevices, type ScanEntry } from './scanImport.ts'
+import type { ScanPlace } from './scanSpot.ts'
+import { findSurveySpot } from './survey.ts'
 import { bssidOwners, floorCornerBounds } from './surveyImport.ts'
 
 /**
@@ -406,6 +408,21 @@ export function floorMiddle(plan: Plan, floorId: string): Point {
   const box = floorCornerBounds(plan, floorId)
   if (!box) return { x: 0, y: 0 }
   return { x: (box.minX + box.maxX) / 2, y: (box.minY + box.maxY) / 2 }
+}
+
+/**
+ * The floor a scan's new access points go on (D105): the floor of the point
+ * clicked, or of the survey spot it was taken at, else the floor on show,
+ * also when that spot no longer exists.
+ */
+export function scanFloorId(
+  plan: Plan,
+  place: ScanPlace | undefined,
+  floorOnShow: string,
+): string {
+  if (!place) return floorOnShow
+  if ('floorId' in place) return place.floorId
+  return findSurveySpot(plan, place.spotId)?.floorId ?? floorOnShow
 }
 
 /**

@@ -9,6 +9,7 @@ import {
   parseScan,
   planScan,
   radioKey,
+  scanFloorId,
   SCAN_FORMAT_NAMES,
   surveySpotName,
   unknownScanEntries,
@@ -193,14 +194,12 @@ export function ScanProvider({ children }: { children: ReactNode }) {
     const choices = choicesOf(devices, given)
     const tuning = scanTuning(plan)
     const overwrite = new Set(given.overwrite)
-    const spot =
-      place && 'spotId' in place
-        ? findSurveySpot(plan, place.spotId)
-        : undefined
-    const at = place && 'spotId' in place && !spot ? undefined : place
+    const at =
+      place && 'spotId' in place && !findSurveySpot(plan, place.spotId)
+        ? undefined
+        : place
     // New access points go on the floor the scan was taken on (D105).
-    const floorId =
-      at && 'floorId' in at ? at.floorId : (spot?.floorId ?? state.floorId)
+    const floorId = scanFloorId(plan, place, state.floorId)
     const adding = newScanAccessPoints(plan, read.entries, choices).length > 0
     let summary: ScanSummary | undefined
     let atSpot: SpotScanSummary | undefined

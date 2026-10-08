@@ -69,6 +69,7 @@ export {
   floorMiddle,
   newScanAccessPoints,
   planScan,
+  scanFloorId,
   radioKey,
   unknownScanEntries,
   type ScanChanges,
