@@ -194,7 +194,7 @@ test.describe('channel planner (D68)', () => {
     await panel(page).getByRole('button', { name: 'Apply' }).click()
     await expect(five).toBeHidden()
     await panel(page)
-      .getByRole('button', { name: 'Wi-Fi 6E router', exact: true })
+      .getByRole('button', { name: 'Router', exact: true })
       .click()
     await expect(panel(page).getByLabel('5 GHz channel')).not.toHaveValue('')
     await page.getByRole('button', { name: 'Undo' }).click()

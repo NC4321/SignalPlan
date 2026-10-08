@@ -65,9 +65,7 @@ test('asks for a closed outline, then counts the room inside it', async ({
 test('shows no share while nothing broadcasts on the band', async ({
   page,
 }) => {
-  await panel(page)
-    .getByRole('button', { name: 'Wi-Fi 6E router', exact: true })
-    .click()
+  await panel(page).getByRole('button', { name: 'Router', exact: true }).click()
   await page.keyboard.press('Delete')
   await expect(share(page)).toBeHidden()
 })
@@ -101,9 +99,7 @@ test('keeps the summary in view in the status bar on a laptop (D37)', async ({
   await expect(summary).toBeInViewport({ ratio: 1 })
 
   // Selecting the router fills the panel; the summary stays in view.
-  await panel(page)
-    .getByRole('button', { name: 'Wi-Fi 6E router', exact: true })
-    .click()
+  await panel(page).getByRole('button', { name: 'Router', exact: true }).click()
   await expect(summary).toBeInViewport({ ratio: 1 })
 
   // With nothing broadcasting, the status bar shows no summary.

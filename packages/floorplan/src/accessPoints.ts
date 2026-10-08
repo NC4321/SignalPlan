@@ -22,7 +22,9 @@ export const NEW_ACCESS_POINT_HEIGHT_M = 1
 export const EIRP_RANGE_DBM = { min: -10, max: 40 } as const
 
 /** "Access point N", with N one more than the highest already used. */
-export function nextAccessPointName(plan: Plan): string {
+export function nextAccessPointName(plan: {
+  accessPoints: readonly { name: string }[]
+}): string {
   let n = 1
   for (const ap of plan.accessPoints) {
     const match = /^Access point (\d+)$/.exec(ap.name)

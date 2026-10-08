@@ -41,7 +41,7 @@ test('shows the floors in 3D, view only, with a text alternative (D57)', async (
   // The upstairs access point reaches the main floor too (D51): 86% → 93%.
   await expect(description(page).getByRole('listitem')).toHaveText([
     /^Upper floor, at 2\.67 m: 4 walls, access point Access point 1\. 100% of 120 m²/,
-    /^Main floor, at 0\.00 m: 22 walls, access point Wi-Fi 6E router\. 93% of 150 m²/,
+    /^Main floor, at 0\.00 m: 22 walls, access point Router\. 93% of 150 m²/,
   ])
 
   // View only: tools are off, and their shortcuts do nothing.

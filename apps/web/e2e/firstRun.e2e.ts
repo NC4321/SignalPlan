@@ -21,9 +21,7 @@ test('a first visit follows the guide, then plans a room from scratch', async ({
 
   await expect(guide(page)).toContainText('Move an access point')
   await expectNoSeriousViolations(page)
-  await panel(page)
-    .getByRole('button', { name: 'Wi-Fi 6E router', exact: true })
-    .click()
+  await panel(page).getByRole('button', { name: 'Router', exact: true }).click()
   await page.locator('.editor-canvas').focus()
   await page.keyboard.press('ArrowRight')
 

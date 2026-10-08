@@ -60,7 +60,7 @@ test('imports readings, mapping unknown BSSIDs once (D72)', async ({
   await expect(importButton).toBeDisabled()
   await dialog
     .getByRole('combobox', { name: new RegExp(ROUTER_5) })
-    .selectOption({ label: 'Wi-Fi 6E router, 5 GHz' })
+    .selectOption({ label: 'Router, 5 GHz' })
   await dialog.getByRole('button', { name: 'Mark the rest not mine' }).click()
   await expect(
     dialog.getByRole('combobox', { name: new RegExp(NEXT_DOOR) }),
@@ -70,7 +70,7 @@ test('imports readings, mapping unknown BSSIDs once (D72)', async ({
 
   // −60 and −70 dBm average in mW to −62.6 dBm.
   await expect(
-    panel(page).getByRole('group', { name: 'Wi-Fi 6E router, 5 GHz' }),
+    panel(page).getByRole('group', { name: 'Router, 5 GHz' }),
   ).toBeVisible()
   await expect(
     panel(page).getByRole('textbox', { name: /Signal \(dBm\)/ }),
@@ -166,7 +166,7 @@ test('an undo in the mapping dialog leaves the plan behind it alone', async ({
   })
   await dialog
     .getByRole('combobox', { name: new RegExp(ROUTER_5) })
-    .selectOption({ label: 'Wi-Fi 6E router, 5 GHz' })
+    .selectOption({ label: 'Router, 5 GHz' })
   // Keys in a dialog are the dialog's: undo doesn't remove the spot the rows
   // are going to, so the import goes through.
   await dialog.getByRole('button', { name: 'Cancel' }).focus()

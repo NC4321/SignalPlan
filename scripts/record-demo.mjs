@@ -271,7 +271,7 @@ if (clip === 'editor') {
   // The sample home opens by default, with its router by the front door.
   await coverage.getByText(/^86% of/).waitFor()
   await record()
-  await suggestAndApply('Find a better spot for Wi-Fi 6E router')
+  await suggestAndApply('Find a better spot for Router')
   await coverage.getByText(/^92% of/).waitFor()
   // Applying selects the router; clear that to suggest a new one.
   await page.locator('.editor-canvas').focus()

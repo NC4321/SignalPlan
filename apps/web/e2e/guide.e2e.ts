@@ -24,7 +24,7 @@ test('a first visit is guided through the sample home, once', async ({
   await expect(guide(page)).toContainText('Move an access point')
   await page
     .getByRole('complementary', { name: 'Properties' })
-    .getByRole('button', { name: 'Wi-Fi 6E router', exact: true })
+    .getByRole('button', { name: 'Router', exact: true })
     .click()
   await page.locator('.editor-canvas').focus()
   await page.keyboard.press('ArrowRight')

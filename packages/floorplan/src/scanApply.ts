@@ -1,4 +1,7 @@
+import { addAccessPoint, nextAccessPointName } from './accessPoints.ts'
+import type { Point } from './geometry.ts'
 import {
+  BANDS,
   NEIGHBOUR_STRENGTH_RANGE_DBM,
   type Band,
   type ChannelWidth,
@@ -7,7 +10,9 @@ import {
 } from './schema.ts'
 import { upsertScannedNeighbour } from './neighbours.ts'
 import { groupScanDevices, type ScanEntry } from './scanImport.ts'
-import { bssidOwners } from './surveyImport.ts'
+import type { ScanPlace } from './scanSpot.ts'
+import { findSurveySpot } from './survey.ts'
+import { bssidOwners, floorCornerBounds } from './surveyImport.ts'
 
 /**
  * Applying a scan to the plan (D77, D80): each BSSID is yours (a radio on an
@@ -19,8 +24,13 @@ import { bssidOwners } from './surveyImport.ts'
  * makes the changes on an Immer draft as one undo step.
  */
 
-/** How one BSSID is answered: a radio on this access point, or not yours. */
-export type ScanChoice = { apId: string } | 'neighbour' | 'ignore'
+/**
+ * How one BSSID is answered: a radio on this access point, a radio on an
+ * access point the scan adds (one per `newAccessPoint` key, D105), or not
+ * yours.
+ */
+export type ScanChoice =
+  { apId: string } | { newAccessPoint: string } | 'neighbour' | 'ignore'
 
 /** The plan's channel rules, from the engine. */
 export interface ScanTuning {
@@ -165,6 +175,8 @@ export function planScan(
     if (choice === undefined) continue
     if (choice === 'ignore') changes.ignored.push(entry.bssid)
     else if (choice === 'neighbour') neighbours.push(entry)
+    // Added by `addScanAccessPoints` first, which answers with its id.
+    else if ('newAccessPoint' in choice) continue
     else {
       // A known BSSID stays on its radio, whatever band the scan says.
       const band = owner?.band ?? entry.band
@@ -326,4 +338,126 @@ export function applyScan(
     }
   }
   return summary
+}
+
+/** An access point a scan would add, with the bands it was heard on (D105). */
+export interface ScanNewAccessPoint {
+  /** The `newAccessPoint` key its BSSIDs were answered with. */
+  key: string
+  name: string
+  bands: Band[]
+  bssids: string[]
+}
+
+/** How far apart, in metres, access points added by one scan are put. */
+export const SCAN_ACCESS_POINT_SPACING_M = 1.5
+
+/**
+ * The access points answering `{ newAccessPoint }` would add, one per key in
+ * the order first answered. Each is named after its network (the first SSID
+ * among its BSSIDs), with " 2", " 3"… when the plan or an earlier one has
+ * the name, or "Access point n" as the Access point tool names them when the
+ * network is hidden. A BSSID the plan already knows keeps its answer, as in
+ * `planScan`, so it adds nothing.
+ */
+export function newScanAccessPoints(
+  plan: Plan,
+  entries: readonly ScanEntry[],
+  choices: ReadonlyMap<string, ScanChoice>,
+): ScanNewAccessPoint[] {
+  const known = knownBssids(plan)
+  const byKey = new Map<string, ScanEntry[]>()
+  for (const entry of entries) {
+    const choice = choices.get(entry.bssid)
+    if (known.has(entry.bssid) || typeof choice !== 'object') continue
+    if (!('newAccessPoint' in choice)) continue
+    const group = byKey.get(choice.newAccessPoint) ?? []
+    group.push(entry)
+    byKey.set(choice.newAccessPoint, group)
+  }
+  const names = plan.accessPoints.map((ap) => ap.name)
+  return [...byKey].map(([key, group]) => {
+    const ssid = group.find((e) => (e.ssid ?? '') !== '')?.ssid?.trim()
+    const name = ssid
+      ? uniqueName(ssid.slice(0, 95), names)
+      : nextAccessPointName({ accessPoints: names.map((n) => ({ name: n })) })
+    names.push(name)
+    const heard = new Set(group.map((e) => e.band))
+    return {
+      key,
+      name,
+      bands: BANDS.filter((b) => heard.has(b)),
+      bssids: group.map((e) => e.bssid),
+    }
+  })
+}
+
+function uniqueName(base: string, used: readonly string[]): string {
+  if (!used.includes(base)) return base
+  let n = 2
+  while (used.includes(`${base} ${n}`)) n++
+  return `${base} ${n}`
+}
+
+/**
+ * The middle of a floor's walls, where a scan's new access points go until
+ * dragged to where they are (D105); the middle of every floor's walls when
+ * it has none, or the origin on an empty plan.
+ */
+export function floorMiddle(plan: Plan, floorId: string): Point {
+  const box = floorCornerBounds(plan, floorId)
+  if (!box) return { x: 0, y: 0 }
+  return { x: (box.minX + box.maxX) / 2, y: (box.minY + box.maxY) / 2 }
+}
+
+/**
+ * The floor a scan's new access points go on (D105): the floor of the point
+ * clicked, or of the survey spot it was taken at, else the floor on show,
+ * also when that spot no longer exists.
+ */
+export function scanFloorId(
+  plan: Plan,
+  place: ScanPlace | undefined,
+  floorOnShow: string,
+): string {
+  if (!place) return floorOnShow
+  if ('floorId' in place) return place.floorId
+  return findSurveySpot(plan, place.spotId)?.floorId ?? floorOnShow
+}
+
+/**
+ * Adds the access points `newScanAccessPoints` names on `floorId`, each with
+ * a radio on the bands it was heard on and nothing else set, in a row from
+ * `at`, on an Immer draft. Returns their ids and the answers with each
+ * `{ newAccessPoint }` replaced by its access point, for `planScan`, which
+ * then gives them their BSSIDs, widths and channels like any of your radios.
+ */
+export function addScanAccessPoints(
+  plan: Plan,
+  entries: readonly ScanEntry[],
+  choices: ReadonlyMap<string, ScanChoice>,
+  floorId: string,
+  at: Point,
+): { ids: string[]; choices: Map<string, ScanChoice> } {
+  const added = newScanAccessPoints(plan, entries, choices)
+  const idOf = new Map<string, string>()
+  added.forEach((ap, i) => {
+    const id = addAccessPoint(plan, floorId, {
+      x: at.x + i * SCAN_ACCESS_POINT_SPACING_M,
+      y: at.y,
+    })
+    const created = plan.accessPoints.find((a) => a.id === id)!
+    created.name = ap.name
+    created.radios = ap.bands.map((band) => ({ band }))
+    idOf.set(ap.key, id)
+  })
+  const resolved = new Map<string, ScanChoice>()
+  for (const [bssid, choice] of choices) {
+    const id =
+      typeof choice === 'object' && 'newAccessPoint' in choice
+        ? idOf.get(choice.newAccessPoint)
+        : undefined
+    resolved.set(bssid, id === undefined ? choice : { apId: id })
+  }
+  return { ids: [...idOf.values()], choices: resolved }
 }

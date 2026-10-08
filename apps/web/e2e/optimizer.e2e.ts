@@ -7,7 +7,7 @@ const coverageStatus = (page: Page) => page.locator('.coverage-status')
 const optimizerStatus = (page: Page) => panel(page).locator('.optimizer-status')
 const find = (page: Page) =>
   panel(page).getByRole('button', {
-    name: 'Find a better spot for Wi-Fi 6E router',
+    name: 'Find a better spot for Router',
   })
 
 test('suggests a spot, previews it and applies it as one undo step (D44)', async ({
@@ -21,7 +21,7 @@ test('suggests a spot, previews it and applies it as one undo step (D44)', async
   await expect(optimizerStatus(page)).toContainText(
     '86% → 92% of the floor at Fair or better on 5 GHz.',
   )
-  await expect(optimizerStatus(page)).toContainText('Move Wi-Fi 6E router to')
+  await expect(optimizerStatus(page)).toContainText('Move Router to')
   // The heatmap and status bar show coverage with the suggestion in place.
   await expect(coverageStatus(page)).toHaveText(
     /^With the suggestion: 92% of .* at Fair or better on 5 GHz\.$/,
@@ -31,7 +31,7 @@ test('suggests a spot, previews it and applies it as one undo step (D44)', async
   await panel(page).getByRole('button', { name: 'Apply' }).click()
   await expect(coverageStatus(page)).toHaveText(/^92% of/)
   await expect(
-    panel(page).getByRole('heading', { name: 'Wi-Fi 6E router' }),
+    panel(page).getByRole('heading', { name: 'Router' }),
   ).toBeVisible()
   await expect(panel(page).getByRole('button', { name: 'Apply' })).toHaveCount(
     0,
@@ -81,7 +81,7 @@ test('shows progress and Cancel while it searches', async ({ page }) => {
   await openEditor(page)
   await find(page).click()
   await expect(optimizerStatus(page)).toHaveText(
-    'Searching for a spot for Wi-Fi 6E router…',
+    'Searching for a spot for Router…',
   )
   await expect(
     panel(page).getByRole('progressbar', { name: 'Search progress' }),
@@ -119,7 +119,7 @@ test('moves several unlocked access points together (D45)', async ({
     .getByRole('button', { name: 'Find better spots for 2 access points' })
     .click()
   await expect(optimizerStatus(page)).toContainText(
-    /^Move Wi-Fi 6E router to .* and move Access point 1 to .*: \d+% → \d+% of the floor/,
+    /^Move Router to .* and move Access point 1 to .*: \d+% → \d+% of the floor/,
   )
   await panel(page).getByRole('button', { name: 'Apply' }).click()
   await expect(
@@ -135,7 +135,7 @@ test('suggests one more access point and applies both (D45)', async ({
     .getByRole('button', { name: 'Suggest one more access point' })
     .click()
   await expect(optimizerStatus(page)).toContainText(
-    /^Move Wi-Fi 6E router to .* and add Access point 1 at .*: 86% → 100% of the floor at Fair or better on 5 GHz\.$/,
+    /^Move Router to .* and add Access point 1 at .*: 86% → 100% of the floor at Fair or better on 5 GHz\.$/,
   )
   await expect(coverageStatus(page)).toHaveText(/^With the suggestion: 100% of/)
   await panel(page).getByRole('button', { name: 'Apply' }).click()
@@ -154,9 +154,7 @@ test('suggests one more access point and applies both (D45)', async ({
 
 test('adds an access point to a floor without one', async ({ page }) => {
   await openEditor(page)
-  await panel(page)
-    .getByRole('button', { name: 'Wi-Fi 6E router', exact: true })
-    .click()
+  await panel(page).getByRole('button', { name: 'Router', exact: true }).click()
   await page.keyboard.press('Delete')
   await page.keyboard.press('Escape')
   await panel(page)
@@ -183,7 +181,7 @@ test('counts the access points needed for the coverage goal (D46)', async ({
   // Moving the router alone reaches 92% (D42), which meets 90%.
   await howMany.click()
   await expect(optimizerStatus(page)).toContainText(
-    /^No more access points needed for 90% of the floor\. Move Wi-Fi 6E router to .*: 86% → 92% of the floor/,
+    /^No more access points needed for 90% of the floor\. Move Router to .*: 86% → 92% of the floor/,
   )
   await panel(page).getByRole('button', { name: 'Dismiss' }).click()
 
@@ -191,7 +189,7 @@ test('counts the access points needed for the coverage goal (D46)', async ({
   await goal.selectOption({ label: '100% of the floor' })
   await howMany.click()
   await expect(optimizerStatus(page)).toContainText(
-    /^You need 1 more access point for 100% of the floor\. Move Wi-Fi 6E router to .* and add Access point 1 at .*: 86% → 100% of the floor at Fair or better on 5 GHz\.$/,
+    /^You need 1 more access point for 100% of the floor\. Move Router to .* and add Access point 1 at .*: 86% → 100% of the floor at Fair or better on 5 GHz\.$/,
   )
   await expect(coverageStatus(page)).toHaveText(/^With the suggestion: 100% of/)
   await panel(page).getByRole('button', { name: 'Apply' }).click()
@@ -236,7 +234,7 @@ test('suggests spots across floors and keeps them when switching floors (D55)', 
     .click()
   // The router stays downstairs; the new one goes upstairs.
   await expect(optimizerStatus(page)).toContainText(
-    /^Move Wi-Fi 6E router to .* on Main floor and add Access point 1 at .* on Upper floor: \d+% → \d+% of the home at Excellent or better on 5 GHz\.$/,
+    /^Move Router to .* on Main floor and add Access point 1 at .* on Upper floor: \d+% → \d+% of the home at Excellent or better on 5 GHz\.$/,
   )
   const byFloor = panel(page).getByRole('list', { name: 'By floor' })
   await expect(byFloor.getByRole('listitem')).toHaveText([
