@@ -1,10 +1,18 @@
+import type { Plan, ScanDevice, ScanEntry } from '@signalplan/floorplan'
 import { describe, expect, it } from 'vitest'
 import {
+  answeredDevices,
+  answerFor,
+  choicesOf,
   guessPlatform,
+  hasBlankAnswers,
   MAC_SCRIPT_PASTE,
+  NO_ANSWERS,
   SCAN_PLATFORMS,
   scanSummaryText,
   scanTuning,
+  whoseOf,
+  type Answers,
 } from './scan.ts'
 
 describe('guessPlatform', () => {
@@ -121,5 +129,79 @@ describe('scan scripts (D81)', () => {
     expect(MAC_SCRIPT_PASTE).toMatch(
       /\nSIGNALPLAN\nswift \/tmp\/signalplan-scan.swift \| pbcopy/,
     )
+  })
+})
+
+describe('answers in Which networks are yours? (D106)', () => {
+  const entry = (bssid: string): ScanEntry => ({
+    where: '',
+    bssid,
+    band: '5GHz',
+    dbm: -50,
+    approximate: false,
+  })
+  const ROUTER: ScanDevice = {
+    entries: [entry('a4:00:00:00:00:01'), entry('a6:00:00:00:00:01')],
+    ssids: ['Home', 'Home-Guest'],
+  }
+  const NEXT: ScanDevice = {
+    entries: [entry('10:00:00:00:00:01')],
+    ssids: ['Next door'],
+  }
+  const devices = [ROUTER, NEXT]
+  const withAps = { accessPoints: [{ id: 'router' }] } as unknown as Plan
+  const empty = { accessPoints: [] } as unknown as Plan
+
+  it('shows which button an answer chose', () => {
+    expect(whoseOf(undefined)).toBeUndefined()
+    expect(whoseOf('')).toBeUndefined()
+    expect(whoseOf('mine')).toBe('mine')
+    expect(whoseOf('ap:router')).toBe('mine')
+    expect(whoseOf('new')).toBe('mine')
+    expect(whoseOf('neighbour')).toBe('neighbour')
+    expect(whoseOf('ignore')).toBe('ignore')
+  })
+
+  it('answers Mine with a new access point only when the plan has none', () => {
+    expect(answerFor('mine', withAps)).toBe('mine')
+    expect(answerFor('mine', empty)).toBe('new')
+    expect(answerFor('neighbour', withAps)).toBe('neighbour')
+    expect(answerFor('ignore', empty)).toBe('ignore')
+  })
+
+  it('counts a device answered once every network has a choice', () => {
+    const answers: Answers = {
+      ...NO_ANSWERS,
+      // Mine with no access point chosen yet isn't a choice.
+      byDevice: { 'a4:00:00:00:00:01': 'mine', '10:00:00:00:00:01': 'ignore' },
+    }
+    expect(answeredDevices(devices, choicesOf(devices, answers))).toBe(1)
+    const chosen = {
+      ...answers,
+      byDevice: { ...answers.byDevice, 'a4:00:00:00:00:01': 'ap:router' },
+    }
+    expect(answeredDevices(devices, choicesOf(devices, chosen))).toBe(2)
+    // Split, the router counts only when both its networks are answered.
+    const split: Answers = {
+      ...chosen,
+      split: ['a4:00:00:00:00:01'],
+      byBssid: { 'a4:00:00:00:00:01': 'ap:router', 'a6:00:00:00:00:01': '' },
+    }
+    expect(answeredDevices(devices, choicesOf(devices, split))).toBe(1)
+  })
+
+  it('leaves Mine alone when marking the rest a neighbour’s', () => {
+    expect(hasBlankAnswers(devices, NO_ANSWERS)).toBe(true)
+    const mineOnly: Answers = {
+      ...NO_ANSWERS,
+      byDevice: { 'a4:00:00:00:00:01': 'mine', '10:00:00:00:00:01': 'ignore' },
+    }
+    expect(hasBlankAnswers(devices, mineOnly)).toBe(false)
+    const splitBlank: Answers = {
+      ...mineOnly,
+      split: ['a4:00:00:00:00:01'],
+      byBssid: { 'a4:00:00:00:00:01': 'ap:router', 'a6:00:00:00:00:01': '' },
+    }
+    expect(hasBlankAnswers(devices, splitBlank)).toBe(true)
   })
 })

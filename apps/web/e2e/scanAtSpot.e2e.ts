@@ -113,8 +113,9 @@ test('scans placed on the plan become readings that Calibrate fits (D82)', async
     const answers = await readScan(page, scanAt(spot, i === 3 ? -61 : -75))
     if (i === 0) {
       await answers
-        .getByRole('combobox', { name: /Next door/ })
-        .selectOption({ label: 'A neighbour’s' })
+        .getByRole('group', { name: /Next door/ })
+        .getByText('A neighbour’s')
+        .click()
     }
     await answers
       .getByRole('radio', { name: /click the plan after Apply/ })
@@ -214,8 +215,9 @@ test('opening another plan drops a scan waiting to be placed', async ({
   await openPlan(page, withoutSpots())
   const answers = await readScan(page, scanAt(SPOTS[0]!, -75))
   await answers
-    .getByRole('combobox', { name: /Next door/ })
-    .selectOption({ label: 'A neighbour’s' })
+    .getByRole('group', { name: /Next door/ })
+    .getByText('A neighbour’s')
+    .click()
   await answers
     .getByRole('radio', { name: /click the plan after Apply/ })
     .check()

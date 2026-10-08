@@ -919,12 +919,31 @@ kbd {
   font-variant-numeric: tabular-nums;
 }
 
+/* The buttons stay in view while a long dialog scrolls (D106), over the
+   dialog's bottom padding so nothing shows below them. */
 .dialog-actions {
+  position: sticky;
+  bottom: -1.25rem;
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   justify-content: flex-end;
   gap: 0.5rem;
-  margin-top: 1.25rem;
+  margin: 0.5rem -1.25rem -1.25rem;
+  padding: 0.75rem 1.25rem 1.25rem;
+  background: var(--surface);
+}
+
+.dialog.wide .dialog-actions {
+  border-top: 1px solid var(--border);
+}
+
+/* What's left before the main button turns on, at the start of the row. */
+.dialog-status {
+  margin: 0 auto 0 0;
+  color: var(--muted);
+  font-size: 0.8125rem;
+  font-variant-numeric: tabular-nums;
 }
 
 button.primary {
@@ -1370,6 +1389,102 @@ h4.survey-report {
 }
 
 /* Scan your network (D80). */
+
+/* Which networks are yours? A card per device, answered with joined
+   buttons; a split device's networks sit inside it behind a rule (D106). */
+.scan-devices {
+  display: grid;
+  gap: 0.6rem;
+  margin: 0.75rem 0;
+  padding: 0;
+  list-style: none;
+}
+
+.scan-device {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 0.6rem 1rem;
+  padding: 0.75rem 0.85rem;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+}
+
+.scan-device-head {
+  flex: 1 1 14rem;
+  min-width: 0;
+}
+
+.scan-device h3,
+.scan-network-name {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.scan-network-name {
+  font-size: 0.875rem;
+}
+
+.scan-details {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem 0.6rem;
+  margin: 0.3rem 0 0;
+  color: var(--muted);
+  font-size: 0.8125rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.scan-details code {
+  font-size: 0.75rem;
+}
+
+.band-tag {
+  padding: 0 0.45rem;
+  color: var(--text);
+  font-size: 0.75rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+}
+
+.scan-answer {
+  display: grid;
+  gap: 0.5rem;
+  justify-items: start;
+}
+
+.scan-answer .field {
+  min-width: 13rem;
+  margin: 0;
+}
+
+.scan-split {
+  flex-basis: 100%;
+  font-size: 0.8125rem;
+  text-align: left;
+}
+
+.scan-networks {
+  display: grid;
+  flex-basis: 100%;
+  gap: 0.85rem;
+  margin: 0;
+  padding: 0.1rem 0 0.1rem 0.85rem;
+  list-style: none;
+  border-left: 3px solid var(--accent);
+}
+
+.scan-network {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 0.5rem 1rem;
+}
 .scan-steps {
   margin: 0.5rem 0;
   padding-left: 1.25rem;
@@ -1505,16 +1620,6 @@ h4.survey-report {
   width: 100%;
   font-family: ui-monospace, monospace;
   font-size: 0.8rem;
-}
-
-.scan-bssids {
-  margin: 0.35rem 0 0;
-  padding-left: 0.75rem;
-  list-style: none;
-}
-
-.scan-bssids li {
-  margin-bottom: 0.4rem;
 }
 
 /* Predicted versus measured, per band (D73). */

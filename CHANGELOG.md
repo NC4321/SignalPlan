@@ -90,6 +90,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ### Changed
 
+- "Which networks are yours?" in Scan your network is easier to read: each device is a card with its names, band tags and signal, answered with Mine, A neighbour's or Ignore buttons (then which access point, for Mine). Answering a device's networks one at a time happens inside its own card, the dialog is wider and scrolls as a whole, and its buttons stay at the bottom with how many devices are answered so far (D106).
+
 - The sample home's router is now called "Router" rather than "Wi-Fi 6E router", which read like a band when picking which networks are yours in Scan your network. Plans already saved keep their names (D105).
 
 - The editor does less work as the pointer moves. Hovering no longer redraws the plan unless the tool draws at the pointer, and the canvas keeps its backing store between draws. Dragging an access point no longer rebuilds the map, its heatmap bitmap and summary until new coverage arrives. Hovering with Select costs about half as much on the main thread, and dragging an access point about 10% less (D102).

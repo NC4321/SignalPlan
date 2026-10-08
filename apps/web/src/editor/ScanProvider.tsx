@@ -16,7 +16,6 @@ import {
   type Plan,
   type PlanIssue,
   type ScanChanges,
-  type ScanChoice,
   type ScanDevice,
   type ScanEntry,
   type ScanFormat,
@@ -31,20 +30,29 @@ import { BAND_LABELS } from './coverageText.ts'
 import { useEditor, useEditorStore } from './context.ts'
 import { Dialog, PlanIssues } from './Dialog.tsx'
 import { MAX_SCAN_FILE_BYTES, readTextFile } from './readFile.ts'
+import { Segmented } from './Segmented.tsx'
 import {
+  AP,
+  answerFor,
+  answeredDevices,
+  choicesOf,
+  deviceKey,
   guessPlatform,
+  hasBlankAnswers,
+  MINE,
+  NEIGHBOUR,
+  NEW_AP,
+  NO_ANSWERS,
   SCAN_PLATFORMS,
+  whoseOf,
+  WHOSE_OPTIONS,
+  type Answers,
   scanSummaryText,
   scanTuning,
   tunesRadios,
   type ScanPlatform,
 } from './scan.ts'
 import { ScanContext } from './scanContext.ts'
-
-const NEIGHBOUR = 'neighbour'
-const IGNORE = 'ignore'
-const AP = 'ap:'
-const NEW_AP = 'new'
 
 /** A scan that has been read, waiting for answers. */
 interface ReadScan {
@@ -58,58 +66,6 @@ interface ReadScan {
  * a click on the plan that adds one, or not at a spot.
  */
 type PlaceChoice = 'selected' | 'click' | 'none'
-
-/** The answers given so far, by device and, for split devices, by BSSID. */
-interface Answers {
-  byDevice: Record<string, string>
-  byBssid: Record<string, string>
-  split: string[]
-  /** Radios already set that the person agreed to retune. */
-  overwrite: string[]
-}
-
-const NO_ANSWERS: Answers = {
-  byDevice: {},
-  byBssid: {},
-  split: [],
-  overwrite: [],
-}
-
-const deviceKey = (device: ScanDevice) => device.entries[0]!.bssid
-
-/**
- * An answer as a choice. A new access point is one per device (D105), even
- * when its BSSIDs are answered one at a time.
- */
-function choiceOf(
-  value: string | undefined,
-  device: ScanDevice,
-): ScanChoice | undefined {
-  if (value === NEIGHBOUR) return 'neighbour'
-  if (value === IGNORE) return 'ignore'
-  if (value === NEW_AP) return { newAccessPoint: deviceKey(device) }
-  if (value?.startsWith(AP)) return { apId: value.slice(AP.length) }
-  return undefined
-}
-
-/** Each unknown BSSID's answer, from its device's or its own when split. */
-function choicesOf(
-  devices: readonly ScanDevice[],
-  answers: Answers,
-): Map<string, ScanChoice> {
-  const choices = new Map<string, ScanChoice>()
-  for (const device of devices) {
-    const split = answers.split.includes(deviceKey(device))
-    for (const { bssid } of device.entries) {
-      const choice = choiceOf(
-        split ? answers.byBssid[bssid] : answers.byDevice[deviceKey(device)],
-        device,
-      )
-      if (choice) choices.set(bssid, choice)
-    }
-  }
-  return choices
-}
 
 const formatDbm = (entry: ScanEntry) =>
   `${entry.approximate ? '≈' : ''}${entry.dbm} dBm`.replace('-', '−')
@@ -272,6 +228,7 @@ export function ScanProvider({ children }: { children: ReactNode }) {
       {children}
       <Dialog
         open={open}
+        wide
         title={scan ? 'Which networks are yours?' : 'Scan your network'}
         onClose={close}
         actions={
@@ -548,9 +505,17 @@ function AnswerActions({
   onApply: () => void
   applyLabel: string
 }) {
-  const { unanswered } = useAnswerState(scan, answers)
+  const { devices, choices, unanswered } = useAnswerState(scan, answers)
+  const answered = answeredDevices(devices, choices)
   return (
     <>
+      {/* Says why Apply is off while devices are left (D106). */}
+      {devices.length > 0 && (
+        <p className="dialog-status" aria-live="polite">
+          {answered} of {devices.length}{' '}
+          {devices.length === 1 ? 'device' : 'devices'} answered
+        </p>
+      )}
       <button type="button" onClick={onBack}>
         Back
       </button>
@@ -580,11 +545,12 @@ function AnswerStep({
   answers: Answers
   setAnswers: (update: (a: Answers) => Answers) => void
 }) {
-  const { plan, devices, choices, unanswered } = useAnswerState(scan, answers)
+  const { plan, devices, choices } = useAnswerState(scan, answers)
   const { entries } = scan
   const changes = planScan(plan, entries, choices, scanTuning(plan))
   const adding = newScanAccessPoints(plan, entries, choices)
   const known = entries.length - devices.flatMap((d) => d.entries).length
+  const blank = hasBlankAnswers(devices, answers)
   return (
     <>
       <p>
@@ -592,13 +558,13 @@ function AnswerStep({
         from {SCAN_FORMAT_NAMES[scan.format]}
         {known > 0 && `, ${known} of them already known`}.
         {devices.length > 0 &&
-          ' For each device, pick the access point it is (or a new one), or say it’s a neighbour’s (counted as interference) or to ignore it. Your answers are saved, so later scans match on their own.'}
+          ' Say which devices are yours and which access point each one is. A neighbour’s counts as interference. Your answers are saved, so later scans match on their own.'}
       </p>
       {devices.length > 0 && (
         <>
-          <ul className="bssid-mapping">
+          <ul className="scan-devices">
             {devices.map((device) => (
-              <DeviceRow
+              <DeviceCard
                 key={deviceKey(device)}
                 device={device}
                 plan={plan}
@@ -609,7 +575,7 @@ function AnswerStep({
           </ul>
           <button
             type="button"
-            disabled={!unanswered}
+            disabled={!blank}
             onClick={() =>
               setAnswers((a) => {
                 const byDevice = { ...a.byDevice }
@@ -640,7 +606,14 @@ function AnswerStep({
   )
 }
 
-function DeviceRow({
+const deviceName = (device: ScanDevice) =>
+  device.ssids.filter((s) => s !== '').join(', ') || 'Hidden network'
+
+/**
+ * One device the scan heard, as a card (D106): its names, bands and signal,
+ * and whose it is. Split, its networks are answered one by one inside it.
+ */
+function DeviceCard({
   device,
   plan,
   answers,
@@ -651,31 +624,34 @@ function DeviceRow({
   answers: Answers
   setAnswers: (update: (a: Answers) => Answers) => void
 }) {
-  const id = useId()
+  const listId = useId()
   const key = deviceKey(device)
   const split = answers.split.includes(key)
   const strongest = device.entries[0]!
   const bands = [...new Set(device.entries.map((e) => e.band))]
-  const name =
-    device.ssids.filter((s) => s !== '').join(', ') || 'Hidden network'
-  const details = [
-    bands.map((b) => BAND_LABELS[b]).join(' and '),
-    device.entries.length === 1
-      ? strongest.bssid
-      : `${device.entries.length} BSSIDs`,
-    `strongest ${formatDbm(strongest)}`,
-  ]
+  const name = deviceName(device)
+  const count = device.entries.length
   return (
-    <li className="field">
-      <label htmlFor={id}>
-        {name}
-        <span className="hint"> {details.join(' · ')}</span>
-      </label>
+    <li className="scan-device">
+      <div className="scan-device-head">
+        <h3>{name}</h3>
+        <p className="scan-details">
+          {bands.map((b) => (
+            <span key={b} className="band-tag">
+              {BAND_LABELS[b]}
+            </span>
+          ))}
+          <span>
+            {count === 1 ? <code>{strongest.bssid}</code> : `${count} networks`}
+          </span>
+          <span>strongest {formatDbm(strongest)}</span>
+        </p>
+      </div>
       {!split && (
-        <AnswerSelect
-          id={id}
+        <Answer
+          about={name}
           plan={plan}
-          value={answers.byDevice[key] ?? ''}
+          value={answers.byDevice[key]}
           onChange={(value) =>
             setAnswers((a) => ({
               ...a,
@@ -684,11 +660,30 @@ function DeviceRow({
           }
         />
       )}
-      {device.entries.length > 1 && (
+      {split && (
+        <ul id={listId} className="scan-networks">
+          {device.entries.map((entry) => (
+            <NetworkAnswer
+              key={entry.bssid}
+              entry={entry}
+              plan={plan}
+              value={answers.byBssid[entry.bssid]}
+              onChange={(value) =>
+                setAnswers((a) => ({
+                  ...a,
+                  byBssid: { ...a.byBssid, [entry.bssid]: value },
+                }))
+              }
+            />
+          ))}
+        </ul>
+      )}
+      {count > 1 && (
         <button
           type="button"
-          className="link-button"
+          className="link-button scan-split"
           aria-expanded={split}
+          aria-controls={split ? listId : undefined}
           onClick={() =>
             setAnswers((a) => ({
               ...a,
@@ -710,32 +705,17 @@ function DeviceRow({
             }))
           }
         >
-          {split ? 'Answer as one device' : 'Answer each BSSID'}
+          {split
+            ? 'Answer as one device'
+            : `Answer each network separately (${count})`}
         </button>
-      )}
-      {split && (
-        <ul className="scan-bssids">
-          {device.entries.map((entry) => (
-            <BssidAnswer
-              key={entry.bssid}
-              entry={entry}
-              plan={plan}
-              value={answers.byBssid[entry.bssid] ?? ''}
-              onChange={(value) =>
-                setAnswers((a) => ({
-                  ...a,
-                  byBssid: { ...a.byBssid, [entry.bssid]: value },
-                }))
-              }
-            />
-          ))}
-        </ul>
       )}
     </li>
   )
 }
 
-function BssidAnswer({
+/** One network (BSSID) of a split device, with its own answer. */
+function NetworkAnswer({
   entry,
   plan,
   value,
@@ -743,58 +723,88 @@ function BssidAnswer({
 }: {
   entry: ScanEntry
   plan: Plan
-  value: string
+  value: string | undefined
   onChange: (value: string) => void
 }) {
-  const id = useId()
+  const ssid = entry.ssid || 'Hidden network'
   return (
-    <li>
-      <label htmlFor={id}>
-        <code>{entry.bssid}</code>
-        <span className="hint">
-          {' '}
-          {[
-            entry.ssid ?? 'hidden',
-            BAND_LABELS[entry.band],
-            formatDbm(entry),
-          ].join(' · ')}
-        </span>
-      </label>
-      <AnswerSelect id={id} plan={plan} value={value} onChange={onChange} />
+    <li className="scan-network">
+      <div className="scan-device-head">
+        <p className="scan-network-name">{ssid}</p>
+        <p className="scan-details">
+          <span className="band-tag">{BAND_LABELS[entry.band]}</span>
+          <code>{entry.bssid}</code>
+          <span>{formatDbm(entry)}</span>
+        </p>
+      </div>
+      <Answer
+        about={`${ssid}, ${BAND_LABELS[entry.band]}, ${entry.bssid}`}
+        plan={plan}
+        value={value}
+        onChange={onChange}
+      />
     </li>
   )
 }
 
-function AnswerSelect({
-  id,
+/**
+ * Mine, A neighbour's or Ignore as joined buttons, then for Mine which
+ * access point (D106). A plan without access points answers Mine with a new
+ * one; otherwise the access point is still to choose, and the answer isn't
+ * complete until it is.
+ */
+function Answer({
+  about,
   plan,
   value,
   onChange,
 }: {
-  id: string
+  about: string
   plan: Plan
-  value: string
+  value: string | undefined
   onChange: (value: string) => void
 }) {
+  const name = useId()
+  const selectId = useId()
+  const whose = whoseOf(value)
   const floorName = (floorId: string) =>
     plan.floors.length > 1
       ? ` (${plan.floors.find((f) => f.id === floorId)?.name ?? ''})`
       : ''
   return (
-    <select id={id} value={value} onChange={(e) => onChange(e.target.value)}>
-      <option value="" disabled>
-        Choose…
-      </option>
-      {plan.accessPoints.map((ap) => (
-        <option key={ap.id} value={`${AP}${ap.id}`}>
-          Mine: {ap.name}
-          {floorName(ap.floorId)}
-        </option>
-      ))}
-      <option value={NEW_AP}>Mine: a new access point</option>
-      <option value={NEIGHBOUR}>A neighbour’s</option>
-      <option value={IGNORE}>Ignore</option>
-    </select>
+    <div className="scan-answer">
+      <Segmented
+        label={`Whose is ${about}?`}
+        name={name}
+        value={whose}
+        options={WHOSE_OPTIONS}
+        onChange={(chosen) => onChange(answerFor(chosen, plan))}
+      />
+      {whose === 'mine' && (
+        <div className="field">
+          <label htmlFor={selectId}>
+            Which access point?
+            <span className="visually-hidden"> ({about})</span>
+          </label>
+          <select
+            id={selectId}
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+          >
+            <option value={MINE} disabled>
+              Choose…
+            </option>
+            {plan.accessPoints.map((ap) => (
+              <option key={ap.id} value={`${AP}${ap.id}`}>
+                {ap.name}
+                {floorName(ap.floorId)}
+              </option>
+            ))}
+            <option value={NEW_AP}>A new access point</option>
+          </select>
+        </div>
+      )}
+    </div>
   )
 }
 

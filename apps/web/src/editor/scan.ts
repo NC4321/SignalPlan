@@ -6,6 +6,8 @@ import {
   surveySpotName,
   type Plan,
   type ScanChanges,
+  type ScanChoice,
+  type ScanDevice,
   type ScanSummary,
   type ScanTuning,
   type SpotScanSummary,
@@ -191,4 +193,124 @@ function listOf(names: readonly string[]): string {
   return names.length < 2
     ? names.join('')
     : `${names.slice(0, -1).join(', ')} and ${names.at(-1)}`
+}
+
+/*
+ * Answers in "Which networks are yours?" (D80, D105, D106), as the dialog
+ * keeps them: a string per device, or per BSSID once a device is split.
+ */
+export const NEIGHBOUR = 'neighbour'
+export const IGNORE = 'ignore'
+/** An access point by id: `ap:<id>`. */
+export const AP = 'ap:'
+export const NEW_AP = 'new'
+/** Mine, with which access point still to choose (D106). */
+export const MINE = 'mine'
+
+/** The answers given so far, by device and, for split devices, by BSSID. */
+export interface Answers {
+  byDevice: Record<string, string>
+  byBssid: Record<string, string>
+  split: string[]
+  /** Radios already set that the person agreed to retune. */
+  overwrite: string[]
+}
+
+export const NO_ANSWERS: Answers = {
+  byDevice: {},
+  byBssid: {},
+  split: [],
+  overwrite: [],
+}
+
+export const deviceKey = (device: ScanDevice) => device.entries[0]!.bssid
+
+/**
+ * An answer as a choice. A new access point is one per device (D105), even
+ * when its BSSIDs are answered one at a time. Mine without an access point
+ * isn't a choice yet.
+ */
+export function choiceOf(
+  value: string | undefined,
+  device: ScanDevice,
+): ScanChoice | undefined {
+  if (value === NEIGHBOUR) return 'neighbour'
+  if (value === IGNORE) return 'ignore'
+  if (value === NEW_AP) return { newAccessPoint: deviceKey(device) }
+  if (value?.startsWith(AP)) return { apId: value.slice(AP.length) }
+  return undefined
+}
+
+/** Each unknown BSSID's answer, from its device's or its own when split. */
+export function choicesOf(
+  devices: readonly ScanDevice[],
+  answers: Answers,
+): Map<string, ScanChoice> {
+  const choices = new Map<string, ScanChoice>()
+  for (const device of devices) {
+    const split = answers.split.includes(deviceKey(device))
+    for (const { bssid } of device.entries) {
+      const choice = choiceOf(
+        split ? answers.byBssid[bssid] : answers.byDevice[deviceKey(device)],
+        device,
+      )
+      if (choice) choices.set(bssid, choice)
+    }
+  }
+  return choices
+}
+
+/** Whose a device or network is, before choosing which access point (D106). */
+export type Whose = 'mine' | 'neighbour' | 'ignore'
+
+export const WHOSE_OPTIONS: { value: Whose; label: string }[] = [
+  { value: 'mine', label: 'Mine' },
+  { value: 'neighbour', label: 'A neighbour’s' },
+  { value: 'ignore', label: 'Ignore' },
+]
+
+/** Which of the three buttons an answer shows chosen, if any. */
+export function whoseOf(value: string | undefined): Whose | undefined {
+  if (value === NEIGHBOUR) return 'neighbour'
+  if (value === IGNORE) return 'ignore'
+  if (value === MINE || value === NEW_AP || value?.startsWith(AP)) {
+    return 'mine'
+  }
+  return undefined
+}
+
+/**
+ * The answer a button gives. Mine is a new access point in a plan without
+ * any; otherwise which one is still to choose.
+ */
+export function answerFor(whose: Whose, plan: Plan): string {
+  if (whose === 'neighbour') return NEIGHBOUR
+  if (whose === 'ignore') return IGNORE
+  return plan.accessPoints.length === 0 ? NEW_AP : MINE
+}
+
+/** How many devices have an answer for every one of their BSSIDs. */
+export function answeredDevices(
+  devices: readonly ScanDevice[],
+  choices: ReadonlyMap<string, ScanChoice>,
+): number {
+  return devices.filter((device) =>
+    device.entries.every((e) => choices.has(e.bssid)),
+  ).length
+}
+
+/**
+ * Whether any device, or a split device's BSSID, has no answer at all, for
+ * "Mark the rest a neighbour’s". Mine with its access point still to choose
+ * is an answer, so it's left as it is.
+ */
+export function hasBlankAnswers(
+  devices: readonly ScanDevice[],
+  answers: Answers,
+): boolean {
+  return devices.some((device) =>
+    answers.split.includes(deviceKey(device))
+      ? device.entries.some((e) => !answers.byBssid[e.bssid])
+      : !answers.byDevice[deviceKey(device)],
+  )
 }

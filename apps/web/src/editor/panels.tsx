@@ -152,6 +152,7 @@ import {
 } from './locate.ts'
 import { useScan } from './scanContext.ts'
 import { keyForTool } from './shortcuts.ts'
+import { Segmented } from './Segmented.tsx'
 import { ShortcutsHelp } from './ShortcutsHelp.tsx'
 import { useSurveyImport } from './surveyImportContext.ts'
 import {
@@ -287,38 +288,6 @@ export function TopBar({
         Details
       </button>
     </header>
-  )
-}
-
-function Segmented<T extends string>({
-  label,
-  name,
-  value,
-  options,
-  onChange,
-}: {
-  label: string
-  name: string
-  value: T
-  options: { value: T; label: string }[]
-  onChange: (value: T) => void
-}) {
-  return (
-    <fieldset className="segmented">
-      <legend className="visually-hidden">{label}</legend>
-      {options.map((option) => (
-        <label key={option.value}>
-          <input
-            type="radio"
-            name={name}
-            value={option.value}
-            checked={value === option.value}
-            onChange={() => onChange(option.value)}
-          />
-          {option.label}
-        </label>
-      ))}
-    </fieldset>
   )
 }
 
