@@ -146,6 +146,7 @@ const plural = (n: number, one: string, many = `${one}s`) =>
 export function scanSummaryText(
   summary: ScanSummary,
   atSpot?: SpotScanSummary,
+  added: readonly string[] = [],
 ): string {
   const {
     bssidsMapped,
@@ -175,6 +176,19 @@ export function scanSummaryText(
       ].filter((p): p is string => typeof p === 'string'),
     )
   }
+  // New access points (D105) come first, with where to drag them.
+  if (added.length > 0) parts.unshift(`added ${listOf(added)}`)
   if (parts.length === 0) return 'Scan imported: nothing new.'
-  return `Scan imported: ${parts.join(', ')}.`
+  const text = `Scan imported: ${parts.join(', ')}.`
+  if (added.length === 0) return text
+  return added.length === 1
+    ? `${text} Drag it to where it is.`
+    : `${text} Drag them to where they are.`
+}
+
+/** "A", "A and B", "A, B and C". */
+function listOf(names: readonly string[]): string {
+  return names.length < 2
+    ? names.join('')
+    : `${names.slice(0, -1).join(', ')} and ${names.at(-1)}`
 }

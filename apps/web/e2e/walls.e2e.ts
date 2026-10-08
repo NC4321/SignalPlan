@@ -132,7 +132,7 @@ test('drags the router with the wall tool between chains (D38)', async ({
   await page.mouse.down()
   await page.mouse.move(to.x, to.y, { steps: 8 })
   await page.mouse.up()
-  await expect(undo).toHaveAttribute('title', /Undo Move Wi-Fi 6E router/)
+  await expect(undo).toHaveAttribute('title', /Undo Move Router/)
   await expect(wallTool).toHaveAttribute('aria-pressed', 'true')
 
   // Undo puts it back in one step, and no wall was started from it.

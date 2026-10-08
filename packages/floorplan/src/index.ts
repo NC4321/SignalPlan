@@ -64,12 +64,16 @@ export {
   type UnknownBssid,
 } from './surveyImport.ts'
 export {
+  addScanAccessPoints,
   applyScan,
+  floorMiddle,
+  newScanAccessPoints,
   planScan,
   radioKey,
   unknownScanEntries,
   type ScanChanges,
   type ScanChoice,
+  type ScanNewAccessPoint,
   type ScanNeighbourChange,
   type ScanRadioChange,
   type ScanSummary,

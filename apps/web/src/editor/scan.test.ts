@@ -90,6 +90,24 @@ describe('scanSummaryText', () => {
       'Scan imported: added Spot 3, 2 readings at Spot 3, 1 reading averaged with earlier scans, added 1 neighbour’s network.',
     )
   })
+
+  it('names new access points first and says to drag them (D105)', () => {
+    const summary = {
+      bssidsMapped: 3,
+      radiosTuned: 0,
+      neighboursAdded: 0,
+      neighboursUpdated: 0,
+      bssidsIgnored: 0,
+    }
+    expect(scanSummaryText(summary, undefined, ['HomeNet'])).toBe(
+      'Scan imported: added HomeNet, matched 3 BSSIDs to radios. Drag it to where it is.',
+    )
+    expect(
+      scanSummaryText(summary, undefined, ['HomeNet', 'HomeNet 2', 'Attic']),
+    ).toBe(
+      'Scan imported: added HomeNet, HomeNet 2 and Attic, matched 3 BSSIDs to radios. Drag them to where they are.',
+    )
+  })
 })
 
 describe('scan scripts (D81)', () => {

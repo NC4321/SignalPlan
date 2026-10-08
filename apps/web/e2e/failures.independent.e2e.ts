@@ -41,9 +41,7 @@ async function expectReadable(locator: Locator) {
 
 /** Edits the sample so it's the user's own plan (and joins My plans). */
 async function makeItMine(page: Page) {
-  await panel(page)
-    .getByRole('button', { name: 'Wi-Fi 6E router', exact: true })
-    .click()
+  await panel(page).getByRole('button', { name: 'Router', exact: true }).click()
   await page.locator('.editor-canvas').focus()
   await page.keyboard.press('Shift+ArrowRight')
   await expect(

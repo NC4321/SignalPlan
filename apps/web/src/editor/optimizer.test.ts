@@ -44,7 +44,7 @@ const ALL_BANDS = BANDS.map((band) => ({ band }))
 
 const move = (overrides: Partial<SuggestedMove> = {}): SuggestedMove => ({
   apId: 'router',
-  name: 'Wi-Fi 6E router',
+  name: 'Router',
   from: { x: 5.6, y: 1.2, floorId: 'main' },
   to: { x: 4, y: 3, floorId: 'main' },
   template: { heightM: 1, radios: [{ band: '5GHz' }] },
@@ -109,7 +109,7 @@ describe('planSearch: find the best spots', () => {
 
   it('moves the selected access point', () => {
     const job = ready(planSearch(twoAccessPoints(), 'main', '5GHz', [router]))
-    expect(job.label).toBe('Find a better spot for Wi-Fi 6E router')
+    expect(job.label).toBe('Find a better spot for Router')
     expect(job.request).toMatchObject({
       kind: 'place-one',
       problem: { current: { x: 5.6, y: 1.2, floorId: 'main' }, minDbm: -67 },
@@ -124,7 +124,7 @@ describe('planSearch: find the best spots', () => {
     plan.accessPoints[0]!.locked = true
     expect(planSearch(plan, 'main', '5GHz', [router])).toEqual({
       kind: 'unavailable',
-      reason: 'Wi-Fi 6E router is locked. Untick Locked to let it move.',
+      reason: 'Router is locked. Untick Locked to let it move.',
     })
   })
 
@@ -210,10 +210,7 @@ describe('planSearch: one more access point (D45)', () => {
       template: { heightM: 2.1, radios: [{ band: '5GHz', txPowerDbm: 20 }] },
     })
     expect(job.request.problem.moving.map((ap) => ap.id)).toEqual(['router'])
-    expect(job.movers.map((m) => m.name)).toEqual([
-      'Wi-Fi 6E router',
-      'Access point 1',
-    ])
+    expect(job.movers.map((m) => m.name)).toEqual(['Router', 'Access point 1'])
   })
 
   it('keeps locked ones fixed and copies the first on the band', () => {
@@ -327,7 +324,7 @@ describe('searchOutcome', () => {
     // 5 cm away is under the 10 cm refinement step.
     expect(searchOutcome(found(5.65, 1.2), single)).toEqual({
       status: 'message',
-      text: 'Wi-Fi 6E router is already in the best spot found.',
+      text: 'Router is already in the best spot found.',
     })
   })
 
@@ -433,7 +430,7 @@ describe('searchOutcome', () => {
       if (outcome.status !== 'suggestion') throw new Error(outcome.status)
       const { moves, howMany } = outcome.suggestion
       expect(moves.map((m) => [m.apId, m.name, m.to.x])).toEqual([
-        ['router', 'Wi-Fi 6E router', 1],
+        ['router', 'Router', 1],
         [undefined, 'Access point 1', 6],
         [undefined, 'Access point 2', 9],
       ])
@@ -496,7 +493,7 @@ describe('suggestionText and suggestionSummary', () => {
 
   it('says where each access point goes', () => {
     expect(suggestionSummary(suggestion(), undefined, 'metric')).toBe(
-      'Move Wi-Fi 6E router to 4.00 m, 3.00 m: 72% → 91% of the floor at Fair or better on 5 GHz.',
+      'Move Router to 4.00 m, 3.00 m: 72% → 91% of the floor at Fair or better on 5 GHz.',
     )
     const two = suggestion({
       moves: [
@@ -511,7 +508,7 @@ describe('suggestionText and suggestionSummary', () => {
       stoppedEarly: true,
     })
     expect(suggestionSummary(two, undefined, 'metric')).toBe(
-      'Move Wi-Fi 6E router to 1.00 m, 2.00 m and add Access point 1 at 6.00 m, 2.00 m: 72% → 91% of the floor at Fair or better on 5 GHz. The search hit its 10 second limit, so this is the best found so far.',
+      'Move Router to 1.00 m, 2.00 m and add Access point 1 at 6.00 m, 2.00 m: 72% → 91% of the floor at Fair or better on 5 GHz. The search hit its 10 second limit, so this is the best found so far.',
     )
   })
 })
@@ -664,7 +661,7 @@ describe('createOptimizer', () => {
     expect(store.getState().optimizer).toEqual({
       status: 'searching',
       fraction: 0,
-      what: 'a spot for Wi-Fi 6E router',
+      what: 'a spot for Router',
     })
 
     const id = worker.requests[0]!.id
@@ -805,7 +802,7 @@ describe('store with a suggestion', () => {
       floorId: 'main',
     })
     expect(state.past.map((e) => e.label)).toEqual([
-      'Move Wi-Fi 6E router to the suggested spot',
+      'Move Router to the suggested spot',
     ])
     expect(state.selection).toEqual([router])
     expect(state.optimizer).toBeUndefined()
@@ -920,7 +917,7 @@ describe('suggestions across floors (D55)', () => {
     ])
     expect(suggestionFloorLines(suggestion(), plan)).toEqual([])
     expect(suggestionSummary(acrossFloors, undefined, 'metric', plan)).toBe(
-      'Move Wi-Fi 6E router to 4.00 m, 3.00 m on Main floor and add Access point 1 at 6.00 m, 2.00 m on Upstairs: 43% → 95% of the home at Fair or better on 5 GHz.',
+      'Move Router to 4.00 m, 3.00 m on Main floor and add Access point 1 at 6.00 m, 2.00 m on Upstairs: 43% → 95% of the home at Fair or better on 5 GHz.',
     )
   })
 

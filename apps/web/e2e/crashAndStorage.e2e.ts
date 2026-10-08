@@ -38,9 +38,7 @@ const mendWorkers = (page: Page) =>
   )
 
 async function moveRouter(page: Page) {
-  await panel(page)
-    .getByRole('button', { name: 'Wi-Fi 6E router', exact: true })
-    .click()
+  await panel(page).getByRole('button', { name: 'Router', exact: true }).click()
   await page.locator('.editor-canvas').focus()
   await page.keyboard.press('Shift+ArrowRight')
 }
@@ -72,7 +70,7 @@ test.describe('a worker fails', () => {
     await breakableWorkers(page, ['placement'])
     await openEditor(page)
     await panel(page)
-      .getByRole('button', { name: 'Find a better spot for Wi-Fi 6E router' })
+      .getByRole('button', { name: 'Find a better spot for Router' })
       .click()
     await expect(panel(page).locator('.optimizer-status')).toHaveText(
       'Couldn’t search for a spot. Try again; if it keeps failing, reload the page.',
@@ -83,7 +81,7 @@ test.describe('a worker fails', () => {
 
     await mendWorkers(page)
     await panel(page)
-      .getByRole('button', { name: 'Find a better spot for Wi-Fi 6E router' })
+      .getByRole('button', { name: 'Find a better spot for Router' })
       .click()
     await expect(panel(page).locator('.optimizer-status')).toContainText(
       '86% → 92% of the floor',

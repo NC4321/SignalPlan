@@ -39,9 +39,7 @@ test('moves an access point with the keyboard, then undoes it', async ({
   page,
 }) => {
   const properties = page.getByRole('complementary', { name: 'Properties' })
-  await properties
-    .getByRole('button', { name: 'Wi-Fi 6E router', exact: true })
-    .click()
+  await properties.getByRole('button', { name: 'Router', exact: true }).click()
   const position = properties.locator('dd').first()
   await expect(position).toHaveText('5.60 m, 1.20 m')
 
@@ -51,7 +49,7 @@ test('moves an access point with the keyboard, then undoes it', async ({
   await expect(position).toHaveText('6.10 m, 1.30 m')
 
   const undo = page.getByRole('button', { name: 'Undo' })
-  await expect(undo).toHaveAttribute('title', /Undo Move Wi-Fi 6E router/)
+  await expect(undo).toHaveAttribute('title', /Undo Move Router/)
   await page.keyboard.press('ControlOrMeta+z')
   await page.keyboard.press('ControlOrMeta+z')
   await expect(position).toHaveText('5.60 m, 1.20 m')
@@ -62,9 +60,7 @@ test('moves an access point with the keyboard, then undoes it', async ({
 
 test('switches display units', async ({ page }) => {
   const properties = page.getByRole('complementary', { name: 'Properties' })
-  await properties
-    .getByRole('button', { name: 'Wi-Fi 6E router', exact: true })
-    .click()
+  await properties.getByRole('button', { name: 'Router', exact: true }).click()
   await page.getByText('Imperial', { exact: true }).click()
   await expect(properties.locator('dd').first()).toHaveText('18′ 4½″, 3′ 11″')
 })

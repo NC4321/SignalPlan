@@ -361,7 +361,7 @@ export const MAX_SPOT_OUTSIDE_M = 50
 const UNITS_HINT = 'Was the file saved in millimetres or centimetres?'
 
 /** The box around a floor's corners, or every floor's when it has none. */
-function wallBounds(plan: Plan, floorId: string) {
+export function floorCornerBounds(plan: Plan, floorId: string) {
   const own = plan.floors.find((f) => f.id === floorId)?.nodes ?? []
   const nodes =
     own.length > 0 ? own : plan.floors.flatMap((floor) => floor.nodes)
@@ -383,7 +383,7 @@ function distanceOutside(
   x: number,
   y: number,
 ): number {
-  const box = wallBounds(plan, floorId)
+  const box = floorCornerBounds(plan, floorId)
   if (!box) return 0
   const dx = Math.max(box.minX - x, 0, x - box.maxX)
   const dy = Math.max(box.minY - y, 0, y - box.maxY)

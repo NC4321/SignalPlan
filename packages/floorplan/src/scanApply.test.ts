@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import sampleHome from '../fixtures/sample-home.json' with { type: 'json' }
 import {
+  addScanAccessPoints,
   applyScan,
+  floorMiddle,
+  newScanAccessPoints,
   planScan,
   radioKey,
   unknownScanEntries,
@@ -9,6 +12,7 @@ import {
   type ScanTuning,
 } from './scanApply.ts'
 import type { ScanEntry } from './scanImport.ts'
+import { applyScanAtSpot } from './scanSpot.ts'
 import type { Band, ChannelWidth, Plan } from './schema.ts'
 import { parsePlan } from './validate.ts'
 
@@ -263,5 +267,148 @@ describe('planScan and applyScan (D80)', () => {
       neighboursUpdated: 0,
       bssidsIgnored: 0,
     })
+  })
+})
+
+describe('a new access point from a scan (D105)', () => {
+  /** The sample with its router deleted, as in the report that led to D105. */
+  const empty = () => produce(sample(), (draft) => (draft.accessPoints = []))
+  const NEW = { newAccessPoint: HOME_5.bssid }
+  const HOME_AS_NEW = choices([
+    [HOME_5, NEW],
+    [HOME_5_GUEST, NEW],
+    [HOME_24, NEW],
+    [NEXT_5, 'neighbour'],
+    [NEXT_24, 'neighbour'],
+    [FAR, 'ignore'],
+  ])
+
+  it('puts it in the middle of the floor’s walls', () => {
+    // The sample's corners run from (0, 0) to (15, 10).
+    expect(floorMiddle(sample(), 'main')).toEqual({ x: 7.5, y: 5 })
+    expect(floorMiddle(sample(), 'nowhere')).toEqual({ x: 7.5, y: 5 })
+    const bare = produce(sample(), (draft) => (draft.floors[0]!.nodes = []))
+    expect(floorMiddle(bare, 'main')).toEqual({ x: 0, y: 0 })
+  })
+
+  it('adds one, named after its network, with radios on the bands heard', () => {
+    const plan = empty()
+    expect(newScanAccessPoints(plan, SCAN, HOME_AS_NEW)).toEqual([
+      {
+        key: HOME_5.bssid,
+        name: 'HomeNet',
+        bands: ['2.4GHz', '5GHz'],
+        bssids: [HOME_5.bssid, HOME_5_GUEST.bssid, HOME_24.bssid],
+      },
+    ])
+    let ids: string[] = []
+    const after = produce(plan, (draft) => {
+      const added = addScanAccessPoints(
+        draft,
+        SCAN,
+        HOME_AS_NEW,
+        'main',
+        floorMiddle(draft, 'main'),
+      )
+      ids = added.ids
+      expect(added.choices.get(HOME_24.bssid)).toEqual({ apId: ids[0] })
+      expect(added.choices.get(NEXT_5.bssid)).toBe('neighbour')
+      const summary = applyScan(
+        draft,
+        planScan(draft, SCAN, added.choices, tuning),
+      )
+      expect(summary.bssidsMapped).toBe(3)
+      expect(summary.neighboursAdded).toBe(2)
+    })
+    expect(ids).toEqual(['ap1'])
+    expect(after.accessPoints).toEqual([
+      {
+        id: 'ap1',
+        name: 'HomeNet',
+        floorId: 'main',
+        x: 7.5,
+        y: 5,
+        heightM: 1,
+        radios: [
+          // HOME_24 has no width, so its radio stays on Auto.
+          { band: '2.4GHz', bssids: [HOME_24.bssid] },
+          {
+            band: '5GHz',
+            bssids: [HOME_5.bssid, HOME_5_GUEST.bssid],
+            channelWidthMHz: 80,
+            channel: 42,
+          },
+        ],
+      },
+    ])
+    expect(parsePlan(after).ok).toBe(true)
+  })
+
+  it('numbers clashing names, names hidden networks as the Access point tool does, and spaces them out', () => {
+    const plan = produce(empty(), (draft) => {
+      draft.accessPoints.push({
+        id: 'router',
+        name: 'HomeNet',
+        floorId: 'main',
+        x: 1,
+        y: 1,
+        heightM: 1,
+        radios: [{ band: '6GHz' }],
+      })
+    })
+    const HIDDEN_A = entry('30:00:00:00:00:01', '5GHz', -60)
+    const HIDDEN_B = entry('40:00:00:00:00:01', '2.4GHz', -62, { ssid: '' })
+    const scan = [HOME_5, HIDDEN_A, HIDDEN_B]
+    const answers = choices([
+      [HOME_5, { newAccessPoint: 'a' }],
+      [HIDDEN_A, { newAccessPoint: 'b' }],
+      [HIDDEN_B, { newAccessPoint: 'c' }],
+    ])
+    expect(
+      newScanAccessPoints(plan, scan, answers).map((ap) => [ap.name, ap.bands]),
+    ).toEqual([
+      ['HomeNet 2', ['5GHz']],
+      ['Access point 1', ['5GHz']],
+      ['Access point 2', ['2.4GHz']],
+    ])
+    const after = produce(plan, (draft) => {
+      addScanAccessPoints(draft, scan, answers, 'main', { x: 2, y: 3 })
+    })
+    expect(
+      after.accessPoints.slice(1).map((ap) => [ap.id, ap.x, ap.y]),
+    ).toEqual([
+      ['ap1', 2, 3],
+      ['ap2', 3.5, 3],
+      ['ap3', 5, 3],
+    ])
+  })
+
+  it('adds nothing for a BSSID the plan already knows', () => {
+    const plan = sample()
+    const known = produce(plan, (draft) => {
+      draft.accessPoints[0]!.radios[1]!.bssids = [HOME_5.bssid]
+    })
+    const answers = choices([[HOME_5, NEW]])
+    expect(newScanAccessPoints(known, [HOME_5], answers)).toEqual([])
+    // planScan alone leaves a new access point's BSSIDs out.
+    const changes = planScan(plan, [HOME_5], answers, tuning)
+    expect(changes.radios).toEqual([])
+    expect(changes.noRadio).toEqual([])
+  })
+
+  it('gives a scan at a spot readings from the new access point', () => {
+    const after = produce(empty(), (draft) => {
+      const added = addScanAccessPoints(draft, SCAN, HOME_AS_NEW, 'main', {
+        x: 7.5,
+        y: 5,
+      })
+      const changes = planScan(draft, SCAN, added.choices, tuning)
+      applyScan(draft, changes)
+      applyScanAtSpot(draft, SCAN, changes, { floorId: 'main', x: 3, y: 3 })
+    })
+    const readings = after.floors[0]!.surveySpots![0]!.readings
+    expect(readings.filter((r) => r.apId === 'ap1').map((r) => r.band)).toEqual(
+      ['5GHz', '2.4GHz'],
+    )
   })
 })

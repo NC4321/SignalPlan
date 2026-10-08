@@ -71,7 +71,7 @@ test('grabs an existing access point instead of stacking a new one', async ({
 
   // A click on the router selects it; nothing is added.
   await page.mouse.click(router.x, router.y)
-  await expect(heading(page, 'Wi-Fi 6E router')).toBeVisible()
+  await expect(heading(page, 'Router')).toBeVisible()
   await expect(undoButton(page)).toBeDisabled()
 
   // A drag moves it, and the tool stays active.
@@ -80,10 +80,7 @@ test('grabs an existing access point instead of stacking a new one', async ({
   await page.mouse.down()
   await page.mouse.move(to.x, to.y, { steps: 8 })
   await page.mouse.up()
-  await expect(undoButton(page)).toHaveAttribute(
-    'title',
-    /Undo Move Wi-Fi 6E router/,
-  )
+  await expect(undoButton(page)).toHaveAttribute('title', /Undo Move Router/)
   await expect(panel(page).locator('dd').first()).not.toHaveText(
     '5.60 m, 1.20 m',
   )
@@ -185,9 +182,7 @@ test('deletes access points with the Delete key or the panel', async ({
 test('explains an empty floor after deleting the last access point', async ({
   page,
 }) => {
-  await panel(page)
-    .getByRole('button', { name: 'Wi-Fi 6E router', exact: true })
-    .click()
+  await panel(page).getByRole('button', { name: 'Router', exact: true }).click()
   await panel(page).getByRole('button', { name: 'Delete' }).click()
   const notice = page.getByText(
     'No access points on this floor. Add one with the Access point tool.',
@@ -196,7 +191,7 @@ test('explains an empty floor after deleting the last access point', async ({
   await page.keyboard.press('ControlOrMeta+z')
   await expect(notice).toBeHidden()
   await expect(
-    panel(page).getByRole('button', { name: 'Wi-Fi 6E router', exact: true }),
+    panel(page).getByRole('button', { name: 'Router', exact: true }),
   ).toBeVisible()
 })
 
@@ -207,14 +202,11 @@ test('a locked access point stays put when dragged or nudged (D43)', async ({
   const position = panel(page).locator('dd').first()
   const notice = page.locator('.status-notice')
   await page.mouse.click(router.x, router.y)
-  await expect(heading(page, 'Wi-Fi 6E router')).toBeVisible()
+  await expect(heading(page, 'Router')).toBeVisible()
 
   const locked = panel(page).getByRole('checkbox', { name: /Locked/ })
   await locked.check()
-  await expect(undoButton(page)).toHaveAttribute(
-    'title',
-    /Undo Lock Wi-Fi 6E router/,
-  )
+  await expect(undoButton(page)).toHaveAttribute('title', /Undo Lock Router/)
   await expect(panel(page)).toContainText('Locked, so it can’t be moved')
 
   // A drag selects it but doesn't move it, and says why.
@@ -240,10 +232,7 @@ test('a locked access point stays put when dragged or nudged (D43)', async ({
   await page.mouse.move(to.x, to.y, { steps: 8 })
   await page.mouse.up()
   await expect(position).not.toHaveText('5.60 m, 1.20 m')
-  await expect(undoButton(page)).toHaveAttribute(
-    'title',
-    /Undo Move Wi-Fi 6E router/,
-  )
+  await expect(undoButton(page)).toHaveAttribute('title', /Undo Move Router/)
 })
 
 test('a locked access point can still be deleted (D43)', async ({ page }) => {
@@ -254,7 +243,7 @@ test('a locked access point can still be deleted (D43)', async ({ page }) => {
     .check()
   await page.locator('.editor-canvas').focus()
   await page.keyboard.press('Delete')
-  await expect(heading(page, 'Wi-Fi 6E router')).toBeHidden()
+  await expect(heading(page, 'Router')).toBeHidden()
   await page.keyboard.press('ControlOrMeta+z')
   await page.mouse.click(router.x, router.y)
   await expect(

@@ -30,9 +30,7 @@ test('switches between Signal, Overlap and Roaming (D64)', async ({ page }) => {
   await expect(
     panel(page).getByRole('heading', { name: 'Roaming' }),
   ).toBeVisible()
-  await expect(
-    panel(page).locator('.legend').getByText('Wi-Fi 6E router'),
-  ).toBeVisible()
+  await expect(panel(page).locator('.legend').getByText('Router')).toBeVisible()
   await expect(summary(page)).toContainText('is a gap below -70 dBm on 5 GHz.')
 })
 
@@ -132,9 +130,7 @@ test('a neighbour’s network adds interference (D67)', async ({ page }) => {
   const noisy = async () =>
     Number(/^(\d+)%/.exec(await summary(page).innerText())![1])
   // Put the sample's router on channel 42 at 80 MHz.
-  await panel(page)
-    .getByRole('button', { name: 'Wi-Fi 6E router', exact: true })
-    .click()
+  await panel(page).getByRole('button', { name: 'Router', exact: true }).click()
   await panel(page).getByLabel('5 GHz width').selectOption({ label: '80 MHz' })
   await panel(page).getByLabel('5 GHz channel').selectOption('42')
   await page.keyboard.press('Escape')

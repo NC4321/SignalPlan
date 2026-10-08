@@ -164,7 +164,7 @@ const figures = {
     // One step out, so the new access point's label isn't cut off.
     await page.getByRole('button', { name: 'Zoom out' }).click()
     const before = await shoot(page, view)
-    await suggestAndApply(page, 'Find a better spot for Wi-Fi 6E router')
+    await suggestAndApply(page, 'Find a better spot for Router')
     await coverage(page)
       .getByText(/^92% of/)
       .waitFor()

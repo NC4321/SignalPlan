@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ### Added
 
+- Scan your network can add your router: answer a device with "Mine: a new access point" and Apply adds an access point named after its network, with radios on the bands the scan heard, in the middle of the floor, selected so you can drag it to where it is. The dialog lists what it will add first, and it's all one undo step with the rest of the scan (D105).
+
 - Upload: a new map in the Show menu with the phone's signal at its access point, since a phone sends at much less power than a router (14, 10 and 12 dBm on 2.4, 5 and 6 GHz). It's hatched where download reaches the coverage target and upload doesn't, and the summary gives that share of the floor. MODEL.md's Upload section has the sources and what's left out (D99).
 
 - Install and work offline, hidden for now: SignalPlan can be installed as an app and keeps working without a connection after the first visit, with a line saying when a new version is ready to reload into. It's off for everyone until the owner opens it, and nothing on the page mentions it; a browser turns it on with `/?offline=on` and off again with `/?offline=off`. Plans stay where they were, in this browser's storage (D98).
@@ -87,6 +89,8 @@ All notable changes to this project are documented here. The format follows [Kee
 - Overlap and Roaming views: a Show menu next to the band picks what the heatmap shows. **Signal** is the heatmap as before. **Overlap** counts the access points competing for a device in each spot: those within 8 dB of the strongest and at least −70 dBm. **Roaming** colours each area by the access point a device would be on, draws a line where it would switch, and hatches gaps where none reaches −70 dBm. Each has its own legend and summary line (the share with two or more competing, or in gaps), and the 3D view and PNG export follow the choice. The defaults are Apple's roaming rules for iPhone and iPad. With nothing selected, "Overlap and roaming" in the panel changes them for the plan, saved as the optional `overlapMarginDb` and `roamThresholdDbm` fields (D64).
 
 ### Changed
+
+- The sample home's router is now called "Router" rather than "Wi-Fi 6E router", which read like a band when picking which networks are yours in Scan your network. Plans already saved keep their names (D105).
 
 - The editor does less work as the pointer moves. Hovering no longer redraws the plan unless the tool draws at the pointer, and the canvas keeps its backing store between draws. Dragging an access point no longer rebuilds the map, its heatmap bitmap and summary until new coverage arrives. Hovering with Select costs about half as much on the main thread, and dragging an access point about 10% less (D102).
 

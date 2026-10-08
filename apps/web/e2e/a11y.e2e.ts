@@ -45,7 +45,7 @@ test.describe('axe-core finds no serious problems', () => {
   test('in the optimizer panel with a suggestion (D44)', async ({ page }) => {
     await openEditor(page)
     await panel(page)
-      .getByRole('button', { name: 'Find a better spot for Wi-Fi 6E router' })
+      .getByRole('button', { name: 'Find a better spot for Router' })
       .click()
     await expect(
       panel(page).getByRole('button', { name: 'Apply' }),
@@ -113,7 +113,7 @@ test.describe('axe-core finds no serious problems', () => {
 
     // Editing the sample puts it in the list, so it can be deleted.
     await panel(page)
-      .getByRole('button', { name: 'Wi-Fi 6E router', exact: true })
+      .getByRole('button', { name: 'Router', exact: true })
       .click()
     await canvas(page).focus()
     await page.keyboard.press('ArrowRight')
@@ -254,9 +254,9 @@ test('Shift+Tab from the canvas starts at the last item, an access point', async
   await canvas(page).focus()
   await page.keyboard.press('Shift+Tab')
   await expect(announcement(page)).toHaveText(
-    /^Access point Wi-Fi 6E router, at .*, (\d+) of \1$/,
+    /^Access point Router, at .*, (\d+) of \1$/,
   )
   await expect(
-    panel(page).getByRole('heading', { name: 'Wi-Fi 6E router' }),
+    panel(page).getByRole('heading', { name: 'Router' }),
   ).toBeVisible()
 })

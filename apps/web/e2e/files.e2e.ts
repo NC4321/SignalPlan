@@ -11,9 +11,7 @@ async function openFileMenu(page: Page) {
 }
 
 async function moveRouter(page: Page) {
-  await panel(page)
-    .getByRole('button', { name: 'Wi-Fi 6E router', exact: true })
-    .click()
+  await panel(page).getByRole('button', { name: 'Router', exact: true }).click()
   await page.locator('.editor-canvas').focus()
   await page.keyboard.press('Shift+ArrowRight')
   await expect(
@@ -26,9 +24,7 @@ test('restores the last plan after a reload', async ({ page }) => {
   await moveRouter(page)
   await page.reload()
   await openEditor(page)
-  await panel(page)
-    .getByRole('button', { name: 'Wi-Fi 6E router', exact: true })
-    .click()
+  await panel(page).getByRole('button', { name: 'Router', exact: true }).click()
   await expect(panel(page).locator('dd').first()).toHaveText('6.10 m, 1.20 m')
 })
 

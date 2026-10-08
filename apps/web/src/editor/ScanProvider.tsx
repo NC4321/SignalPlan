@@ -1,8 +1,11 @@
 import {
+  addScanAccessPoints,
   applyScan,
   applyScanAtSpot,
   findSurveySpot,
+  floorMiddle,
   groupScanDevices,
+  newScanAccessPoints,
   parseScan,
   planScan,
   radioKey,
@@ -16,6 +19,7 @@ import {
   type ScanDevice,
   type ScanEntry,
   type ScanFormat,
+  type ScanNewAccessPoint,
   type ScanPlace,
   type ScanSummary,
   type SkippedEntry,
@@ -39,6 +43,7 @@ import { ScanContext } from './scanContext.ts'
 const NEIGHBOUR = 'neighbour'
 const IGNORE = 'ignore'
 const AP = 'ap:'
+const NEW_AP = 'new'
 
 /** A scan that has been read, waiting for answers. */
 interface ReadScan {
@@ -71,9 +76,17 @@ const NO_ANSWERS: Answers = {
 
 const deviceKey = (device: ScanDevice) => device.entries[0]!.bssid
 
-function choiceOf(value: string | undefined): ScanChoice | undefined {
+/**
+ * An answer as a choice. A new access point is one per device (D105), even
+ * when its BSSIDs are answered one at a time.
+ */
+function choiceOf(
+  value: string | undefined,
+  device: ScanDevice,
+): ScanChoice | undefined {
   if (value === NEIGHBOUR) return 'neighbour'
   if (value === IGNORE) return 'ignore'
+  if (value === NEW_AP) return { newAccessPoint: deviceKey(device) }
   if (value?.startsWith(AP)) return { apId: value.slice(AP.length) }
   return undefined
 }
@@ -89,6 +102,7 @@ function choicesOf(
     for (const { bssid } of device.entries) {
       const choice = choiceOf(
         split ? answers.byBssid[bssid] : answers.byDevice[deviceKey(device)],
+        device,
       )
       if (choice) choices.set(bssid, choice)
     }
@@ -173,36 +187,62 @@ export function ScanProvider({ children }: { children: ReactNode }) {
     given: Answers,
     place: ScanPlace | undefined,
   ) => {
-    const plan = store.getState().plan
+    const state = store.getState()
+    const plan = state.plan
     const devices = groupScanDevices(unknownScanEntries(plan, read.entries))
-    const changes = planScan(
-      plan,
-      read.entries,
-      choicesOf(devices, given),
-      scanTuning(plan),
-    )
+    const choices = choicesOf(devices, given)
+    const tuning = scanTuning(plan)
     const overwrite = new Set(given.overwrite)
-    const at =
-      place && 'spotId' in place && !findSurveySpot(plan, place.spotId)
-        ? undefined
-        : place
+    const spot =
+      place && 'spotId' in place
+        ? findSurveySpot(plan, place.spotId)
+        : undefined
+    const at = place && 'spotId' in place && !spot ? undefined : place
+    // New access points go on the floor the scan was taken on (D105).
+    const floorId =
+      at && 'floorId' in at ? at.floorId : (spot?.floorId ?? state.floorId)
+    const adding = newScanAccessPoints(plan, read.entries, choices).length > 0
     let summary: ScanSummary | undefined
     let atSpot: SpotScanSummary | undefined
+    let added: string[] = []
     // BSSIDs, neighbours and readings don't change coverage, so a search or
     // suggestion stays (D71), unless a radio's channel changes, as when set
-    // by hand.
-    store.getState().edit(
+    // by hand, or an access point is added.
+    state.edit(
       'Import scan',
       (draft) => {
+        const resolved = addScanAccessPoints(
+          draft,
+          read.entries,
+          choices,
+          floorId,
+          floorMiddle(draft, floorId),
+        )
+        added = resolved.ids
+        const changes = planScan(draft, read.entries, resolved.choices, tuning)
         summary = applyScan(draft, changes, overwrite)
         if (at) atSpot = applyScanAtSpot(draft, read.entries, changes, at)
       },
-      { keepOptimizer: !tunesRadios(changes, overwrite) },
+      {
+        keepOptimizer:
+          !adding &&
+          !tunesRadios(
+            planScan(plan, read.entries, choices, tuning),
+            overwrite,
+          ),
+      },
     )
-    if (atSpot) {
-      store.getState().select([{ kind: 'surveySpot', id: atSpot.spotId }])
+    const after = store.getState()
+    // A new access point is selected, ready to drag to where it is.
+    if (added.length > 0) {
+      after.select(added.map((id) => ({ kind: 'accessPoint' as const, id })))
+    } else if (atSpot) {
+      after.select([{ kind: 'surveySpot', id: atSpot.spotId }])
     }
-    if (summary) store.getState().setNotice(scanSummaryText(summary, atSpot))
+    const names = added.map(
+      (id) => after.plan.accessPoints.find((a) => a.id === id)?.name ?? id,
+    )
+    if (summary) after.setNotice(scanSummaryText(summary, atSpot, names))
   }
 
   const apply = () => {
@@ -544,6 +584,7 @@ function AnswerStep({
   const { plan, devices, choices, unanswered } = useAnswerState(scan, answers)
   const { entries } = scan
   const changes = planScan(plan, entries, choices, scanTuning(plan))
+  const adding = newScanAccessPoints(plan, entries, choices)
   const known = entries.length - devices.flatMap((d) => d.entries).length
   return (
     <>
@@ -552,7 +593,7 @@ function AnswerStep({
         from {SCAN_FORMAT_NAMES[scan.format]}
         {known > 0 && `, ${known} of them already known`}.
         {devices.length > 0 &&
-          ' For each device, pick the access point it is, or say it’s a neighbour’s (counted as interference) or to ignore it. Your answers are saved, so later scans match on their own.'}
+          ' For each device, pick the access point it is (or a new one), or say it’s a neighbour’s (counted as interference) or to ignore it. Your answers are saved, so later scans match on their own.'}
       </p>
       {devices.length > 0 && (
         <>
@@ -588,6 +629,7 @@ function AnswerStep({
           </button>
         </>
       )}
+      {adding.length > 0 && <NewAccessPoints adding={adding} />}
       <Review
         scan={scan}
         plan={plan}
@@ -750,9 +792,34 @@ function AnswerSelect({
           {floorName(ap.floorId)}
         </option>
       ))}
+      <option value={NEW_AP}>Mine: a new access point</option>
       <option value={NEIGHBOUR}>A neighbour’s</option>
       <option value={IGNORE}>Ignore</option>
     </select>
+  )
+}
+
+/** The access points applying adds, and where they go (D105). */
+function NewAccessPoints({ adding }: { adding: ScanNewAccessPoint[] }) {
+  const one = adding.length === 1
+  return (
+    <div className="hint">
+      <p>
+        {one ? 'Adds an access point' : `Adds ${adding.length} access points`}{' '}
+        in the middle of the floor, with a radio on each band the scan heard:
+      </p>
+      <ul>
+        {adding.map((ap) => (
+          <li key={ap.key}>
+            {ap.name} ({ap.bands.map((b) => BAND_LABELS[b]).join(' and ')})
+          </li>
+        ))}
+      </ul>
+      <p>
+        Drag {one ? 'it' : 'each'} to where {one ? 'it is' : 'they are'} in your
+        home afterwards.
+      </p>
+    </div>
   )
 }
 

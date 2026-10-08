@@ -249,7 +249,7 @@ test.describe('worker failures', () => {
     await openEditor(page)
     await expect(coverageStatus(page)).toHaveText(/^86% of/)
     const find = panel(page).getByRole('button', {
-      name: 'Find a better spot for Wi-Fi 6E router',
+      name: 'Find a better spot for Router',
     })
     await find.click()
 

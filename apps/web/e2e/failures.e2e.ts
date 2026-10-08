@@ -266,7 +266,7 @@ test.describe('storage that refuses to save (D93)', () => {
 
   const routerX = async (page: Page) => {
     await panel(page)
-      .getByRole('button', { name: 'Wi-Fi 6E router', exact: true })
+      .getByRole('button', { name: 'Router', exact: true })
       .click()
     return panel(page).locator('dd').first()
   }
@@ -307,7 +307,7 @@ test.describe('storage that refuses to save (D93)', () => {
     await openEditor(page)
     // A link to the plan with the router moved east.
     await panel(page)
-      .getByRole('button', { name: 'Wi-Fi 6E router', exact: true })
+      .getByRole('button', { name: 'Router', exact: true })
       .click()
     await page.locator('.editor-canvas').focus()
     await page.keyboard.press('Shift+ArrowRight')
@@ -324,7 +324,7 @@ test.describe('storage that refuses to save (D93)', () => {
     await page.getByRole('button', { name: 'Open the sample home' }).click()
     await setFull(page)
     await panel(page)
-      .getByRole('button', { name: 'Wi-Fi 6E router', exact: true })
+      .getByRole('button', { name: 'Router', exact: true })
       .click()
     await page.locator('.editor-canvas').focus()
     await page.keyboard.press('Shift+ArrowLeft')

@@ -50,7 +50,7 @@ test('adds, edits, moves and deletes a survey spot, with undo (D71)', async ({
   await signal.press('Enter')
   await expect(signal).toHaveValue('-58')
   await expect(
-    panel(page).getByRole('group', { name: 'Wi-Fi 6E router, 5 GHz' }),
+    panel(page).getByRole('group', { name: 'Router, 5 GHz' }),
   ).toBeVisible()
   await expect(undo(page)).toHaveAttribute(
     'title',
@@ -91,14 +91,14 @@ test('deleting an access point deletes its readings; undo brings both back (D71)
   await clickPlan(page, 3, 4)
   await panel(page).getByRole('button', { name: 'Add a reading' }).click()
   await expect(
-    panel(page).getByRole('group', { name: 'Wi-Fi 6E router, 2.4 GHz' }),
+    panel(page).getByRole('group', { name: 'Router, 2.4 GHz' }),
   ).toBeVisible()
 
   // Select the router (its pin is at 5.6, 1.2) and delete it.
   await page.keyboard.press('v')
   await clickPlan(page, 5.6, 1.2)
   await expect(
-    panel(page).getByRole('heading', { name: 'Wi-Fi 6E router' }),
+    panel(page).getByRole('heading', { name: 'Router' }),
   ).toBeVisible()
   await page.keyboard.press('Delete')
   await expect(
@@ -129,6 +129,6 @@ test('a radio takes BSSIDs in any common form, one radio each (D71)', async ({
   await six.fill('a4:2b:b0:12:34:57')
   await six.press('Enter')
   await expect(panel(page).getByRole('alert')).toContainText(
-    'already on Wi-Fi 6E router, 5 GHz',
+    'already on Router, 5 GHz',
   )
 })
