@@ -269,7 +269,7 @@ Goal: turn the working tool into something that looks and reads like a professio
 - [x] Shareable plan links, encoded in the URL (#156, D87, D88)
 - [x] README: GIF, live demo link, feature list, architecture diagram, model summary, roadmap (#160, D87, D94, D95)
 - [x] Docs site or MODEL.md expanded into a readable explainer (#160, D87, D94, D95)
-- [ ] A short write-up or blog post on the physics and the optimizer (#161, D87)
+- [x] A short write-up or blog post on the physics and the optimizer (#161, D87, D96)
 - [ ] Launch posts where home-network and developer audiences gather (#162, D87)
 
 **Decide at this phase**
