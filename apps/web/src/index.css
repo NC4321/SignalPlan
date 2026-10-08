@@ -877,6 +877,8 @@ kbd {
   border: 1px solid var(--border);
   border-radius: 0.75rem;
   box-shadow: 0 16px 48px rgb(0 0 0 / 0.3);
+  /* Focus moved by Tab stays clear of the pinned buttons (D106). */
+  scroll-padding-bottom: 5rem;
 }
 
 .dialog.wide {
@@ -1485,6 +1487,7 @@ h4.survey-report {
   align-items: flex-start;
   gap: 0.5rem 1rem;
 }
+
 .scan-steps {
   margin: 0.5rem 0;
   padding-left: 1.25rem;

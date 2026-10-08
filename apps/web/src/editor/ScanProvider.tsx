@@ -649,7 +649,7 @@ function DeviceCard({
       </div>
       {!split && (
         <Answer
-          about={name}
+          about={`${name}, ${strongest.bssid}`}
           plan={plan}
           value={answers.byDevice[key]}
           onChange={(value) =>
