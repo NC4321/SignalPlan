@@ -74,10 +74,15 @@ test('imports a scan: your radios’ BSSIDs, and a neighbour’s network (D80)',
   await expect(answers).toContainText('Read 3 BSSIDs from Windows (netsh)')
   const apply = answers.getByRole('button', { name: 'Apply' })
   await expect(apply).toBeDisabled()
-  // The router's two BSSIDs are one device.
+  // The router's two BSSIDs are one device: Mine, then which access point.
   await answers
-    .getByRole('combobox', { name: /HomeNet/ })
-    .selectOption({ label: 'Mine: Router' })
+    .getByRole('group', { name: /HomeNet/ })
+    .getByText('Mine', { exact: true })
+    .click()
+  await expect(apply).toBeDisabled()
+  await answers
+    .getByRole('combobox', { name: /Which access point\? \(HomeNet/ })
+    .selectOption({ label: 'Router' })
   await answers
     .getByRole('button', { name: 'Mark the rest a neighbour’s' })
     .click()
@@ -121,9 +126,14 @@ test('adds your router from a scan when the plan doesn’t have it (D105)', asyn
 
   await readScan(page, NETSH)
   const answers = dialog(page, 'Which networks are yours?')
+  // With no access points, Mine is a new one straight away.
   await answers
-    .getByRole('combobox', { name: /HomeNet/ })
-    .selectOption({ label: 'Mine: a new access point' })
+    .getByRole('group', { name: /HomeNet/ })
+    .getByText('Mine', { exact: true })
+    .click()
+  await expect(
+    answers.getByRole('combobox', { name: /Which access point\? \(HomeNet/ }),
+  ).toHaveValue('new')
   await expect(answers).toContainText('Adds an access point')
   await expect(answers).toContainText('HomeNet (2.4 GHz and 5 GHz)')
   await answers
@@ -159,6 +169,46 @@ test('adds your router from a scan when the plan doesn’t have it (D105)', asyn
   await expect(
     panel(page).getByRole('textbox', { name: 'Next door, 5 GHz Name' }),
   ).toBeHidden()
+})
+
+test('a card per device, answered with buttons, split inside its card (D106)', async ({
+  page,
+}) => {
+  await readScan(page, NETSH)
+  const answers = dialog(page, 'Which networks are yours?')
+  const status = answers.locator('.dialog-status')
+  await expect(status).toHaveText('0 of 2 devices answered')
+  const home = answers.locator('.scan-device').filter({ hasText: 'HomeNet' })
+  await expect(home.getByRole('heading', { name: 'HomeNet' })).toBeVisible()
+  await expect(home).toContainText('2 networks')
+
+  // Split: each network gets its own answer inside the card.
+  const toggle = home.getByRole('button', {
+    name: 'Answer each network separately (2)',
+  })
+  await toggle.click()
+  const networks = home.locator('.scan-network')
+  await expect(networks).toHaveCount(2)
+  await expect(
+    home.getByRole('button', { name: 'Answer as one device' }),
+  ).toHaveAttribute('aria-expanded', 'true')
+  await networks.nth(0).getByText('Mine', { exact: true }).click()
+  await networks
+    .nth(0)
+    .getByRole('combobox', { name: /Which access point/ })
+    .selectOption({ label: 'Router' })
+  await networks.nth(1).getByText('Ignore', { exact: true }).click()
+  await expect(status).toHaveText('1 of 2 devices answered')
+
+  // The rest become a neighbour's; the Apply button turns on.
+  await answers
+    .getByRole('button', { name: 'Mark the rest a neighbour’s' })
+    .click()
+  await expect(status).toHaveText('2 of 2 devices answered')
+  await answers.getByRole('button', { name: 'Apply' }).click()
+  await expect(notice(page)).toHaveText(
+    'Scan imported: matched 1 BSSID to radios, added 1 neighbour’s network, ignored 1 BSSID.',
+  )
 })
 
 test('says what’s wrong with output it can’t read (D80)', async ({ page }) => {
